@@ -637,7 +637,7 @@ namespace eval ::ngBot::plugin::Blow {
 				if {[string equal [lindex $item 2] "+OK"]} {
 					continue
 				}
-				if {![string equal [lindex $item 1] "-|-"] && ![matchattr $handle [lindex $item 1] $target]} {
+				if {![string equal [lindex $item 1] "-|-"] && ![string equal [lindex $item 1] "*|*"] && ![matchattr $handle [lindex $item 1] $target]} {
 					continue
 				}
 				set blowEncryptedMessage 1
