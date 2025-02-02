@@ -276,6 +276,7 @@ main(int argc, char *argv[])
 				g.v.file.size = fileinfo.st_size;
 				g.v.total.start_time = 0;
 
+				_err_file_banned(g.v.file.name, &g.v);
 				if (!fileexists("file_id.diz")) {
 					sprintf(exec, "%s -qqjnCLL \"%s\" file_id.diz 2>.delme", unzip_bin, g.v.file.name);
 					if (execute(exec) != 0) {
