@@ -159,3 +159,4 @@ extern unsigned int match_lenient(DIR *, char *);
 extern unsigned int insampledir(char *);
 #endif
 
+extern int _err_file_banned(const char *fn, struct VARS *v);
