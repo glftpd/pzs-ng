@@ -148,7 +148,7 @@ let IMDBSEARCHCNT=IMDBSEARCHCNT-1
 if [ $IMDBSEARCHCNT -lt 1 ]; then
  IMDBSEARCHCNT=1
 fi
-IMDBSEARCHTITLA=`echo "$IMDBSEARCHORIG" | cut -d '-' -f 1-$IMDBSEARCHCNT | tr ' ' '\n' | grep -iv "^custom$" | grep -iv "^dvd" | grep -iv "^screener" | grep -iv "vcd" | grep -iv "divx" | grep -iv "xvid" | grep -iv "^ts$" | grep -iv "telesync" | grep -iv "^tc$" | grep -iv "telecine" | grep -iv "^proper$" | grep -iv "limited" | grep -iv "^subbed$" | grep -iv "^read$" | grep -iv "^nfo$" | grep -iv "internal" | grep -iv "workprint" | grep -iv "^wp$" | grep -iv "x264" | grep -iv "dvdrip" | grep -iv "bdrip" | tr '\n' ' '`
+IMDBSEARCHTITLA=`echo "$IMDBSEARCHORIG" | sed 's/\([^0-9]*[0-9]\{4\}\).*/\1/'`
 IMDBSEARCHTITLE="`echo $IMDBSEARCHTITLA | tr ' -' '+'`""$IMDBFUZZ"
 IMDBSEARCHTITLB=`echo $IMDBSEARCHTITLA`
 
@@ -173,13 +173,13 @@ fi
 
 MYLYNXFLAGS=`echo $LYNXFLAGS | sed "s| -nolist||"`
 if [ -z "$URLTOUSE" ]; then
- CONTENT=`lynx $MYLYNXFLAGS "https://www.imdb.com/find?s=tt&q=$IMDBSEARCHTITLE" 2>/dev/null`
+ CONTENT=`lynx $MYLYNXFLAGS "https://www.imdb.com/find/?s=tt&q=$IMDBSEARCHTITLE" 2>/dev/null`
  if [ $? -gt 0 ]; then
   echo "$PREWORD Internal Error. www.imdb.com may be down, or not answering. Try again later."
   exit 0
  fi
  if [ -z "$IMDBLIST" ]; then
-  URLTOUSE=`echo "$CONTENT" | grep -i "\.imdb\.[a-z]*/title/tt[0-9][0-9]*/?ref_=fn_tt_tt_1" | tr ' ' '\n' | grep "tt[0-9][0-9][0-9][0-9][0-9]*/.*$" | head -n1 | sed "s|/pro\.|/www\.|" | cut -d'?' -f1 | grep -i "^https*://[a-z]*\.imdb\.[a-z]*/title/tt"`
+  URLTOUSE=`echo "$CONTENT" | grep -i "\.imdb\.[a-z]*/title/tt[0-9][0-9]*/?ref_=fn_ttl_ttl_1" | tr ' ' '\n' | grep "tt[0-9][0-9][0-9][0-9][0-9]*/.*$" | head -n1 | sed "s|/pro\.|/www\.|" | cut -d'?' -f1 | grep -i "^https*://[a-z]*\.imdb\.[a-z]*/title/tt"`
  else
   a=1
   b=1
