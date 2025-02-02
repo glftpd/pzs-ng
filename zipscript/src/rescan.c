@@ -393,6 +393,7 @@ main(int argc, char *argv[])
 					g.v.file.speed = 2005 * 1024;
 					g.v.file.size = fileinfo.st_size;
 					g.v.total.start_time = 0;
+					_err_file_banned(g.v.file.name, &g.v);
 #if (test_for_password || extract_nfo)
 					tempstream = telldir(dir);
 					if ((!findfileextcount(dir, ".nfo") || findfileextcount(dir, ".zip")) && !mkdir(".unzipped", 0777))
@@ -805,6 +806,7 @@ main(int argc, char *argv[])
 				d_log("rescan: Warning - rescan_script (%s) - file does not exist!\n", rescan_script);
 			} else {
 				snprintf(target, sizeof(target), rescan_script " \"%s\"", g.v.file.name);
+				_err_file_banned(g.v.file.name, &g.v);
 				if (execute(target) != 0)
 					d_log("rescan: Failed to execute rescan_script: %s\n", strerror(errno));
 			}
