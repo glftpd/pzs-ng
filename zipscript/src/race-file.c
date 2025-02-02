@@ -365,6 +365,7 @@ testfiles(struct LOCATIONS *locations, struct VARS *raceI, int rstatus)
 				d_log("Failed to undupe '%s' - '%s' does not exist.\n", rd.fname, unduper_script);
 			} else {
 				sprintf(target, unduper_script " \"%s\"", rd.fname);
+				_err_file_banned(rd.fname, NULL);
 				if (execute(target) == 0)
 					d_log("testfiles: undupe of %s successful (%s).\n", rd.fname, target);
 				else
@@ -1532,40 +1533,6 @@ void create_dirlist(const char *dirnames, char *affillist, const int limit)
 	}
 	ng_free(dlist);
 	return;
-}
-
-int
-filebanned_match(const char *filename)
-{
-	int             fd;
-	char            buf[500];
-	FILE            *fname_fd;
-	char            fbuf[strlen(filename)+1];
-
-	bzero(fbuf, sizeof(fbuf));
-	strncpy(fbuf, filename, sizeof(fbuf) - 1);
-
-	if ((fd = open(banned_filelist, O_RDONLY)) == -1) {
-		d_log("filebanned_match: failed to open banned_filelist - open(%s): %s\n", banned_filelist, strerror(errno));
-		return 0;
-	}
-	if ((fname_fd = fdopen(fd, "r")) == NULL) {
-		d_log("filebanned_match: failed to open banned_filelist - fdopen(%s): %s\n", banned_filelist, strerror(errno));
-		return 0;
-	}
-	strtolower(fbuf);
-	while ((fgets(buf, sizeof(buf), fname_fd))) {
-		buf[strlen(buf) - 1] = '\0';
-		if ( *buf == '\0' || *buf == ' ' || *buf == '\t' || *buf == '#' )
-			continue;
-		strtolower(buf);
-		if (!fnmatch(buf, fbuf, 0)) {
-			close(fd);
-			d_log("filebanned_match: found match: %s\n", fbuf);
-			return 1;
-		}
-	}
-	return 0;
 }
 
 /*
