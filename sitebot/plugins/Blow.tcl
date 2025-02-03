@@ -58,6 +58,9 @@ namespace eval ::ngBot::plugin::Blow {
 	## Set this to false if you dont want to deal with them. (Recommended)
 	variable allowUnencrypted false
 	##
+	## Allow DCC CHAT, even if allowUnencrypted is false
+	variable allowDCC false
+	##
 	## Check for any EBC encrypted messages send in channel and pm
 	## (1=Ignore 2=Msg 3=Kick 4=Ban or 0=Disable)
 	variable checkCbc 2
@@ -690,11 +693,17 @@ namespace eval ::ngBot::plugin::Blow {
 		variable trustedUsers
 		variable allowUnencrypted
 		variable keyxAllowUnencrypted
+		variable allowDCC
 
 		set nick [lindex [split $from "!"] 0]
 		#set uhost [lindex [split $from "!"] 1]
 		set target [lindex [split $text] 0]
 		#set handle [nick2hand $nick]
+
+		if { [IsTrue $allowDCC] && [string match ":\001DCC CHAT *" [string range $text [string first : $text] end]] } {
+			${ns}::Debug "DCC chat allowed: $text"
+			return 0;
+		}
 
 		if { [IsTrue $allowUnencrypted] || [string match ":+OK *" [string range $text [string first : $text] end]] } {
 			if {![${ns}::is_trustedusers]} {
