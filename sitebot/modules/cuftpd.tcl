@@ -12,38 +12,37 @@ namespace eval ::ngBot::module::cuftpd {
 	variable renames [list init_binaries]
 
 	namespace export *
+}
+proc ::ngBot::module::cuftpd::init {} {
+	variable np
+	variable renames
 
-	proc init {} {
-		variable np
-		variable renames
+	foreach name $renames {
+		rename ${np}::$name ${np}::_$name
+	}
 
-		foreach name $renames {
-			rename ${np}::$name ${np}::_$name
-		}
+	namespace inscope $np {
+		namespace import -force ::ngBot::module::cuftpd::*
+	}
+}
 
-		namespace inscope $np {
-			namespace import -force ::ngBot::module::cuftpd::*
+proc ::ngBot::module::cuftpd::init_binaries {} {
+	variable np
+	variable ${np}::bnc
+
+	catch {unset bnc(CURL) bnc(DF) bnc(INCOMPLETE) bnc(PING) bnc(UPTIME)}
+}
+
+proc ::ngBot::module::cuftpd::deinit {} {
+	variable ns
+	variable renames
+
+	foreach name $renames {
+		if {[llength [info commands "${np}::_$name"]] == 1} {
+			catch {rename ${np}::$name {}}
+			catch {rename ${np}::_$name ${np}::$name}
 		}
 	}
 
-	proc init_binaries {} {
-		variable np
-		variable ${np}::bnc
-
-		catch {unset bnc(CURL) bnc(DF) bnc(INCOMPLETE) bnc(PING) bnc(UPTIME)}
-	}
-
-	proc deinit {} {
-		variable ns
-		variable renames
-
-		foreach name $renames {
-			if {[llength [info commands "${np}::_$name"]] == 1} {
-				catch {rename ${np}::$name {}}
-				catch {rename ${np}::_$name ${np}::$name}
-			}
-		}
-
-		namespace delete $ns
-	}
+	namespace delete $ns
 }
