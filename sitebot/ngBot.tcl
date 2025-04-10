@@ -32,7 +32,6 @@
 namespace eval ::ngBot {
 	variable ns [namespace current]
 	variable dzerror 0
-	variable ng_timer
 	variable scriptpath [file dirname [info script]]
 
 	variable zeroconvert
@@ -232,14 +231,9 @@ namespace eval ::ngBot {
 
 	proc init_timer {} {
 		variable ns
-		variable ng_timer
-
-		## Start the log timer
-		if {[info exists ng_timer] && [catch {killutimer $ng_timer} error]} {
-			putlog "\[ngBot\] Warning :: Unable to kill log timer ($error)."
-			putlog "\[ngBot\] Warning :: You should .restart the bot to be safe."
-		}
-		set ng_timer [utimer 1 ${ns}::readlogtimer]
+		# https://docs.eggheads.org/using/tcl-commands.html#utimer-seconds-tcl-command-count-timername
+		# <seconds> <tcl-command> [count [timerName]]
+		utimer 1 ${ns}::readlogtimer 0 ng_readlogtimer
 	}
 
 	proc init_plugins {} {
@@ -271,9 +265,10 @@ namespace eval ::ngBot {
 	# Uses _ng to avoid being overwriten by namespace import.
 	proc deinit_ng {type} {
 		variable ns
-		variable ng_timer
 
-		catch {killutimer $ng_timer}
+		# https://docs.eggheads.org/using/tcl-commands.html#killutimer-timername
+		# killutimer <timerName>
+		catch {killutimer ng_readlogtimer}
 
 		# Remove all binds bound to any procs that match ::ngBot::*
 		foreach bind [binds "${ns}::*"] {
@@ -371,13 +366,11 @@ namespace eval ::ngBot {
 
 	proc readlogtimer {} {
 		variable ns
-		variable ng_timer
 		global errorInfo
 		if {[catch {${ns}::readlog}]} {
 			putlog "\[ngBot\] Error :: Unhandled error, please report to developers:"
 			${ns}::cmd_error
 		}
-		set ng_timer [utimer 1 ${ns}::readlogtimer]
 	}
 
 	proc readlog {} {
