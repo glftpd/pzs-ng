@@ -302,7 +302,7 @@ testfiles(struct LOCATIONS *locations, struct VARS *raceI, int rstatus)
 			remove_lock(raceI);
 			exit(EXIT_FAILURE);
 		}
-		ext = find_last_of(raceI->file.name, ".");
+		ext = find_last_of(rd.fname, ".");
 		if (*ext == '.')
 			ext++;
 		strlcpy(raceI->file.name, rd.fname, NAME_MAX);
