@@ -1,0 +1,22 @@
+#------------------------------------------------------------------------------
+# PreTimeSQL Theme File for pzs-ng
+#
+# Defines the output strings for the PreTimeSQL plugin.
+#
+# Variables for NEWPRETIME and OLDPRETIME:
+#   %pf         - Path/Filename of the release (often just the release name)
+#   %u_name     - Uploader's name
+#   %g_name     - Uploader's primary group
+#   %u_tagline  - Uploader's tagline
+#   %preage     - Formatted duration since the pre (e.g., "5m 12s")
+#   %predate    - Date of the pre (e.g., "01/01/24")
+#   %pretime    - Time of the pre (e.g., "15:04:55")
+#------------------------------------------------------------------------------
+
+# Announce for a recent pre (within the 'lateMins' threshold).
+# Example: NEW PRE » [MyGroup] got 'My.Release-GROUP' (pre: 5m 12s ago)
+set theme(NEWPRETIME) "NEW PRE » \[%g_name] got '%pf' (pre: %preage ago)"
+
+# Announce for an old pre (older than the 'lateMins' threshold).
+# Example: OLD PRE » [MyGroup] got 'My.Old.Release-GROUP' (pre: 2h 30m ago on 01/01/24)
+set theme(OLDPRETIME) "OLD PRE » \[%g_name] got '%pf' (pre: %preage ago on %predate)"
