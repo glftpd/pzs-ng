@@ -3,20 +3,38 @@
 #
 # Defines the output strings for the PreTimeSQL plugin.
 #
-# Variables for NEWPRETIME and OLDPRETIME:
-#   %pf         - Path/Filename of the release (often just the release name)
-#   %u_name     - Uploader's name
-#   %g_name     - Uploader's primary group
-#   %u_tagline  - Uploader's tagline
+# The format for each line MUST be:
+#   announce.EVENT_NAME = "Your formatted string"
+#
+# Available variables for NEWPRETIME and OLDPRETIME:
+#
+# --- From PreTimeSQL ---
 #   %preage     - Formatted duration since the pre (e.g., "5m 12s")
-#   %predate    - Date of the pre (e.g., "01/01/24")
+#   %predate    - Date of the pre (e.g., "01/01/25")
 #   %pretime    - Time of the pre (e.g., "15:04:55")
+#
+# --- From ngBot (Standard NEWDIR event) ---
+#   %pf         - Path and filename of the release. Use %relname for just the name.
+#   %relname    - The release name (directory name).
+#   %path       - The parent directory of the release.
+#   %u_name     - Uploader's name.
+#   %g_name     - Uploader's primary group.
+#   %u_tagline  - Uploader's tagline.
+#   %section    - The site section where the release was uploaded.
+#   %sitename   - The name of the site.
+#
+# --- Basic Formatting ---
+#   %b{text}    - Bold text
+#   %u{text}    - Underline text
+#   %c1{text}   - Color 1 text (defined in ngBot theme)
+#   ...and so on for other colors...
+#
 #------------------------------------------------------------------------------
 
 # Announce for a recent pre (within the 'lateMins' threshold).
-# Example: NEW PRE » [MyGroup] got 'My.Release-GROUP' (pre: 5m 12s ago)
-set theme(NEWPRETIME) "NEW PRE » \[%g_name] got '%pf' (pre: %preage ago)"
 
-# Announce for an old pre (older than the 'lateMins' threshold).
-# Example: OLD PRE » [MyGroup] got 'My.Old.Release-GROUP' (pre: 2h 30m ago on 01/01/24)
-set theme(OLDPRETIME) "OLD PRE » \[%g_name] got '%pf' (pre: %preage ago on %predate)"
+# 
+announce.NEWPRETIME = "[%b{NEW}][%section] %b{%reldir} by %b{%u_name} of %g_name :: released %preage ago :: %predate %pretime."
+
+# 
+announce.OLDPRETIME = "[%b{OLD}][%section] %b{%reldir} by %b{%u_name} of %g_name :: released %preage ago :: %predate %pretime."

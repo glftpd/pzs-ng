@@ -1,35 +1,44 @@
-# PreTimeSQL Plugin for pzs-ng
+# pzs-ng PreTimeSQL Plugin
 
 **Author:** [ZarTek-Creole](https://github.com/ZarTek-Creole)  
-**Version:** 1.0.0
+**Repo:**   [https://github.com/ZarTek-Creole/pzs-PreTimeSQL](https://github.com/ZarTek-Creole/pzs-PreTimeSQL)  
+**Version:** 2.0.0
 
 ---
 
 ## 1. Overview
 
-`PreTimeSQL` is a plugin for the `pzs-ng` Eggdrop bot framework. Its purpose is to announce the "pre time" of a release when a new directory (`NEWDIR`) is created on the site. It replaces the standard `NEWDIR` announcement with a custom one that includes the age of the release.
+`PreTimeSQL` is a powerful and flexible plugin for the `pzs-ng` Eggdrop bot framework. It replaces the standard `NEWDIR` announcement with a detailed, configurable message that includes the release's "pre" time.
 
-This plugin is designed to be robust, flexible, and efficient, leveraging the `MySQLManager` plugin for centralized database connection management.
+It uses the `MySQLManager` plugin to interact with a database, allowing it to not only announce pre times but also to automatically log releases, update existing records, and store a wealth of optional data for archival and analysis purposes.
 
 ## 2. Features
 
-- **Centralized Connection Management:** Uses `MySQLManager` to handle all database interactions, avoiding connection redundancy.
-- **Automatic Table Creation:** The required database table is created automatically on the first run.
-- **Flexible Configuration:** Table and column names are configurable, allowing easy integration with existing database schemas.
-- **Themable Announcements:** All user-facing messages can be customized via a separate theme file (`PreTimeSQL.zpt`).
-- **"Old Pre" Detection:** Announces releases differently if they are older than a configurable threshold.
-- **Directory Exclusion:** Easily ignore certain directories (like `subs`, `sample`, etc.).
+- **Centralized Connection Management:** Uses `MySQLManager` for robust and efficient database handling.
+- **Automatic Table Creation & Indexing:** Automatically creates a fully-indexed database table on the first run.
+- **Auto-Add New Releases:** If a release is announced via `NEWDIR` but isn't in the database, the plugin can add it automatically with the current time as its pre time.
+- **Auto-Update Null Timestamps:** If a release exists in the database but its `pre_timestamp` is `NULL`, the plugin can update it upon a `NEWDIR` event.
+- **Rich Data Storage:** Optionally stores detailed information for each release:
+  - Site section
+  - Sitename
+  - Uploader's nickname and primary group
+  - The triggering event (`NEWDIR`)
+  - The release group name (extracted from the release string)
+- **Highly Configurable:** Nearly every aspect can be toggled or customized via variables at the top of the script file.
+- **Themable Announcements:** All announcements are fully customizable through the `PreTimeSQL.zpt` theme file, with access to a wide range of variables.
+- **Directory Exclusion:** A configurable list to ignore announcements for specific directories (e.g., `sample`, `subs`).
 
 ## 3. Requirements
 
 - **pzs-ng:** The core bot framework.
-- **MySQLManager Plugin:** This plugin is required for `PreTimeSQL` to function. It must be loaded *before* `PreTimeSQL`.
+- **MySQLManager Plugin:** This plugin is **required** for `PreTimeSQL` to function. It must be loaded *before* `PreTimeSQL` in your configuration.
 - **TclOO (Tcl 8.6+):** Required by the `MySQLManager`'s Query Builder.
 
 ## 4. Installation
 
-1.  **Place Files:** Copy `PreTimeSQL.tcl` and `PreTimeSQL.zpt` into your `scripts/pzs-ng/plugins/` directory.
-2.  **Edit `eggdrop.conf`:** Add the following lines to your Eggdrop config file. Ensure `MySQLManager.tcl` is sourced *before* `PreTimeSQL.tcl`.
+1. **Place Files:** Copy `PreTimeSQL.tcl` and `PreTimeSQL.zpt` into your `scripts/pzs-ng/plugins/` directory.
+2. **Edit `eggdrop.conf`:** Add the following lines to your Eggdrop config file. It is critical that `MySQLManager.tcl` is sourced **before** `PreTimeSQL.tcl`.
+
     ```tcl
     #--> Database connection manager
     source pzs-ng/plugins/MySQLManager.tcl
@@ -37,84 +46,71 @@ This plugin is designed to be robust, flexible, and efficient, leveraging the `M
     #--> Pre-time announcer
     source pzs-ng/plugins/PreTimeSQL.tcl
     ```
-3.  **Rehash:** Rehash your Eggdrop bot for the changes to take effect.
 
-## 5. Configuration
+3. **Configure:** Edit the configuration variables at the top of `PreTimeSQL.tcl` to suit your needs (see section 5 below).
+4. **Rehash:** Rehash your Eggdrop bot. The plugin will automatically create the database table if it doesn't exist.
 
-Configuration is split between three files: `MySQLManager.tcl`, `PreTimeSQL.tcl`, and `PreTimeSQL.zpt`.
+## 5. Configuration (`PreTimeSQL.tcl`)
 
-### 5.1. MySQLManager Setup
+All configuration is done by editing the `variable` definitions at the top of `PreTimeSQL.tcl`.
 
-First, you must define a database connection in `MySQLManager.tcl`. `PreTimeSQL` will use this connection. By default, it looks for a connection named `"pre_db"`.
-
-**Example `MySQLManager.tcl` configuration:**
-```tcl
-# ... inside MySQLManager.tcl ...
-variable connections {
-    # Connection for PreTimeSQL
-    pre_db {
-        host     "127.0.0.1"
-        port     3306
-        user     "pre_user"
-        pass     "pre_password"
-        db       "pre_database"
-    }
-    # ... other connections ...
-}
-# ...
-```
-
-### 5.2. PreTimeSQL.tcl Setup
-
-Next, configure the variables at the top of the `PreTimeSQL.tcl` file:
-
-- `conn_name`: The name of the connection to use from `MySQLManager.tcl`. Defaults to `"pre_db"`.
-- `table_name`: The name of the database table to use. Defaults to `"pre_times"`.
-- `col_release_name`: The name of the column storing the release name. Defaults to `"release_name"`.
-- `col_pre_timestamp`: The name of the column storing the pre time (as a Unix timestamp). Defaults to `"pre_timestamp"`.
-- `lateMins`: The number of minutes after which a release is considered "old". Defaults to `10`.
-- `ignoreDirs`: A list of directory names (using glob patterns) to exclude from pre time lookups.
+| Variable                  | Description                                                                                                   | Default Value      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `conn_name`               | The name of the connection to use from `MySQLManager.tcl`.                                                    | `"default"`        |
+| `table_name`              | The name of the database table to use.                                                                        | `"pre_times"`      |
+| `lateMins`                | Number of minutes after which a pre is considered "old" and uses the `OLDPRETIME` theme.                        | `10`               |
+| `ignoreDirs`              | A Tcl list of glob patterns for directories to ignore.                                                        | `{cd[0-9] ...}`    |
+| `add_missing_releases`    | If `1`, automatically adds releases to the DB if they aren't found.                                           | `1`                |
+| `update_null_timestamp`   | If `1`, updates a release's timestamp if it is found in the DB but the timestamp is `NULL`.                   | `1`                |
+| `col_id`                  | Column name for the primary auto-incrementing ID.                                                             | `"id"`             |
+| `col_release_name`        | Column name for the release name.                                                                             | `"release_name"`   |
+| `col_pre_timestamp`       | Column name for the Unix timestamp of the pre.                                                                | `"pre_timestamp"`  |
+| `col_section_name`        | **Optional:** Column for the site section. Leave empty (`""`) to disable.                                     | `"section"`        |
+| `col_sitename`            | **Optional:** Column for the sitename. Leave empty (`""`) to disable.                                         | `"sitename"`       |
+| `col_uploader_nick`       | **Optional:** Column for the uploader's nick. Leave empty (`""`) to disable.                                  | `"uploader_nick"`  |
+| `col_uploader_group`      | **Optional:** Column for the uploader's group. Leave empty (`""`) to disable.                                 | `"uploader_group"` |
+| `col_event_name`          | **Optional:** Column for the event name (e.g., `NEWDIR`). Leave empty (`""`) to disable.                        | `"event"`          |
+| `col_group_name`          | **Optional:** Column for the release group (extracted from rlsname). Leave empty (`""`) to disable.           | `"group_name"`     |
 
 ## 6. The Database
 
-### 6.1. Automatic Table Creation
+The plugin handles its own database schema. If you ever change the column configuration, you must **drop the existing table** so the plugin can recreate it with the new structure on the next rehash.
 
-The plugin will attempt to create the necessary table if it does not exist. The default schema is:
+### 6.1. Final Schema
+
 ```sql
 CREATE TABLE IF NOT EXISTS `pre_times` (
-    `release_name` VARCHAR(255) NOT NULL,
-    `pre_timestamp` INT(11) UNSIGNED NOT NULL,
-    PRIMARY KEY (`release_name`),
-    INDEX `idx_pre_timestamp` (`pre_timestamp`)
+  `id` INT(11) UNSIGNED AUTO_INCREMENT NOT NULL,
+  `release_name` VARCHAR(255) NOT NULL,
+  `pre_timestamp` INT(11) UNSIGNED DEFAULT NULL,
+  `section` VARCHAR(255) DEFAULT NULL,
+  `sitename` VARCHAR(255) DEFAULT NULL,
+  `uploader_nick` VARCHAR(255) DEFAULT NULL,
+  `uploader_group` VARCHAR(255) DEFAULT NULL,
+  `event` VARCHAR(50) DEFAULT NULL,
+  `group_name` VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_release_name` (`release_name`),
+  INDEX `idx_pre_timestamp` (`pre_timestamp`),
+  INDEX `idx_section` (`section`),
+  INDEX `idx_sitename` (`sitename`),
+  INDEX `idx_uploader_nick` (`uploader_nick`),
+  INDEX `idx_uploader_group` (`uploader_group`),
+  INDEX `idx_event` (`event`),
+  INDEX `idx_group_name` (`group_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
-You can customize the table and column names in the configuration section.
-
-### 6.2. Populating the Database
-
-**Important:** This plugin *reads* from the database; it does not write pre times to it. You must have another script or process responsible for populating the pre time table.
-
-For example, a pre-bot, a site script, or a manual process should insert a new row for each release, containing the release name and the Unix timestamp of its pre time.
 
 ## 7. Theme Customization (`PreTimeSQL.zpt`)
 
-You can customize the announcement messages in `PreTimeSQL.zpt`.
+You can customize the announcement messages in `PreTimeSQL.zpt`. For a full list of available variables and formatting options, please see the comments at the top of the `PreTimeSQL.zpt` file itself.
 
-### Available Variables:
-- `%pf`: Path/Filename of the release.
-- `%u_name`: Uploader's name.
-- `%g_name`: Uploader's primary group.
-- `%u_tagline`: Uploader's tagline.
-- `%preage`: Formatted duration since the pre (e.g., "5m 12s").
-- `%predate`: Date of the pre (e.g., "01/01/24").
-- `%pretime`: Time of the pre (e.g., "15:04:55").
+### Example Themes
 
-### Example Themes:
 ```tcl
-# Default for new pre's
-set theme(NEWPRETIME) "NEW PRE » \[%g_name] got '%pf' (pre: %preage ago)"
+# Announce for a recent pre (within the 'lateMins' threshold).
+announce.NEWPRETIME = "[%b{NEW PRE}] [%section] %b{%relname} uploaded by %b{%u_name} (%g_name) %b{%size} @ %b{%speed} (Pre was %preage ago)"
 
-# Default for old pre's
-set theme(OLDPRETIME) "OLD PRE » \[%g_name] got '%pf' (pre: %preage ago on %predate)"
-
-``` 
+# Announce for an old pre (older than the 'lateMins' threshold).
+announce.OLDPRETIME = "[%b{OLD PRE}] [%section] %b{%relname} uploaded by %b{%u_name} (%g_name) (Pre was %preage ago on %predate)"
+```
