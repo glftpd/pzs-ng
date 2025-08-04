@@ -51,6 +51,40 @@
 #include "strsep.h"
 #endif
 
+
+void
+set_permissions() {
+	umask(0666 & 000);
+
+	d_log("zipscript-c: Zipscript executed by: (uid/gid) %d/%d\n", geteuid(), getegid());
+	if ( program_uid > 0 ) {
+		d_log("zipscript-c: Trying to change effective uid/gid\n");
+		setegid(program_gid);
+		seteuid(program_uid);
+	} else if (!geteuid()) {
+		d_log("zipscript-c: +s mode detected - trying to change effective uid/gid to !root\n");
+		if (setegid(getgid()) == -1)
+			d_log("zipscript-c: failed to change gid: %s\n", strerror(errno));
+		if (seteuid(getuid()) == -1)
+			d_log("zipscript-c: failed to change uid: %s\n", strerror(errno));
+	}
+}
+
+
+void
+check_print_config(int argc, char **argv) {
+	if (argc == 2 && strcmp("--fullconfig", argv[1]) == 0)
+	{
+		print_full_config();
+		exit(0);
+	}
+	if (argc == 2 && strcmp("--config", argv[1]) == 0)
+	{
+		print_nondefault_config();
+		exit(0);
+	}
+}
+
 int 
 main(int argc, char **argv)
 {
@@ -67,7 +101,7 @@ main(int argc, char **argv)
 	char           *target = 0;
 	char	       *vinfo = 0;
 	char	       *ext = 0;
-        char           *crc_arg = NULL;
+	char           *crc_arg = NULL;
 	char           *complete_msg = 0;
 	char           *update_msg = 0;
 	char           *race_msg = 0;
@@ -132,31 +166,8 @@ main(int argc, char **argv)
 	d_log("zipscript-c: PATH_MAX not found - using predefined settings! Please report to the devs!\n");
 #endif
 
-	umask(0666 & 000);
-
-	d_log("zipscript-c: Zipscript executed by: (uid/gid) %d/%d\n", geteuid(), getegid());
-	if ( program_uid > 0 ) {
-		d_log("zipscript-c: Trying to change effective uid/gid\n");
-		setegid(program_gid);
-		seteuid(program_uid);
-	} else if (!geteuid()) {
-		d_log("zipscript-c: +s mode detected - trying to change effective uid/gid to !root\n");
-		if (setegid(getgid()) == -1)
-			d_log("zipscript-c: failed to change gid: %s\n", strerror(errno));
-		if (seteuid(getuid()) == -1)
-			d_log("zipscript-c: failed to change uid: %s\n", strerror(errno));
-	}
-
-        if (argc == 2 && strcmp("--fullconfig", argv[1]) == 0)
-        {
-            print_full_config();
-            exit(0);
-        }
-        if (argc == 2 && strcmp("--config", argv[1]) == 0)
-        {
-            print_nondefault_config();
-            exit(0);
-        }
+	set_permissions();
+	check_print_config(argc, argv);
 
 #ifdef USING_GLFTPD
 	if (argc < 4) {
@@ -191,7 +202,7 @@ main(int argc, char **argv)
 			}
 		}
 	}
-        crc_arg = argv[3];
+	crc_arg = argv[3];
 #else
 	if (argc < 8) {
 		d_log("zipscript-c: Wrong number of arguments used (ftpd-agnostic)\n");
@@ -199,7 +210,7 @@ main(int argc, char **argv)
 		printf(" Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
 		exit(1);
 	}
-        crc_arg = argv[2];
+	crc_arg = argv[2];
 #endif
 
 	d_log("zipscript-c: Clearing arrays\n");
@@ -227,11 +238,11 @@ main(int argc, char **argv)
 		strlcpy(g.l.path, argv[2], PATH_MAX);
 	}
 #else
-        if (realpath(argv[1], temp_path) != temp_path)
-        {
-            d_log("zipscript-c: Could not realpath(\"%s\", temp_path): %s\n", temp_path, strerror(errno));
-            strlcpy(temp_path, argv[1], PATH_MAX);
-        }
+	if (realpath(argv[1], temp_path) != temp_path)
+	{
+		d_log("zipscript-c: Could not realpath(\"%s\", temp_path): %s\n", temp_path, strerror(errno));
+		strlcpy(temp_path, argv[1], PATH_MAX);
+	}
 	strlcpy(g.l.path, temp_path, MIN(PATH_MAX, strrchr(temp_path, '/') - temp_path + 1));
 	strlcpy(g.v.file.name, strrchr(temp_path, '/') + 1, NAME_MAX);
 #endif
