@@ -377,9 +377,6 @@
 #define zip_norace_complete	DISABLED
 #endif
 
-/* Output of racestats binary */
-#define stats_line		"{%r} {%F} {%f} {%u} {%g} %C0 %c0"
-
 /* Output of postdel binary */
 #define incompletemsg		"{%U} {%G} {%r}"
 

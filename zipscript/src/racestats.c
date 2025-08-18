@@ -24,6 +24,8 @@ No rechecking of SFV-data or DIZ-data is done: it is assumed racedata is valid.
 #include "../conf/zsconfig.h"
 #include "../include/zsconfig.defaults.h"
 
+#define COOKIE		"{%r} {%F} {%f} {%u} {%g} %C0 %c0"
+
 static void init_g(GLOBAL*);
 
 static void
@@ -73,43 +75,52 @@ set_path(GLOBAL *g, bool chrooted, char **argv) {
 }
 
 void
-clean_up(GLOBAL *g) {
+clean_up(GLOBAL *g, char *stat_cookies) {
 	free(g->l.race);
 	free(g->l.sfv);
 	free(g->gi);
 	free(g->ui);
+	free(stat_cookies);
 }
 
 int 
 main(int argc, char **argv)
 {
 	GLOBAL g;
+	char *stat_cookies;
 
-	if (argc != 2 && argc != 3) {
+	if (argc < 2 || argc > 4 ) {
 		printf("Usage: %s <chrooted-path>\n", argv[0]);
-		printf("   or: %s <glftpd-path> <site-path>\n", argv[0]);		
+		printf("   or: %s <glftpd-path> <site-path> <stats-format-line>\n", argv[0]);
 		exit(EXIT_FAILURE);
+	}
+
+
+	if (argc == 3) {
+		stat_cookies = strdup(COOKIE);
+	} else {
+		stat_cookies = strdup(argv[3]);
 	}
 
 	init_g(&g);
 	if (set_path(&g, (argc == 2), argv) == false) {
-		clean_up(&g);
+		clean_up(&g, stat_cookies);
 		exit(EXIT_FAILURE);
 	}
 
 	getrelname(&g);
 	sprintf(g.l.race, storage "/%s/racedata", g.l.path);
 	if (!fileexists(g.l.race)) {
-		clean_up(&g);
+		clean_up(&g, stat_cookies);
 		exit(EXIT_FAILURE);
 	}
 
 	readrace(g.l.race, &g.v, g.ui, g.gi);
 	sortstats(&g.v, g.ui, g.gi);
 	if (g.v.total.users) {
-		printf("%s\n", convert(&g.v, g.ui, g.gi, stats_line));
+		printf("%s\n", convert(&g.v, g.ui, g.gi, stat_cookies));
 	}
 
-	clean_up(&g);
+	clean_up(&g, stat_cookies);
 	exit(EXIT_SUCCESS);
 }
