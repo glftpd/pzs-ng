@@ -1607,6 +1607,7 @@ read_headdata(const char *headpath)
 	}
 	if ((read(fd, &hd, sizeof(HEADDATA))) != sizeof(HEADDATA)) {
 		d_log("read_headdata: failed to read %s : %s - returning '0' as data_type\n", headpath, strerror(errno));
+		close(fd);
 		return 0;
 	}
 	close(fd);
