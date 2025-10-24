@@ -1094,7 +1094,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 		raceI->misc.release_type = hd.data_type;
 		raceI->misc.data_completed = hd.data_completed;
 
-		// unlink(lockfile); NOT PRESENT but seems to be missing
+		unlink(lockfile);
 		close(fd);
 		return hd.data_in_use;
 	} else { 		/* looks like the lock is inactive */
