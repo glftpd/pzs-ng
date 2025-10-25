@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fnmatch.h>
+#include <stdlib.h>
 #include "zsfunctions.h"
 
 #include "ng-version.h"
@@ -1962,4 +1963,20 @@ _err_file_banned(const char *fn, struct VARS *v) {
 		exit(EXIT_FAILURE);
 	}
 	return 0;
+}
+
+
+void
+safe_snprintf(char *buffer, size_t size, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int result = vsnprintf(buffer, size, format, args);
+	char *first_arg = va_arg(args, char*);
+    va_end(args);
+    
+    // Check for truncation
+    if (result < 0 || (size_t)result >= size) {
+		d_log("resulting file path too long : %s (format %s) (max length %d)", first_arg, format, size);
+		exit(EXIT_FAILURE);
+    }
 }

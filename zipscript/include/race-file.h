@@ -1,6 +1,7 @@
 #ifndef _RACE_FILE_H_
 #define _RACE_FILE_H_
 
+#include <stdbool.h>
 #include <sys/stat.h>
 #include "objects.h"
 #include "zsfunctions.h"
