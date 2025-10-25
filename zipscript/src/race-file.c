@@ -349,7 +349,7 @@ testfiles(struct LOCATIONS *locations, struct VARS *raceI, int rstatus)
 			if (rd.status == F_NOTCHECKED) {
 				d_log("testfiles: Marking file (%s) as bad and removing it.\n", rd.fname);
 				mark_as_bad(rd.fname);
-				if (rd.fname)
+				if (fileexists(rd.fname))
 					unlink(rd.fname);
 				rd.status = F_BAD;
 				if (rstatus)
