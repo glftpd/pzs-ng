@@ -1048,6 +1048,8 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 
 	if (read(fd, &hd, sizeof(HEADDATA)) == -1) {
 		d_log("create_lock: read() failed: %s\n", strerror(errno));
+		close(fd);
+		unlink(lockfile);
 	}
 
 	if (hd.data_version != sfv_version) {
@@ -1247,11 +1249,16 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 
 	if (read(fd, &hd, sizeof(HEADDATA)) == -1) {
 		d_log("update_lock: read() failed: %s\n", strerror(errno));
+		// if no data can be read, no proper header exists, exit
+		close(fd);
+		remove_lock(raceI);
+		return 1;
 	}
 
 	if (hd.data_version != sfv_version) {
 		d_log("create_lock: version of datafile mismatch. Stopping and suggesting a cleanup.\n");
 		close(fd);
+		remove_lock(raceI);
 		return 1;
 	}
 
@@ -1261,7 +1268,7 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 		remove_lock(raceI);
 		exit(EXIT_FAILURE);
 	}
-	
+
 	if (!hd.data_incrementor) {
 		d_log("update_lock: Lock suggested removed by a different process (%d/%d).\n", hd.data_incrementor, raceI->data_incrementor);
 		retval = 0;
