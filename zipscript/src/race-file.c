@@ -202,7 +202,7 @@ delete_sfv(const char *path, struct VARS *raceI)
 	}
 
 	while (fread(&sd, sizeof(SFVDATA), 1, sfvfile)) {
-		snprintf(missing_fname, NAME_MAX, "%s-missing", sd.fname);
+		safe_snprintf(missing_fname, NAME_MAX, "%s-missing", sd.fname);
 		if ((f = findfilename(missing_fname, f, raceI)))
                 {
 			if (unlink(missing_fname) < 0)
@@ -984,15 +984,13 @@ verify_racedata(const char *path, struct VARS *raceI)
 	return 1;
 }
 
-
-
 bool 
 create_lock_link(struct VARS *raceI) {
 	int cnt;
 	char lockfile[PATH_MAX + 1];
 	struct stat lock_stat;
 
-	snprintf(lockfile, PATH_MAX, "%s.lock", raceI->headpath);
+	safe_snprintf(lockfile, sizeof(lockfile), raceI->headpath, "%s.lock");
 	if (!stat(lockfile, &lock_stat) && (time(NULL) - lock_stat.st_ctime >= max_seconds_wait_for_lock * 5)) {
 		unlink(lockfile);
 	}
@@ -1017,7 +1015,7 @@ create_lock_link(struct VARS *raceI) {
 void
 remove_lock_link(struct VARS *raceI) {
 	char lockfile[PATH_MAX + 1];
-	snprintf(lockfile, PATH_MAX, "%s.lock", raceI->headpath);
+	safe_snprintf(lockfile, sizeof(lockfile), raceI->headpath, "%s.lock");	
 	unlink(lockfile);
 }
 
@@ -1036,7 +1034,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	struct stat	head_stat;
 
 	/* this should really be moved out of the proc - we'll worry about it later */
-	snprintf(raceI->headpath, PATH_MAX, "%s/%s/headdata", storage, path);
+	safe_snprintf(raceI->headpath, PATH_MAX, "%s/%s/headdata", storage, path);
 
 	if ((fd = open(raceI->headpath, O_CREAT | O_RDWR, 0666)) == -1) {
 		d_log("create_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
@@ -1229,7 +1227,7 @@ remove_lock(struct VARS *raceI)
 	}
 	close(fd);
 
-	snprintf(lockfile, sizeof lockfile, "%s.lock", raceI->headpath);
+	safe_snprintf(lockfile, sizeof(lockfile), "%s.lock", raceI->headpath);
 	unlink(lockfile);
 	
 	d_log("remove_lock: queue %d/%d\n", hd.data_qcurrent, hd.data_queue);
