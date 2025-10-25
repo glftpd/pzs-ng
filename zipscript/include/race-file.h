@@ -67,5 +67,7 @@ extern void create_dirlist(const char *, char *, const int);
 extern int filebanned_match(const char *);
 extern int lenient_compare(char *, char *);
 extern int read_headdata(const char *);
+extern bool create_lock_link(struct VARS *);
+extern void remove_lock_link(struct VARS *);
 #endif
 
