@@ -1975,7 +1975,7 @@ safe_snprintf(char *buffer, size_t size, const char *format, ...) {
     va_end(args);
     
     // Check for truncation
-    if (result < 0 || result >= size) {
+    if (result < 0 || (size_t)result >= size) {
 		d_log("resulting file path too long : %s (format %s) (max length %d)", first_arg, format, size);
 		exit(EXIT_FAILURE);
     }
