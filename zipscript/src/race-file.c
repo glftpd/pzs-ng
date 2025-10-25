@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <fnmatch.h>
 
 #include "race-file.h"
@@ -348,7 +349,7 @@ testfiles(struct LOCATIONS *locations, struct VARS *raceI, int rstatus)
 			if (rd.status == F_NOTCHECKED) {
 				d_log("testfiles: Marking file (%s) as bad and removing it.\n", rd.fname);
 				mark_as_bad(rd.fname);
-				if (rd.fname)
+				if (fileexists(rd.fname))
 					unlink(rd.fname);
 				rd.status = F_BAD;
 				if (rstatus)
@@ -983,28 +984,13 @@ verify_racedata(const char *path, struct VARS *raceI)
 	return 1;
 }
 
-/* Locking mechanism and version control.
- * Not yet fully functional, but we're getting there.
- * progtype == a code for what program calls the lock is found in constants.h
- * force_lock == int used to suggest/force a lock on the file.
- *		set to 1 to suggest a lock,2 to force a lock, 3 to put in queue.
- */
 
-int
-create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigned int force_lock, unsigned int queue)
-{
-	int			fd, cnt;
-	HEADDATA	hd;
-	struct stat	lock_stat, head_stat;
-	char		lockfile[PATH_MAX + 1];
 
-	/* this should really be moved out of the proc - we'll worry about it later */
-	snprintf(raceI->headpath, PATH_MAX, "%s/%s/headdata", storage, path);
-
-	if ((fd = open(raceI->headpath, O_CREAT | O_RDWR, 0666)) == -1) {
-		d_log("create_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+bool 
+create_lock_link(struct VARS *raceI) {
+	int cnt;
+	char lockfile[PATH_MAX + 1];
+	struct stat lock_stat;
 
 	snprintf(lockfile, PATH_MAX, "%s.lock", raceI->headpath);
 	if (!stat(lockfile, &lock_stat) && (time(NULL) - lock_stat.st_ctime >= max_seconds_wait_for_lock * 5)) {
@@ -1020,11 +1006,46 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	}
 
 	if (cnt == 10 ) {
-		close(fd);
 		d_log("create_lock: link failed: %s\n", strerror(errno));
+		return false;
+	}
+
+	d_log("create_lock: link ok.\n");
+	return true;
+}
+
+void
+remove_lock_link(struct VARS *raceI) {
+	char lockfile[PATH_MAX + 1];
+	snprintf(lockfile, PATH_MAX, "%s.lock", raceI->headpath);
+	unlink(lockfile);
+}
+
+/* Locking mechanism and version control.
+ * Not yet fully functional, but we're getting there.
+ * progtype == a code for what program calls the lock is found in constants.h
+ * force_lock == int used to suggest/force a lock on the file.
+ *		set to 1 to suggest a lock,2 to force a lock, 3 to put in queue.
+ */
+
+int
+create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigned int force_lock, unsigned int queue)
+{
+	int			fd;
+	HEADDATA	hd;
+	struct stat	head_stat;
+
+	/* this should really be moved out of the proc - we'll worry about it later */
+	snprintf(raceI->headpath, PATH_MAX, "%s/%s/headdata", storage, path);
+
+	if ((fd = open(raceI->headpath, O_CREAT | O_RDWR, 0666)) == -1) {
+		d_log("create_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	if (!create_lock_link(raceI)) {
+		close(fd);
 		return -1;
-	} else if (cnt) {
-		d_log("create_lock: link ok.\n");
 	}
 
 	fstat(fd, &head_stat);
@@ -1049,13 +1070,13 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	if (read(fd, &hd, sizeof(HEADDATA)) == -1) {
 		d_log("create_lock: read() failed: %s\n", strerror(errno));
 		close(fd);
-		unlink(lockfile);
+		remove_lock_link(raceI);
 	}
 
 	if (hd.data_version != sfv_version) {
 		d_log("create_lock: version of datafile mismatch. Stopping and suggesting a cleanup.\n");
 		close(fd);
-		unlink(lockfile);
+		remove_lock_link(raceI);		
 		return 1;
 	}
 	
@@ -1098,7 +1119,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 		raceI->misc.release_type = hd.data_type;
 		raceI->misc.data_completed = hd.data_completed;
 
-		unlink(lockfile);
+		remove_lock_link(raceI);
 		close(fd);
 		return hd.data_in_use;
 	} else { 		/* looks like the lock is inactive */
@@ -1118,7 +1139,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 			}
 			d_log("create_lock: putting you in queue. (%d/%d)\n", hd.data_qcurrent, hd.data_queue);
 
-			unlink(lockfile);
+			remove_lock_link(raceI);			
 			close(fd);
 			return -1;				
 		} else if (force_lock == 0 && hd.data_queue && (queue > hd.data_qcurrent)) {
@@ -1128,7 +1149,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 			raceI->misc.release_type = hd.data_type;
 			raceI->misc.data_completed = hd.data_completed;
 
-			unlink(lockfile);
+			remove_lock_link(raceI);			
 			close(fd);
 			return -1;				
 		}
@@ -1156,7 +1177,6 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	d_log("create_lock: lock set. pid: %d\n", hd.data_pid);
 	close(fd);
 	return 0;
-
 }
 
 /* Remove the lock
