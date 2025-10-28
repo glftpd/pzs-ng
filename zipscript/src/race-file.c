@@ -1098,6 +1098,9 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 		return 0;
 	}
 
+	raceI->misc.release_type = hd.data_type;
+	raceI->misc.data_completed = hd.data_completed;
+
 	if (force_lock == 2) {
 		raceI->data_queue = hd.data_queue = 1;
 		hd.data_qcurrent = 0;
@@ -1114,8 +1117,6 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 			}
 			d_log("create_lock: lock active - putting you in queue. (%d/%d)\n", hd.data_qcurrent, hd.data_queue);
 		}
-		raceI->misc.release_type = hd.data_type;
-		raceI->misc.data_completed = hd.data_completed;
 
 		remove_lock_link(raceI);
 		close(fd);
@@ -1129,8 +1130,6 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 			raceI->data_queue = hd.data_queue;		/* we give the queue number to the calling process */
 			hd.data_queue++;				/* we increment the number in the queue */
 			raceI->data_incrementor = hd.data_incrementor;
-			raceI->misc.release_type = hd.data_type;
-			raceI->misc.data_completed = hd.data_completed;
 			lseek(fd, 0L, SEEK_SET);
 			if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
 				d_log("create_lock: write failed: %s\n", strerror(errno));
@@ -1144,8 +1143,6 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 									/* seems there is a queue, and the calling process' place in */
 									/* the queue is still less than current. */
 			raceI->data_incrementor = hd.data_incrementor;	/* feed back the current incrementor */
-			raceI->misc.release_type = hd.data_type;
-			raceI->misc.data_completed = hd.data_completed;
 
 			remove_lock_link(raceI);			
 			close(fd);
@@ -1162,8 +1159,6 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	}
 	
 	raceI->data_incrementor = hd.data_incrementor;
-	raceI->misc.data_completed = hd.data_completed;
-	raceI->misc.release_type = hd.data_type;
 	hd.data_pid = (unsigned int)getpid();
 
 	lseek(fd, 0L, SEEK_SET);
