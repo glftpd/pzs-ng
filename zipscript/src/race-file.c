@@ -1019,11 +1019,16 @@ remove_lock_link(struct VARS *raceI) {
 	unlink(lockfile);
 }
 
-/* Locking mechanism and version control.
- * Not yet fully functional, but we're getting there.
- * progtype == a code for what program calls the lock is found in constants.h
- * force_lock == int used to suggest/force a lock on the file.
+/**
+ * create_lock - set a lock and update the header file
+ * @raceI: active VARS data
+ * @path: path of the release being scanned
+ * @progtype: a code for what program calls the lock is found in constants.h
+ * @force_lock: used to suggest/force a lock on the file
  *		set to 1 to suggest a lock,2 to force a lock, 3 to put in queue.
+ * 
+ *
+ * Return: progtype for active lock being queued, 1 for version mismatch, 0 for success, -1 for failure
  */
 
 int
@@ -1069,6 +1074,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 		d_log("create_lock: read() failed: %s\n", strerror(errno));
 		close(fd);
 		remove_lock_link(raceI);
+		return -1;
 	}
 
 	if (hd.data_version != sfv_version) {
@@ -1121,10 +1127,10 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 		remove_lock_link(raceI);
 		close(fd);
 		return hd.data_in_use;
-	} else { 		/* looks like the lock is inactive */
+	} else { 		/* the lock is inactive */
 
 		/* We got a request to queue a lock	and there seems to be others in queue.
-		Will not allow the process to lock, but wait for the queued process to do so.
+		   Will not allow the process to lock, but wait for the queued process to do so.
 		*/
 		if (force_lock == 3 && hd.data_queue > hd.data_qcurrent) {
 			raceI->data_queue = hd.data_queue;		/* we give the queue number to the calling process */
@@ -1177,14 +1183,14 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 void
 remove_lock(struct VARS *raceI)
 {
+	int			fd;
+	HEADDATA	hd;
+	char		lockfile[PATH_MAX + 1];
+
 	if (!raceI->data_in_use) {
 		d_log("remove_lock: lock not removed - no lock was set\n");
 		return;
 	}
-
-	int			fd;
-	HEADDATA	hd;
-	char		lockfile[PATH_MAX + 1];
 
 	if ((fd = open(raceI->headpath, O_RDWR, 0666)) == -1) {
 		d_log("remove_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
@@ -1222,9 +1228,7 @@ remove_lock(struct VARS *raceI)
 	}
 	close(fd);
 
-	safe_snprintf(lockfile, sizeof(lockfile), "%s.lock", raceI->headpath);
-	unlink(lockfile);
-	
+	remove_lock_link(raceI);
 	d_log("remove_lock: queue %d/%d\n", hd.data_qcurrent, hd.data_queue);
 }
 
@@ -1240,7 +1244,7 @@ remove_lock(struct VARS *raceI)
 int
 update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 {
-	int		fd, retval;
+	int			fd;
 	HEADDATA	hd;
 	struct stat	head_stat;
 
@@ -1282,22 +1286,12 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 		exit(EXIT_FAILURE);
 	}
 
-	if (!hd.data_incrementor) {
-		d_log("update_lock: Lock suggested removed by a different process (%d/%d).\n", hd.data_incrementor, raceI->data_incrementor);
-		retval = 0;
-	} else {
-		if (counter)
-			hd.data_incrementor++;
-		else
-			hd.data_incrementor = 0;
-
-		retval = hd.data_incrementor;
-	}
-
 	raceI->misc.release_type = hd.data_type;
 	raceI->misc.data_completed = hd.data_completed;
-	if (hd.data_pid != (unsigned int)getpid() && hd.data_incrementor) {
+
+	if (hd.data_pid != (unsigned int)getpid() && counter) {
 		d_log("update_lock: Oops! Race condition - another process has the lock. pid: %d != %d\n", hd.data_pid, (unsigned int)getpid());
+		hd.data_incrementor++;
 		hd.data_queue = raceI->data_queue - 1;
 		lseek(fd, 0L, SEEK_SET);
 		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
@@ -1307,12 +1301,20 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 		return -1;
 	}
 
+	if (!hd.data_incrementor) {
+		d_log("update_lock: Lock suggested removed by a different process (%d/%d).\n", hd.data_incrementor, raceI->data_incrementor);
+	} else if (counter) {
+		hd.data_incrementor++;
+	} else {
+		hd.data_incrementor = 0;
+	}
+
 	if (datatype && counter) {
 		hd.data_type = datatype;
 	}
 
 	fstat(fd, &head_stat);
-	if ((retval && !lock_optimize) || datatype || !retval || !hd.data_incrementor || (time(NULL) - head_stat.st_ctime >= lock_optimize && hd.data_incrementor > 1)) {
+	if ((hd.data_incrementor && !lock_optimize) || datatype || !hd.data_incrementor || (time(NULL) - head_stat.st_ctime >= lock_optimize && hd.data_incrementor > 1)) {
 		lseek(fd, 0L, SEEK_SET);
 		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
 			d_log("create_lock: write failed: %s\n", strerror(errno));
@@ -1324,30 +1326,31 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 		raceI->data_incrementor = hd.data_incrementor;
 		raceI->data_in_use = hd.data_in_use;
 	}
-	return retval;
+	return hd.data_incrementor;
 }
 
 short int
 match_file(char *rname, char *f)
 {
 	int		n;
-	FILE	       *file = NULL;
-
+	FILE	*file = NULL;
 	RACEDATA	rd;
 
 	n = 0;
-	if ((file = fopen(rname, "r+"))) {
-		while (fread(&rd, sizeof(RACEDATA), 1, file)) {
-			if (strncmp(rd.fname, f, NAME_MAX) == 0	&& rd.status == F_CHECKED) {
-				d_log("match_file: '%s' == '%s'\n", rd.fname, f);
-				n = 1;
-				break;
-			}
-		}
-		fclose(file);
-	} else {
+	if (!(file = fopen(rname, "r+"))) {
 		d_log("match_file: Error fopen(%s): %s\n", rname, strerror(errno));
+		return n;
 	}
+		
+	while (fread(&rd, sizeof(RACEDATA), 1, file)) {
+		if (strncmp(rd.fname, f, NAME_MAX) == 0	&& rd.status == F_CHECKED) {
+			d_log("match_file: '%s' == '%s'\n", rd.fname, f);
+			n = 1;
+			break;
+		}
+	}
+	fclose(file);
+	
 	return n;
 }
 
