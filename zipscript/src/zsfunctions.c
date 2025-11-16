@@ -1968,12 +1968,15 @@ _err_file_banned(const char *fn, struct VARS *v) {
 
 void
 safe_snprintf(char *buffer, size_t size, const char *format, ...) {
-    va_list args;
+    va_list args, args_copy;
     va_start(args, format);
+    va_copy(args_copy, args);
     int result = vsnprintf(buffer, size, format, args);
-	char *first_arg = va_arg(args, char*);
+    char *first_arg = va_arg(args_copy, char*);
+
     va_end(args);
-    
+	va_end(args_copy);
+
     // Check for truncation
     if (result < 0 || (size_t)result >= size) {
 		d_log("resulting file path too long : %s (format %s) (max length %d)", first_arg, format, size);
