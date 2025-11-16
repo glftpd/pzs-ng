@@ -990,7 +990,7 @@ create_lock_link(struct VARS *raceI) {
 	char lockfile[PATH_MAX + 1];
 	struct stat lock_stat;
 
-	safe_snprintf(lockfile, sizeof(lockfile), raceI->headpath, "%s.lock");
+	safe_snprintf(lockfile, sizeof(lockfile), "%s.lock", raceI->headpath);
 	if (!stat(lockfile, &lock_stat) && (time(NULL) - lock_stat.st_ctime >= max_seconds_wait_for_lock * 5)) {
 		unlink(lockfile);
 	}
@@ -1015,7 +1015,7 @@ create_lock_link(struct VARS *raceI) {
 void
 remove_lock_link(struct VARS *raceI) {
 	char lockfile[PATH_MAX + 1];
-	safe_snprintf(lockfile, sizeof(lockfile), raceI->headpath, "%s.lock");	
+	safe_snprintf(lockfile, sizeof(lockfile), "%s.lock", raceI->headpath);
 	unlink(lockfile);
 }
 
