@@ -1207,7 +1207,7 @@ message_group_header <STRING|DISABLED>
 
 message_header <STRING|DISABLED>
 	Define here what should be put in the top of the complete_message.
-	Default: ".-----------------====-------------------------== PZS-NG v1.2.0 ===--.\n"
+	Default: ".-----------------====-------------------------== PZS-NG v1.2.1 ===--.\n"
 
 message_audio <STRING|DISABLED>
 	Define here a special complete_message for audio-releases.
