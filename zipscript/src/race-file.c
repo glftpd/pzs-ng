@@ -1003,7 +1003,7 @@ create_lock_link(struct VARS *raceI) {
 		usleep(100000);
 	}
 
-	if (cnt == 10 ) {
+	if (cnt == 10 && stat(lockfile, &lock_stat)) {
 		d_log("create_lock: link failed: %s\n", strerror(errno));
 		return false;
 	}
