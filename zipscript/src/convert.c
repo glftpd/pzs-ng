@@ -18,11 +18,25 @@ hms(char *ttime, double secs)
 	int tmp = 0;
 	int total_secs = (int)secs;
 	int millis = (int)((secs - total_secs) * 1000);
+	int hours = 0, mins = 0, remaining_secs;
 
 	tmp = sprintf(ttime, "%d", total_secs);
 	if (millis > 0)
 		tmp += sprintf(ttime + tmp, ",%03d", millis);
-	tmp += sprintf(ttime + tmp, "s");
+	tmp += sprintf(ttime + tmp, "s|");
+
+	remaining_secs = total_secs;
+	hours = remaining_secs / 3600;
+	remaining_secs %= 3600;
+	mins = remaining_secs / 60;
+	remaining_secs %= 60;
+
+	if (hours)
+		tmp += sprintf(ttime + tmp, "%ih", hours);
+	if (mins)
+		tmp += sprintf(ttime + tmp, "%im", mins);
+	if (remaining_secs || (!hours && !mins))
+		tmp += sprintf(ttime + tmp, "%is", remaining_secs);
 
 	return ttime;
 }
