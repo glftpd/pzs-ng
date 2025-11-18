@@ -274,7 +274,8 @@ main(int argc, char *argv[])
 				strlcpy(g.v.file.name, dp->d_name, NAME_MAX);
 				g.v.file.speed = 2005 * 1024;
 				g.v.file.size = fileinfo.st_size;
-				g.v.total.start_time = 0;
+				g.v.total.start_time.tv_sec = 0;
+				g.v.total.start_time.tv_usec = 0;
 
 				_err_file_banned(g.v.file.name, &g.v);
 				if (!fileexists("file_id.diz")) {
@@ -412,7 +413,8 @@ main(int argc, char *argv[])
 
 			return 0;
 		}
-		g.v.total.start_time = 0;
+		g.v.total.start_time.tv_sec = 0;
+		g.v.total.start_time.tv_usec = 0;
 		rewinddir(dir);
 		while ((dp = readdir(dir))) {
 			m = l = (int)strlen(dp->d_name);
@@ -460,13 +462,19 @@ main(int argc, char *argv[])
 				g.v.file.size = fileinfo.st_size;
 
 				temp_time = fileinfo.st_mtime;
-				
-				if (g.v.total.start_time == 0)
-					g.v.total.start_time = temp_time;
-				else
-					g.v.total.start_time = (g.v.total.start_time < temp_time ? g.v.total.start_time : temp_time);
-				
-				g.v.total.stop_time = (temp_time > g.v.total.stop_time ? temp_time : g.v.total.stop_time);
+
+				if (g.v.total.start_time.tv_sec == 0) {
+					g.v.total.start_time.tv_sec = temp_time;
+					g.v.total.start_time.tv_usec = 0;
+				} else if (temp_time < g.v.total.start_time.tv_sec) {
+					g.v.total.start_time.tv_sec = temp_time;
+					g.v.total.start_time.tv_usec = 0;
+				}
+
+				if (temp_time > g.v.total.stop_time.tv_sec) {
+					g.v.total.stop_time.tv_sec = temp_time;
+					g.v.total.stop_time.tv_usec = 0;
+				}
 
 				/* Hide users in group_dirs */
 				if (matchpath(group_dirs, g.l.path) && (hide_group_uploaders == TRUE)) {

@@ -42,8 +42,8 @@ updatestats_free(GLOBAL *g)
  * Description: Updates existing entries in userI and groupI or creates new, if
  * old doesnt exist
  */
-void 
-updatestats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, char *usern, char *group, off_t filesize, unsigned long speed, unsigned int start_time)
+void
+updatestats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, char *usern, char *group, off_t filesize, unsigned long speed, struct timeval start_time)
 {
 	int		u_no = -1;
 	int		g_no = -1;
@@ -60,13 +60,10 @@ updatestats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **grou
 	if (u_no == -1) {
 		if (!raceI->total.users) {
 			raceI->total.start_time = start_time;
-			/*
-			 * to prevent a possible floating point exception in
-			 * convert,
-			 */
-			/* if first entry in racefile is not the oldest one           */
-			if ((int)(raceI->total.stop_time - raceI->total.start_time) < 1)
-				raceI->total.stop_time = raceI->total.start_time + 1;
+			if ((raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) < 1) {
+				raceI->total.stop_time.tv_sec = raceI->total.start_time.tv_sec + 1;
+				raceI->total.stop_time.tv_usec = raceI->total.start_time.tv_usec;
+			}
 		}
 		u_no = raceI->total.users++;
 		ng_free(userI[u_no]);

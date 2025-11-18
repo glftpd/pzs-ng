@@ -9,12 +9,9 @@
 /* this is what we write to racedata files */
 typedef struct {
 	unsigned int	crc32,
-			speed; /* should become unsigned long, but causes
-				* backwards incompatibility; might be overcome
-				* via sfv_version checking when using readrace()
-				*/
+			speed;
 	off_t		size;
-	time_t		start_time;
+	struct timeval	start_time;
 	unsigned char	status;
 	unsigned char	dummy1;
 	char		fname[NAMEMAX],
