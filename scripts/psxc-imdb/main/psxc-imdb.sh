@@ -58,10 +58,6 @@ fi
 export LC_ALL=""
 export LANG=""
 
-if [ -z "$USERAGENT" ]; then
-  USERAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
-fi
-
 if [ ! -z "$RECVDARGS" ]; then
 
 # This is what is run under zs-c, chrooted.
@@ -460,7 +456,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     OUTPUTOK="OK"
     while [ $LYNXTRIES -gt 0 ]; do
      if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-     lynx $LYNXFLAGS $IMDBURL/reference/ | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/\.\.\.~ /... /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE 2>&1
+     lynx $LYNXFLAGS $IMDBURL | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/\.\.\.~ /... /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE 2>&1
       if [ $? = "0" ]; then
        LYNXTRIES=$LYNXTRIESORIG
        break
@@ -471,9 +467,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $IMDBURL/reference/ >/dev/null 2>&1
+       wget $WGETFLAGS -U "Mozilla/5.0" -O $TMPFILE --timeout=30 $IMDBURL >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $IMDBURL/reference/ >/dev/null 2>&1
+       curl $CURLFLAGS -A "Mozilla/5.0" -o $TMPFILE --connect-timeout 30 $IMDBURL >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        TMBURL=$(grep -a "\.jpg" $TMPFILE | head -n 1 | tr ' \"' '\n' | grep -a "\.jpg" | head -n 1)
@@ -494,13 +490,13 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 
 # Check for a movie-title. This *must* be present, else the script will just exit.
 ##################################################################################
-    TITLE=$(grep -oP '"originalTitleText":\{"text":"\K[^"]+' "$TMPFILE" | head -n1)
+    TITLE=$(grep -oP '"titleText":\{"text":"\K[^"]+' "$TMPFILE" | head -n1)
     YEAR=$(grep -oP '"releaseYear":\{"year":\K[0-9]{4}' "$TMPFILE" | head -n1)
     if [ -z "$TITLE" ]; then
      OUTPUTOK=""
      break
     fi
-    ORIGTITLE=$(grep -oP '"originalTitleText":\{"text":"\K[^"]+' "$TMPFILE" | head -n1)
+    ORIGTITLE=$(grep -oP '"titleText":\{"text":"\K[^"]+' "$TMPFILE" | head -n1)
 
 # Grab hold of the info we'll use later. Also do some formatting.
 #################################################################
@@ -515,10 +511,10 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      TITLENAME="$( echo $ORIGTITLE | sed -e 's/^ *//g' -e 's/ (original title)//' )"
      TITLE="$TITLENAME $TITLEYEAR"
     fi
-    GENRE="Genre........: $(grep -o '"genres":\[[^]]*' $TMPFILE | head -1 | grep -o '"text":"[^"]*' | cut -d'"' -f4 | uniq | paste -sd '/' - | head -n $GENRENUM)"
+    GENRE="Genre........: $(grep -oP '"genres":\{[^}]*"genres":\[\K[^\]]*' $TMPFILE | head -1 | grep -oP '"text":"\K[^"]+' | uniq | paste -sd '/' - | head -n $GENRENUM)"
     GENRECLEAN=$(echo $GENRE | sed "s/Genre........: *//")
-    RATINGVAL="$(grep -o '"aggregateRating":[0-9.]*' $TMPFILE | head -1 | cut -d':' -f2)"
-    VOTECOUNT="$(grep -o '"voteCount":[0-9]*' $TMPFILE | head -1 | cut -d':' -f2)"
+    RATINGVAL="$(grep -oP '"ratingsSummary":\{"aggregateRating":\K[0-9.]+' $TMPFILE | head -1)"
+    VOTECOUNT="$(grep -oP '"ratingsSummary":\{"aggregateRating":[^}]*"voteCount":\K[0-9]+' $TMPFILE | head -1)"
     VOTES="$(awk '{n=$1; s=""; while(n>=1000){s=sprintf(",%03d%s",n%1000,s); n=int(n/1000)}; printf "%d%s", n, s}' <<< "$VOTECOUNT")"
     RATING="User Rating..: $RATINGVAL ($VOTES)"
     if [ "$RATING" = "User Rating..: 0 (0)" ]; then
@@ -552,17 +548,17 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     if [ ! -z "$BOTTOM" ]; then
       RATINGCLEAN="$(echo "$RATINGCLEAN Bottom 100: #$BOTTOM")"
     fi
-    COUNTRY="Country......: $(grep -o '"countriesOfOrigin":{[^}]*}' $TMPFILE | grep -o '"id":"[^"]*' | cut -d'"' -f4 | uniq | sed 's/GB/United Kingdom/; s/US/United States/' | paste -sd '/' - | head -n $COUNTRYNUM)"
+    COUNTRY="Country......: $(grep -oP '"countriesOfOrigin":\{"countries":\[\K[^\]]*' $TMPFILE | head -1 | grep -oP '"id":"\K[^"]+' | uniq | sed 's/GB/United Kingdom/; s/US/United States/' | paste -sd '/' - | head -n $COUNTRYNUM)"
     COUNTRYCLEAN=$(echo $COUNTRY | sed "s/Country......: *//")
-    TAGLINE=$(grep -oP '"taglines":\{[^}]*"text":"\K(?:\\.|[^"\\])*' "$TMPFILE" | head -1 | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/[\r\n]\+/ /g')
+    TAGLINE=$(grep -oP '"taglines":\{[^}]*"edges":\[\{"node":\{"text":"\K[^"]+' "$TMPFILE" | head -1 | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/[\r\n]\+/ /g')
     TAGLINECLEAN=$(echo $TAGLINE | sed "s/Tagline......: *//")
-    LANGUAGE="Language.....: $(grep -o '"spokenLanguages":\[[^]]*' $TMPFILE | head -1 | grep -o '"text":"[^"]*' | cut -d'"' -f4 | uniq | paste -sd '/' -)"
+    LANGUAGE="Language.....: $(grep -oP '"spokenLanguages":\{"spokenLanguages":\[\K[^\]]*' $TMPFILE | head -1 | grep -oP '"text":"\K[^"]+' | uniq | paste -sd '/' -)"
     LANGUAGECLEAN=$(echo $LANGUAGE | sed "s/Language.....: *//")
     # Yeah, this keeps getting worse ;)
     if [ -z $PLOTWIDTH ]; then
       PLOTWIDTH=275
     fi
-    PLOT="Plot: "$(grep -oP '"plotText":\{"plainText":"\K(.+?)(?<!\\)"' "$TMPFILE" \
+    PLOT="Plot: "$(grep -oP '"plotText":\{"plainText":"\K[^"]*(?=")' "$TMPFILE" \
         | head -1 \
         | sed 's/\\u0026/\&/g;' \
         | sed s/\"/$QUOTECHAR/g | sed 's/^\ *//g' | tr -s ' ' | sed "s/ *$//" \
@@ -573,9 +569,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      OUTPUTOK=""
      break
     fi
-    CERT=$(grep -o '<a [^>]*certificates=[^>]*>[^<]*</a>' "$TMPFILE" | sed -E 's/.*>([^<]+)<.*/\1/' | paste -sd '/' - | head -n "$CERTIFICATIONNUM")
+    CERT=$(grep -oP '"certificatesV2":\{[^}]*"edges":\[\{"node":\{"attributes":\[\{"text":"\K[^"]+' "$TMPFILE" | paste -sd '/' - | head -n "$CERTIFICATIONNUM")
     CERTCLEAN=$(echo $CERT | sed "s/Certification: *//" | tr '/' '\n' | grep -a -e "United States:" | tr -d ' ' | tail -n 1)
-    CAST=$(grep -o '"nameText":{[^}]*}' $TMPFILE | grep -o '"text":"[^"]*' | cut -d'"' -f4 | awk '!a[$0]++' | head -n "${CASTNUM}")
+    CAST=$(grep -oP '"text":"Stars".*?"credits":\[\K[^]]+(?=\])' $TMPFILE | head -1 | grep -oP '"nameText":\{"text":"\K[^"]+' | head -n "${CASTNUM}")
     CASTCLEAN=$(echo "$CAST" | sed "s/\.\.\..*/|/g" | tr -s '\n' ' ' | sed "s/^\ *//g" | sed "s/\ *$//g" | sed "s/ |/\,/g" | sed "s/,$//")
     CASTLEADNAME="$(echo "$CAST" | head -n 1 | sed 's/\.\.\./\n/' | head -n 1 | tr -s ' ' | sed "s/^\ //g" | sed "s/\ $//g")"
     CASTLEADCHAR="$(echo "$CAST" | head -n 1 | sed 's/\.\.\./\n/' | tail -n 1 | tr -s ' ' | sed "s/^\ //g" | sed "s/\ $//g")"
@@ -584,7 +580,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     COMMENT="Not supported anymore"
     [[ -n "$COMMENT" ]] && COMMENTCLEAN=$(echo "$COMMENT" | sed "s/^\ *//g" | sed "s/\ *$//g" | sed s/\{\}\"/$QUOTECHAR/g | tr '\n' '|' | sed "s/[ /]*$//")
 
-    runtime_sec=$(grep -o '"runtime":{[^}]*}' $TMPFILE | grep -o '"seconds":[0-9]*' | cut -d':' -f2 | head -1)
+    runtime_sec=$(grep -oP '"runtime":\{"seconds":\K[0-9]+' $TMPFILE | head -1)
     if [ -n "$runtime_sec" ]; then
       hours=$((runtime_sec/3600))
       mins=$(( (runtime_sec%3600)/60 ))
@@ -594,7 +590,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 	RUNTIME=$(printf "%dmin" "$mins")
       fi
     else
-      mins=$(grep -o '"runtime":[0-9]*' $TMPFILE | cut -d':' -f2 | head -1)
+      mins=$(grep -oP '"runtime":\{"displayableProperty":\{"value":\{"plainText":"\K[0-9]+' $TMPFILE | head -1)
       if [ -n "$mins" ]; then
 	hours=$((mins/60))
 	minleft=$((mins%60))
@@ -609,8 +605,8 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     if [ ! -z "$RUNTIMECLEAN" ]; then
      RUNTIMECLEAN="$RUNTIMECLEAN"
     fi
-    DIRECTOR=$(sed -n '/Directed by$/,/^[^ ]/p' "$TMPFILE" | sed '1,2d;$d;s/^ *//' | sed 's/\"/$QUOTECHAR/g' | head -n $DIRECTORNUM | tr '\n' '/' | sed "s/ \.\.\..*//;s/ *$//;s/\/$//")
-    DIRECTORCLEAN=$(echo $DIRECTOR)
+    DIRECTOR=$(grep -oP '"text":"Directors".*?"credits":\[\K[^]]+(?=\])' "$TMPFILE" | head -1 | grep -oP '"nameText":\{"text":"\K[^"]+' | head -n $DIRECTORNUM | tr '\n' '/' | sed "s/ *$//;s/\/$//")
+    DIRECTORCLEAN=$(echo $DIRECTOR | sed 's/\"/'$QUOTECHAR'/g')
     if [ ! -z "$(echo "$DIRECTOR" | grep -a -e "\(\ \)\ \(\ \)")" ]; then
      OUTPUTOK=""
      break
@@ -668,9 +664,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BUSINESSURL >/dev/null 2>&1
+       wget $WGETFLAGS -U "Internet Explorer" -O $TMPFILE --timeout=30 $BUSINESSURL >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BUSINESSURL >/dev/null 2>&1
+       curl $CURLFLAGS -A "Internet Explorer" -o $TMPFILE --connect-timeout 30 $BUSINESSURL >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        LYNXTRIES=$LYNXTRIESORIG
@@ -715,9 +711,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $RELEASEURL >/dev/null 2>&1
+       wget $WGETFLAGS -U "Internet Explorer" -O $TMPFILE --timeout=30 $RELEASEURL >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $RELEASEURL >/dev/null 2>&1
+       curl $CURLFLAGS -A "Internet Explorer" -o $TMPFILE --connect-timeout 30 $RELEASEURL >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        LYNXTRIES=$LYNXTRIESORIG
@@ -765,9 +761,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BOMURL >/dev/null 2>&1
+       wget $WGETFLAGS -U "Internet Explorer" -O $TMPFILE --timeout=30 $BOMURL >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BOMURL >/dev/null 2>&1
+       curl $CURLFLAGS -A "Internet Explorer" -o $TMPFILE --connect-timeout 30 $BOMURL >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        LYNXTRIES=$LYNXTRIESORIG
@@ -794,9 +790,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BOMURLRELEASEGROUP >/dev/null 2>&1
+       wget $WGETFLAGS -U "Internet Explorer" -O $TMPFILE --timeout=30 $BOMURLRELEASEGROUP >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BOMURLRELEASEGROUP >/dev/null 2>&1
+       curl $CURLFLAGS -A "Internet Explorer" -o $TMPFILE --connect-timeout 30 $BOMURLRELEASEGROUP >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        LYNXTRIES=$LYNXTRIESORIG
@@ -824,9 +820,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BOMURLRELEASE >/dev/null 2>&1
+       wget $WGETFLAGS -U "Internet Explorer" -O $TMPFILE --timeout=30 $BOMURLRELEASE >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BOMURLRELEASE >/dev/null 2>&1
+       curl $CURLFLAGS -A "Internet Explorer" -o $TMPFILE --connect-timeout 30 $BOMURLRELEASE >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        LYNXTRIES=$LYNXTRIESORIG
@@ -1072,9 +1068,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     FILENAME=$(ls -1Ftr "$GLROOT$IMDBLKL" | grep -a -v "/" | grep -a -v "@" | grep -a -e "[.][nN][fF][oO]" | head -n 1)
     TMBNAME=$(echo $FILENAME | sed "s/\.nfo/.jpg/")
     if [ ! -z "$USEWGET" ]; then
-     wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $GLROOT$IMDBLKL/$TMBNAME >/dev/null 2>&1
+     wget $WGETFLAGS -U "Internet Explorer" -O $TMPFILE --timeout=30 $GLROOT$IMDBLKL/$TMBNAME >/dev/null 2>&1
     elif [ ! -z "$USECURL" ]; then
-     curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $GLROOT$IMDBLKL/$TMBNAME >/dev/null 2>&1
+     curl $CURLFLAGS -A "Internet Explorer" -o $TMPFILE --connect-timeout 30 $GLROOT$IMDBLKL/$TMBNAME >/dev/null 2>&1
     fi
    fi
 
