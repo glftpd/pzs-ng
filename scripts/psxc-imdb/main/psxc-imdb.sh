@@ -32,13 +32,38 @@ if [ -r $GLROOT$CONFFILE ]; then
 elif [ -r $CONFFILE ]; then
  . $CONFFILE
  if [ $? -ne 0 ]; then
-  echo "Unable to open config file ($CONFFILE). Forced to exit."
-  exit 0
- fi
+ echo "Unable to open config file ($CONFFILE). Forced to exit."
+ exit 0
+fi
 else
  echo "Config file not found. Forced to exit."
  exit 0
 fi
+
+# Resolve paths depending on chrooted/non-chrooted execution
+# Try host path if chroot path is missing
+if [ ! -e "$IMDBLOGCHROOTED" ] && [ -n "$GLROOT" ] && [ -e "$GLROOT$IMDBLOGCHROOTED" ]; then
+ IMDBLOGCHROOTED="$GLROOT$IMDBLOGCHROOTED"
+fi
+if [ ! -e "$IMDBLOG" ]; then
+ if [ -n "$GLROOT" ] && [ -e "$GLROOT$IMDBLOGCHROOTED" ]; then
+  IMDBLOG="$GLROOT$IMDBLOGCHROOTED"
+ elif [[ "$IMDBLOG" == "$GLROOT"* ]] && [ -e "${IMDBLOG#$GLROOT}" ]; then
+  IMDBLOG="${IMDBLOG#$GLROOT}"
+ elif [ -e "$IMDBLOGCHROOTED" ]; then
+  IMDBLOG="$IMDBLOGCHROOTED"
+ fi
+fi
+for var in IMDBURLLOG IMDBPID TMPRESCANFILE TMPFILE; do
+ val="${!var}"
+ if [ ! -e "$val" ] && [ -n "$GLROOT" ]; then
+  if [ -e "$GLROOT$val" ]; then
+   eval "$var=\"$GLROOT$val\""
+  elif [[ "$val" == "$GLROOT"* ]] && [ -e "${val#$GLROOT}" ]; then
+   eval "$var=\"${val#$GLROOT}\""
+  fi
+ fi
+done
 
 # Start debugging
 if [ "$DEBUG" = "ON" ] || [ "$DEBUG" = "2" ]; then
@@ -57,6 +82,12 @@ fi
 # Remove locale settings which might cause problems
 export LC_ALL=""
 export LANG=""
+
+# Default headers/UA to avoid IMDb's CloudFront challenge
+[ -z "$USERAGENT" ] && USERAGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+IMDB_ACCEPT_HEADER="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+IMDB_LANG_HEADER="Accept-Language: en-US,en;q=0.8"
+IMDB_REFERER_HEADER="Referer: https://www.imdb.com/"
 
 if [ ! -z "$RECVDARGS" ]; then
 
@@ -320,7 +351,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
  sleep 0.$RANDOM
  IMDBPIDCONTENT="$(head -n2 $IMDBPID | tail -n1)"
  [[ ! -z "$IMDBPIDCONTENT" ]] &&
-   [[ -1 -eq "$IMDBPIDCONTENT" || ! -z $(ps ax | awk '{print $1}' | grep -a -e "^$IMDBPIDCONTENT$") ]] &&
+ [[ -1 -eq "$IMDBPIDCONTENT" || ! -z $(ps -e 2>/dev/null | awk '{print $1}' | grep -a -e "^$IMDBPIDCONTENT$") ]] &&
      exit 0
  echo $$ > $IMDBPID
 
@@ -463,13 +494,13 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       else
        let LYNXTRIES=LYNXTRIES-1
        sleep 1
-      fi
+     fi
      else
       if [ ! -z "$USEWGET" ]; then
        #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "Mozilla/5.0" -O $TMPFILE --timeout=30 $IMDBURL >/dev/null 2>&1
+       wget $WGETFLAGS --header="$IMDB_ACCEPT_HEADER" --header="$IMDB_LANG_HEADER" --header="$IMDB_REFERER_HEADER" -U "$USERAGENT" -O $TMPFILE --timeout=30 "$IMDBURL" >/dev/null 2>&1
       elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "Mozilla/5.0" -o $TMPFILE --connect-timeout 30 $IMDBURL >/dev/null 2>&1
+       curl $CURLFLAGS -A "$USERAGENT" -H "$IMDB_ACCEPT_HEADER" -H "$IMDB_LANG_HEADER" -H "$IMDB_REFERER_HEADER" -o $TMPFILE --connect-timeout 30 "$IMDBURL" >/dev/null 2>&1
       fi
       if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
        TMBURL=$(grep -a "\.jpg" $TMPFILE | head -n 1 | tr ' \"' '\n' | grep -a "\.jpg" | head -n 1)
@@ -511,11 +542,16 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      TITLENAME="$( echo $ORIGTITLE | sed -e 's/^ *//g' -e 's/ (original title)//' )"
      TITLE="$TITLENAME $TITLEYEAR"
     fi
-    GENRE="Genre........: $(grep -oP '"genres":\{[^}]*"genres":\[\K[^\]]*' $TMPFILE | head -1 | grep -oP '"text":"\K[^"]+' | uniq | paste -sd '/' - | head -n $GENRENUM)"
-    GENRECLEAN=$(echo $GENRE | sed "s/Genre........: *//")
+    RAWGENRES=$(grep -oP '"genres":\{[^}]*"genres":\[\K[^\]]*' "$TMPFILE" | head -1 | grep -oP '"text":"\K[^"]+')
+    GENRECLEAN=$(printf "%s\n" "$RAWGENRES" | awk -v limit="$GENRENUM" 'BEGIN{ORS="";c=0}{if(!seen[$0]++ && (++c)<=limit){if(c>1)printf "/";printf "%s",$0}}')
+    GENRE=""
+    [ -n "$GENRECLEAN" ] && GENRE="Genre........: $GENRECLEAN"
     RATINGVAL="$(grep -oP '"ratingsSummary":\{"aggregateRating":\K[0-9.]+' $TMPFILE | head -1)"
-    VOTECOUNT="$(grep -oP '"ratingsSummary":\{"aggregateRating":[^}]*"voteCount":\K[0-9]+' $TMPFILE | head -1)"
-    VOTES="$(awk '{n=$1; s=""; while(n>=1000){s=sprintf(",%03d%s",n%1000,s); n=int(n/1000)}; printf "%d%s", n, s}' <<< "$VOTECOUNT")"
+    VOTECOUNT="$(grep -oP '"voteCount"[^0-9]*\K[0-9]+' "$TMPFILE" | awk 'BEGIN{max=0} {if($1>max)max=$1} END{print max}')"
+    VOTES="0"
+    if [ -n "$VOTECOUNT" ]; then
+     VOTES="$(echo "$VOTECOUNT" | awk '{n=$1; s=""; while(n>=1000){s=sprintf(",%03d%s",n%1000,s); n=int(n/1000)}; printf "%d%s", n, s}')"
+    fi
     RATING="User Rating..: $RATINGVAL ($VOTES)"
     if [ "$RATING" = "User Rating..: 0 (0)" ]; then
       RATING="User Rating..: Awaiting 5 votes"
@@ -548,12 +584,16 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     if [ ! -z "$BOTTOM" ]; then
       RATINGCLEAN="$(echo "$RATINGCLEAN Bottom 100: #$BOTTOM")"
     fi
-    COUNTRY="Country......: $(grep -oP '"countriesOfOrigin":\{"countries":\[\K[^\]]*' $TMPFILE | head -1 | grep -oP '"id":"\K[^"]+' | uniq | sed 's/GB/United Kingdom/; s/US/United States/' | paste -sd '/' - | head -n $COUNTRYNUM)"
-    COUNTRYCLEAN=$(echo $COUNTRY | sed "s/Country......: *//")
+    RAWCOUNTRY=$(grep -oP '"countriesOfOrigin":\{"countries":\[\K[^\]]*' "$TMPFILE" | head -1 | grep -oP '"id":"\K[^"]+')
+    COUNTRYCLEAN=$(printf "%s\n" "$RAWCOUNTRY" | awk -v limit="$COUNTRYNUM" 'BEGIN{ORS="";c=0}{g=$0;gsub("GB","United Kingdom",g);gsub("US","United States",g);if(!seen[g]++ && (++c)<=limit){if(c>1)printf "/";printf "%s",g}}')
+    COUNTRY=""
+    [ -n "$COUNTRYCLEAN" ] && COUNTRY="Country......: $COUNTRYCLEAN"
     TAGLINE=$(grep -oP '"taglines":\{[^}]*"edges":\[\{"node":\{"text":"\K[^"]+' "$TMPFILE" | head -1 | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/[\r\n]\+/ /g')
     TAGLINECLEAN=$(echo $TAGLINE | sed "s/Tagline......: *//")
-    LANGUAGE="Language.....: $(grep -oP '"spokenLanguages":\{"spokenLanguages":\[\K[^\]]*' $TMPFILE | head -1 | grep -oP '"text":"\K[^"]+' | uniq | paste -sd '/' -)"
-    LANGUAGECLEAN=$(echo $LANGUAGE | sed "s/Language.....: *//")
+    RAWLANG=$(grep -oP '"spokenLanguages":\{"spokenLanguages":\[\K[^\]]*' "$TMPFILE" | head -1 | grep -oP '"text":"\K[^"]+')
+    LANGUAGECLEAN=$(printf "%s\n" "$RAWLANG" | awk 'BEGIN{ORS="";c=0}{if(!seen[$0]++){if(c>0)printf "/";printf "%s",$0;c++}}')
+    LANGUAGE=""
+    [ -n "$LANGUAGECLEAN" ] && LANGUAGE="Language.....: $LANGUAGECLEAN"
     # Yeah, this keeps getting worse ;)
     if [ -z $PLOTWIDTH ]; then
       PLOTWIDTH=275
@@ -569,8 +609,13 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      OUTPUTOK=""
      break
     fi
-    CERT=$(grep -oP '"certificatesV2":\{[^}]*"edges":\[\{"node":\{"attributes":\[\{"text":"\K[^"]+' "$TMPFILE" | paste -sd '/' - | head -n "$CERTIFICATIONNUM")
-    CERTCLEAN=$(echo $CERT | sed "s/Certification: *//" | tr '/' '\n' | grep -a -e "United States:" | tr -d ' ' | tail -n 1)
+    CERTRAW=$(grep -oP '"certificatesV2":\{[^}]*"edges":\[\{"node":\{"attributes":\[\{"text":"\K[^"]+' "$TMPFILE" | head -n "$CERTIFICATIONNUM")
+    CERT=$(printf "%s\n" "$CERTRAW" | awk 'BEGIN{ORS="";c=0}{if(c>0)printf "/";printf "%s",$0;c++}')
+    CERTCLEAN=$(printf "%s\n" "$CERT" | tr '/' '\n' | grep -a -e "United States:" | tr -d ' ' | tail -n 1)
+    if [ -z "$CERTCLEAN" ]; then
+     CERTCLEAN=$(grep -oP '"certificate":\{"rating":"\K[^"]+' "$TMPFILE" | head -1)
+     [ -n "$CERTCLEAN" ] && CERT="Certification: $CERTCLEAN"
+    fi
     CAST=$(grep -oP '"text":"Stars".*?"credits":\[\K[^]]+(?=\])' $TMPFILE | head -1 | grep -oP '"nameText":\{"text":"\K[^"]+' | head -n "${CASTNUM}")
     CASTCLEAN=$(echo "$CAST" | sed "s/\.\.\..*/|/g" | tr -s '\n' ' ' | sed "s/^\ *//g" | sed "s/\ *$//g" | sed "s/ |/\,/g" | sed "s/,$//")
     CASTLEADNAME="$(echo "$CAST" | head -n 1 | sed 's/\.\.\./\n/' | head -n 1 | tr -s ' ' | sed "s/^\ //g" | sed "s/\ $//g")"
@@ -606,6 +651,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      RUNTIMECLEAN="$RUNTIMECLEAN"
     fi
     DIRECTOR=$(grep -oP '"text":"Directors".*?"credits":\[\K[^]]+(?=\])' "$TMPFILE" | head -1 | grep -oP '"nameText":\{"text":"\K[^"]+' | head -n $DIRECTORNUM | tr '\n' '/' | sed "s/ *$//;s/\/$//")
+    if [ -z "$DIRECTOR" ]; then
+     DIRECTOR=$(grep -oP '"directorsPageTitle":[^]]*' "$TMPFILE" | grep -oP '"text":"\K[^"]+' | head -n $DIRECTORNUM | tr '\n' '/' | sed "s/ *$//;s/\/$//")
+    fi
     DIRECTORCLEAN=$(echo $DIRECTOR | sed 's/\"/'$QUOTECHAR'/g')
     if [ ! -z "$(echo "$DIRECTOR" | grep -a -e "\(\ \)\ \(\ \)")" ]; then
      OUTPUTOK=""
@@ -728,15 +776,30 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      fi
     done
     if [ "$LYNXTRIES" = "$LYNXTRIESORIG" ]; then
-     if [ ! -z "$USEPREMIERE" ]; then
-      PREMIERE=$(grep -a -e "(premiere)" "$TMPFILE" | head -n 1 | sed "s/ (premiere)//" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
-      if [ -z "$PREMIERE" ]; then
-       PREMIERE=$(sed -n "/^Release Date$/,+1p" "$TMPFILE" | tail -n 1 | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
-      fi
-      if [ -z "$(echo "$PREMIERE" | tr -cd '0-9')" ]; then
-       PREMIERE=""
+    if [ ! -z "$USEPREMIERE" ]; then
+     PREMIERE=$(grep -a -e "(premiere)" "$TMPFILE" | head -n 1 | sed "s/ (premiere)//" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
+     if [ -z "$PREMIERE" ]; then
+      PREMIERE=$(sed -n "/^Release Date$/,+1p" "$TMPFILE" | tail -n 1 | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
+     fi
+     if [ -z "$PREMIERE" ]; then
+      RDAY=$(grep -oP '"releaseDate":\{"day":\K[0-9]+' "$TMPFILE" | head -1)
+      RMONTH=$(grep -oP '"releaseDate":\{"day":[0-9]+,"month":\K[0-9]+' "$TMPFILE" | head -1)
+      RYEAR=$(grep -oP '"releaseDate":\{"day":[0-9]+,"month":[0-9]+,"year":\K[0-9]+' "$TMPFILE" | head -1)
+      if [ -n "$RYEAR" ]; then
+       if [ -n "$RDAY" ] && [ -n "$RMONTH" ]; then
+        PREMIERE="$RDAY/$RMONTH/$RYEAR"
+       else
+        PREMIERE="$RYEAR"
+       fi
       fi
      fi
+     if [ -z "$(echo "$PREMIERE" | tr -cd '0-9')" ]; then
+      PREMIERE=""
+     fi
+     if [ -z "$PREMIERE" ] && [ -n "$TITLEYEAR" ]; then
+      PREMIERE="$TITLEYEAR"
+     fi
+    fi 
      if [ ! -z "$USELIMITED" ]; then
       LIMITED=$(grep -a -e "(limited)" "$TMPFILE" | head -n 1 | sed "s/ (limited)//" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
      fi
@@ -853,6 +916,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       ISLIMITED=""
      fi
     fi 
+    if [ -z "$BUSINESSSCREENS" ]; then
+     BUSINESSSCREENS="unknown"
+    fi
    fi
    if [ ! -z "$IMDBHEAD" ]; then
     BOTHEAD=$(echo $BOTHEADORIG | sed "s/RELEASENAME/$BOLD$IMDBDIR$BOLD/")
@@ -937,7 +1003,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     fi
     if  [ ! -z "$BOTONELINE" ]; then
      if [ -z "$LOGFORMAT" ]; then
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ONELINE\" \"$IMDBDST\"" >> $GLLOG
+      echo "$DATE $TRIGGER {$IMDBLKL} {$ONELINE} {$IMDBDST}" >> $GLLOG
      elif [ "$LOGFORMAT" = "MYOWN" ]; then
 #      NEWLINE="|"
       MYOWNPAIRS="%imdbdirname|IMDBDIR %imdburl|IMDBURL %imdbtitle|TITLE %imdbgenre|GENRECLEAN %imdbrating|RATINGCLEAN %imdbcountry|COUNTRYCLEAN %imdblanguage|LANGUAGECLEAN %imdbcertification|CERTCLEAN %imdbruntime|RUNTIMECLEAN %imdbdirector|DIRECTORCLEAN %imdbbusinessdata|BUSINESSSHORT %imdbpremiereinfo|PREMIERE %imdblimitedinfo|LIMITED %imdbvotes|RATINGVOTES %imdbscore|RATINGSCORE %imdbname|TITLENAME %imdbyear|TITLEYEAR %imdbnumscreens|BUSINESSSCREENS %imdbislimited|ISLIMITED %imdbcastleadname|CASTLEADNAME %imdbcastleadchar|CASTLEADCHAR %imdbtagline|TAGLINECLEAN %imdbplot|PLOTCLEAN %imdbbar|RATINGBAR %imdbcasting|CASTCLEAN %imdbcommentshort|COMMENTSHORTCLEAN %newline|NEWLINE %bold|BOLD"
@@ -952,9 +1018,22 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         MYOWNFORMAT1="$(echo "${MYOWNFORMAT1}" | sed "s^$MYOWNSTRING^$MYOWNEMPTY^g")"
        fi
       done
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      if [ "$IMDBSPLITLINES" = "YES" ]; then
+       LINE1="${MYOWNFORMAT1%%\\n*}"
+       LINE2="${MYOWNFORMAT1#*\\n}"
+       if [ "$LINE1" != "$LINE2" ]; then
+        echo "$DATE $TRIGGER {$IMDBLKL} {$LINE1} {$IMDBDST}" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+        CURTRIG="$TRIGGER"
+        [ -n "$IMDBSPLITTRIG" ] && CURTRIG="$IMDBSPLITTRIG"
+        echo "$DATE $CURTRIG {$IMDBLKL} {$LINE2} {$IMDBDST}" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+       else
+        echo "$DATE $TRIGGER {$IMDBLKL} {${MYOWNFORMAT1}} {$IMDBDST}" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+       fi
+      else
+       echo "$DATE $TRIGGER {$IMDBLKL} {${MYOWNFORMAT1}} {$IMDBDST}" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      fi
      else
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      echo "$DATE $TRIGGER {$IMDBLKL} {$IMDBDIR} {$IMDBURL} {$TITLE} {$GENRECLEAN} {$RATINGCLEAN} {$COUNTRYCLEAN} {$LANGUAGECLEAN} {$CERTCLEAN} {$RUNTIMECLEAN} {$DIRECTORCLEAN} {$BUSINESSSHORT} {$PREMIERE} {$LIMITED} {$RATINGVOTES} {$RATINGSCORE} {$TITLENAME} {$TITLEYEAR} {$BUSINESSSCREENS} {$ISLIMITED} {$CASTLEADNAME} {$CASTLEADCHAR} {$TAGLINECLEAN} {$PLOTCLEAN} {$RATINGBAR} {$CASTCLEAN} {$COMMENTSHORTCLEAN} {$IMDBDST}" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
      fi
     fi
    fi
