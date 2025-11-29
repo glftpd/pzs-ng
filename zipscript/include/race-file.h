@@ -1,6 +1,7 @@
 #ifndef _RACE_FILE_H_
 #define _RACE_FILE_H_
 
+#include <stdbool.h>
 #include <sys/stat.h>
 #include "objects.h"
 #include "zsfunctions.h"
@@ -67,5 +68,7 @@ extern void create_dirlist(const char *, char *, const int);
 extern int filebanned_match(const char *);
 extern int lenient_compare(char *, char *);
 extern int read_headdata(const char *);
+extern bool create_lock_link(struct VARS *);
+extern void remove_lock_link(struct VARS *);
 #endif
 
