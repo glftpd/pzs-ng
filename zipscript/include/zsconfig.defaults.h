@@ -375,6 +375,11 @@
 #define debug_mode                                FALSE
 #endif
 
+#ifndef time_precision
+#define time_precision_is_defaulted
+#define time_precision                            3
+#endif
+
 #ifndef del_audio_completebar
 #define del_audio_completebar_is_defaulted
 #define del_audio_completebar                     "^\\[.*] - \\( .*F - COMPLETE - .*) - \\[.*]$"

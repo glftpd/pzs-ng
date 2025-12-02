@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <ctype.h>
 #include <time.h>
+#include <math.h>
 #include "objects.h"
 #include "zsfunctions.h"
 #include "../conf/zsconfig.h"
@@ -17,12 +18,15 @@ hms(char *ttime, double secs)
 {
 	int tmp = 0;
 	int total_secs = (int)secs;
-	int millis = (int)((secs - total_secs) * 1000);
+	double fractional = secs - total_secs;
 	int hours = 0, mins = 0, remaining_secs;
 
 	tmp = sprintf(ttime, "%d", total_secs);
-	if (millis > 0)
-		tmp += sprintf(ttime + tmp, ",%03d", millis);
+	if (time_precision > 0 && fractional > 0) {
+		char format[16];
+		sprintf(format, ".%%0%dd", time_precision);
+		tmp += sprintf(ttime + tmp, format, (int)(fractional * pow(10, time_precision)));
+	}
 	tmp += sprintf(ttime + tmp, "s|");
 
 	remaining_secs = total_secs;
@@ -35,8 +39,15 @@ hms(char *ttime, double secs)
 		tmp += sprintf(ttime + tmp, "%ih", hours);
 	if (mins)
 		tmp += sprintf(ttime + tmp, "%im", mins);
-	if (remaining_secs || (!hours && !mins))
-		tmp += sprintf(ttime + tmp, "%is", remaining_secs);
+	if (remaining_secs || (!hours && !mins)) {
+		tmp += sprintf(ttime + tmp, "%i", remaining_secs);
+		if (time_precision > 0 && fractional > 0) {
+			char format[16];
+			sprintf(format, ".%%0%dd", time_precision);
+			tmp += sprintf(ttime + tmp, format, (int)(fractional * pow(10, time_precision)));
+		}
+		tmp += sprintf(ttime + tmp, "s");
+	}
 
 	return ttime;
 }
