@@ -471,7 +471,7 @@ main(int argc, char **argv)
 				}
 			} else {
 				for ( n = 0; n <= max_seconds_wait_for_lock * 10; n++) {
-					d_log("zipscript-c: sleeping for .1 second before trying to get a lock.\n");
+					d_log("zipscript-c: sleeping for .1 second before trying to get a lock before scanning %s.\n", argv[1]);
 					usleep(100000);
 					if (!(m = create_lock(&g.v, g.l.path, PROGTYPE_ZIPSCRIPT, 0, g.v.data_queue)))
 						break;

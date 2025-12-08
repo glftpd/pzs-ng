@@ -1008,7 +1008,7 @@ create_lock_link(struct VARS *raceI) {
 		return false;
 	}
 
-	d_log("create_lock: link ok.\n");
+	d_log_ext("create_lock", "link ok.\n");
 	return true;
 }
 
@@ -1019,30 +1019,34 @@ remove_lock_link(struct VARS *raceI) {
 	unlink(lockfile);
 }
 
+
 /**
  * create_lock - set a lock and update the header file
  * @raceI: active VARS data
  * @path: path of the release being scanned
  * @progtype: a code for what program calls the lock is found in constants.h
  * @force_lock: used to suggest/force a lock on the file
- *		set to 1 to suggest a lock,2 to force a lock, 3 to put in queue.
+ *              0 = default, no special treatment
+ *		        1 = suggest a lock
+ *              2 = force a lock
+ *              3 = to put in queue
  * 
  *
  * Return: progtype for active lock being queued, 1 for version mismatch, 0 for success, -1 for failure
  */
-
 int
 create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigned int force_lock, unsigned int queue)
 {
 	int			fd;
 	HEADDATA	hd;
 	struct stat	head_stat;
+	unsigned int current_pid = (unsigned int)getpid();
 
 	/* this should really be moved out of the proc - we'll worry about it later */
 	safe_snprintf(raceI->headpath, PATH_MAX, "%s/%s/headdata", storage, path);
 
 	if ((fd = open(raceI->headpath, O_CREAT | O_RDWR, 0666)) == -1) {
-		d_log("create_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
+		d_log_ext("create_lock", "open(%s): %s\n", raceI->headpath, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
@@ -1052,97 +1056,104 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	}
 
 	fstat(fd, &head_stat);
+
 	if (!head_stat.st_size) {
-		/* no header file exists - let's create one with default values. */
+		d_log_ext("create_lock", "no previous head file found, initializing new head file.\n");
 		hd.data_version = sfv_version;
 		raceI->data_type = hd.data_type = 0;
 		raceI->data_in_use = hd.data_in_use = progtype;
 		raceI->data_incrementor = hd.data_incrementor = 1;
-		raceI->data_queue = hd.data_queue = 1;
+		raceI->data_queue = hd.data_queue = 0;
 		hd.data_qcurrent = 0;
 		raceI->misc.data_completed = hd.data_completed = 0;
-		hd.data_pid = (unsigned int)getpid();
-		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA))
-			d_log("create_lock: write failed: %s\n", strerror(errno));
-		d_log("create_lock: lock set. (no previous head file found) pid: %d\n", hd.data_pid);
+		hd.data_pid = current_pid;
+		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
+			d_log_ext("create_lock", "write failed: %s\n", strerror(errno));
+		}
+		d_log_ext("create_lock", "lock set successfully.\n");
 
 		close(fd);
 		return 0;
 	}
 
 	if (read(fd, &hd, sizeof(HEADDATA)) == -1) {
-		d_log("create_lock: read() failed: %s\n", strerror(errno));
+		d_log_ext("create_lock", "read() failed: %s\n", strerror(errno));
 		close(fd);
 		remove_lock_link(raceI);
 		return -1;
 	}
 
 	if (hd.data_version != sfv_version) {
-		d_log("create_lock: version of datafile mismatch. Stopping and suggesting a cleanup.\n");
+		d_log_ext("create_lock", "version of datafile mismatch. Stopping and suggesting a cleanup.\n");
 		close(fd);
-		remove_lock_link(raceI);		
+		remove_lock_link(raceI);
 		return 1;
 	}
 	
-	// the previous lock file age was old enough to claim the lock
-	if ((time(NULL) - head_stat.st_ctime >= max_seconds_wait_for_lock * 5)) {
-		raceI->misc.release_type = hd.data_type;
+	raceI->misc.release_type = hd.data_type;
+	raceI->misc.data_completed = hd.data_completed;
+
+	if (!hd.data_pid || !is_process_running(hd.data_pid)) {
+		if (hd.data_pid) {
+			d_log_ext("create_lock", "re-using head file, previously set pid %d is not running anymore, unlocking.\n", hd.data_pid);
+		} else {
+			d_log_ext("create_lock", "re-using head file.\n");
+		}
 		raceI->data_in_use = hd.data_in_use = progtype;
 		raceI->data_incrementor = hd.data_incrementor = 1;
-		raceI->data_queue = hd.data_queue = 1;
+		raceI->data_queue = hd.data_queue = 0;
 		hd.data_qcurrent = 0;
-		raceI->misc.data_completed = hd.data_completed;
 		hd.data_pid = (unsigned int)getpid();
 
 		lseek(fd, 0L, SEEK_SET);
 		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-			d_log("create_lock: write failed: %s\n", strerror(errno));
+			d_log_ext("create_lock", "write failed: %s\n", strerror(errno));
 		}
-		d_log("create_lock: lock set. (lockfile exceeded max life time) pid: %d\n", hd.data_pid);
+		d_log_ext("create_lock", "lock set successfully.\n");
 
 		close(fd);
 		return 0;
 	}
 
-	raceI->misc.release_type = hd.data_type;
-	raceI->misc.data_completed = hd.data_completed;
-
 	if (force_lock == 2) {
-		raceI->data_queue = hd.data_queue = 1;
+		d_log_ext("create_lock", "unlock forced.\n");
+		raceI->data_queue = hd.data_queue = 0;
 		hd.data_qcurrent = 0;
-		d_log("create_lock: Unlock forced.\n");
-	} else if (hd.data_in_use) {			/* the lock is active */
-		
+	} else if (hd.data_in_use) {
+		d_log_ext("create_lock", "lock is currently active by %d.\n", hd.data_pid);
 		if (force_lock == 3) {				/* we got a request to queue a lock if active */
-			raceI->data_queue = hd.data_queue;	/* we give the current queue number to the calling process */
 			hd.data_queue++;			/* we increment the number in the queue */
+			raceI->data_queue = hd.data_queue;	/* we give the current queue number to the calling process */
 
 			lseek(fd, 0L, SEEK_SET);
 			if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-				d_log("create_lock: write failed: %s\n", strerror(errno));
+				d_log_ext("create_lock", "write failed: %s\n", strerror(errno));
 			}
-			d_log("create_lock: lock active - putting you in queue. (%d/%d)\n", hd.data_qcurrent, hd.data_queue);
+			d_log_ext("create_lock", "lock active - putting you in queue. (%d/%d)\n", hd.data_qcurrent, hd.data_queue);
 		}
 
 		remove_lock_link(raceI);
 		close(fd);
 		return hd.data_in_use;
-	} else { 		/* the lock is inactive */
-
-		/* We got a request to queue a lock	and there seems to be others in queue.
-		   Will not allow the process to lock, but wait for the queued process to do so.
-		*/
+	} else {
+		d_log_ext("create_lock", "lock is currently inactive.\n");
+		// force_lock == 3 only when queue is 0, so we can queue newly
 		if (force_lock == 3 && hd.data_queue > hd.data_qcurrent) {
-			raceI->data_queue = hd.data_queue;		/* we give the queue number to the calling process */
-			hd.data_queue++;				/* we increment the number in the queue */
+			/* 
+			We got a request to queue a lock, and there seems to be others in queue since data_queue != data_qcurrent.
+			We will not allow the process to lock, but wait for the queued process to do so.
+			*/
+			d_log_ext("create_lock", "requested to queue but earlier queued requests exist, not locking!\n");
+			hd.data_queue++;
+			raceI->data_queue = hd.data_queue;
 			raceI->data_incrementor = hd.data_incrementor;
 			lseek(fd, 0L, SEEK_SET);
 			if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-				d_log("create_lock: write failed: %s\n", strerror(errno));
+				d_log_ext("create_lock", "write failed: %s\n", strerror(errno));
 			}
-			d_log("create_lock: putting you in queue. (%d/%d)\n", hd.data_qcurrent, hd.data_queue);
+			d_log_ext("create_lock", "putting you in queue. (%d/%d)\n", hd.data_qcurrent, hd.data_queue);
 
-			remove_lock_link(raceI);			
+			remove_lock_link(raceI);
 			close(fd);
 			return -1;				
 		} else if (force_lock == 0 && hd.data_queue && (queue > hd.data_qcurrent)) {
@@ -1157,7 +1168,7 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 	}
 
 	if (force_lock == 1) {				/* lock suggested - reseting the incrementor to 0 */
-		d_log("create_lock: Unlock suggested.\n");
+		d_log_ext("create_lock", "unlock suggested.\n");
 		hd.data_incrementor = 0;
 	} else {							/* either no lock and queue, or unlock is forced. */
 		hd.data_incrementor = 1;
@@ -1169,11 +1180,11 @@ create_lock(struct VARS *raceI, const char *path, unsigned int progtype, unsigne
 
 	lseek(fd, 0L, SEEK_SET);
 	if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-		d_log("create_lock: write failed: %s\n", strerror(errno));
+		d_log_ext("create_lock", "write failed: %s\n", strerror(errno));
 	}
 	raceI->data_in_use = progtype;
 
-	d_log("create_lock: lock set. pid: %d\n", hd.data_pid);
+	d_log_ext("create_lock", "lock set successfully.\n");
 	close(fd);
 	return 0;
 }
@@ -1187,18 +1198,19 @@ remove_lock(struct VARS *raceI)
 	HEADDATA	hd;
 	char		lockfile[PATH_MAX + 1];
 
-	if (!raceI->data_in_use) {
-		d_log("remove_lock: lock not removed - no lock was set\n");
-		return;
-	}
-
 	if ((fd = open(raceI->headpath, O_RDWR, 0666)) == -1) {
-		d_log("remove_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
+		d_log_ext("remove_lock", "open(%s): %s\n", raceI->headpath, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
+	if (!raceI->data_in_use) {
+		d_log_ext("remove_lock", "lock not removed - no lock was set\n");
+		hd.data_queue = 0;
+		hd.data_qcurrent = 0;
+	}
+
 	if (read(fd, &hd, sizeof(HEADDATA)) == -1) {
-		d_log("remove_lock: read() failed: %s\n", strerror(errno));
+		d_log_ext("remove_lock", "read() failed: %s\n", strerror(errno));
 		hd.data_queue = 0;
 		hd.data_qcurrent = 0;
 	}
@@ -1218,18 +1230,18 @@ remove_lock(struct VARS *raceI)
 	/* it should be fair to assume there is no one else in queue */
 	/* and reset the queue. Normally, this should not happen. */
 	if (hd.data_queue < hd.data_qcurrent) {	
-		hd.data_queue = 0;		
-		hd.data_qcurrent = 0;		
+		hd.data_queue = 0;
+		hd.data_qcurrent = 0;
 	}
 
 	lseek(fd, 0L, SEEK_SET);
 	if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-		d_log("remove_lock: write failed: %s\n", strerror(errno));
+		d_log_ext("remove_lock", "write failed: %s\n", strerror(errno));
 	}
 	close(fd);
 
 	remove_lock_link(raceI);
-	d_log("remove_lock: queue %d/%d\n", hd.data_qcurrent, hd.data_queue);
+	d_log_ext("remove_lock", "queue %d/%d\n", hd.data_qcurrent, hd.data_queue);
 }
 
 /* update a lock. This should be used after each file checked.
@@ -1249,23 +1261,23 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 	struct stat	head_stat;
 
 	if (!raceI->headpath[0]) {
-		d_log("update_lock: variable 'headpath' empty - assuming no lock is set\n");
+		d_log_ext("update_lock", "variable 'headpath' empty - assuming no lock is set\n");
 		return -1;
 	}
 
 	if (!raceI->data_in_use) {
-		d_log("update_lock: not updating lock - no lock set\n");
+		d_log_ext("update_lock", "not updating lock - no lock set\n");
 		return 1;
 	}
 
 	if ((fd = open(raceI->headpath, O_RDWR, 0666)) == -1) {
-		d_log("update_lock: open(%s): %s\n", raceI->headpath, strerror(errno));
+		d_log_ext("update_lock", "open(%s): %s\n", raceI->headpath, strerror(errno));
 		remove_lock(raceI);
 		exit(EXIT_FAILURE);
 	}
 
 	if (read(fd, &hd, sizeof(HEADDATA)) == -1) {
-		d_log("update_lock: read() failed: %s\n", strerror(errno));
+		d_log_ext("update_lock", "read() failed: %s\n", strerror(errno));
 		// if no data can be read, no proper header exists, exit
 		close(fd);
 		remove_lock(raceI);
@@ -1273,14 +1285,14 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 	}
 
 	if (hd.data_version != sfv_version) {
-		d_log("create_lock: version of datafile mismatch. Stopping and suggesting a cleanup.\n");
+		d_log_ext("create_lock", "version of datafile mismatch. Stopping and suggesting a cleanup.\n");
 		close(fd);
 		remove_lock(raceI);
 		return 1;
 	}
 
 	if ((hd.data_in_use != raceI->data_in_use) && counter) {
-		d_log("update_lock: Lock not active or progtype mismatch - no choice but to exit.\n");
+		d_log_ext("update_lock", "Lock not active or progtype mismatch - no choice but to exit.\n");
 		close(fd);
 		remove_lock(raceI);
 		exit(EXIT_FAILURE);
@@ -1289,20 +1301,21 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 	raceI->misc.release_type = hd.data_type;
 	raceI->misc.data_completed = hd.data_completed;
 
-	if (hd.data_pid != (unsigned int)getpid() && counter) {
-		d_log("update_lock: Oops! Race condition - another process has the lock. pid: %d != %d\n", hd.data_pid, (unsigned int)getpid());
+	unsigned int current_pid = (unsigned int) getpid();
+	if (hd.data_pid != current_pid && counter) {
+		d_log_ext("update_lock", "Oops! Race condition - another process has the lock. pid: %d != %d\n", hd.data_pid, current_pid);
 		hd.data_incrementor++;
 		hd.data_queue = raceI->data_queue - 1;
 		lseek(fd, 0L, SEEK_SET);
 		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-			d_log("create_lock: write failed: %s\n", strerror(errno));
+			d_log_ext("update_lock", "write failed: %s\n", strerror(errno));
 		}
 		close(fd);
 		return -1;
 	}
 
 	if (!hd.data_incrementor) {
-		d_log("update_lock: Lock suggested removed by a different process (%d/%d).\n", hd.data_incrementor, raceI->data_incrementor);
+		d_log_ext("update_lock", "Lock suggested removed by a different process (%d/%d).\n", hd.data_incrementor, raceI->data_incrementor);
 	} else if (counter) {
 		hd.data_incrementor++;
 	} else {
@@ -1317,9 +1330,9 @@ update_lock(struct VARS *raceI, unsigned int counter, unsigned int datatype)
 	if ((hd.data_incrementor && !lock_optimize) || datatype || !hd.data_incrementor || (time(NULL) - head_stat.st_ctime >= lock_optimize && hd.data_incrementor > 1)) {
 		lseek(fd, 0L, SEEK_SET);
 		if (write(fd, &hd, sizeof(HEADDATA)) != sizeof(HEADDATA)) {
-			d_log("create_lock: write failed: %s\n", strerror(errno));
+			d_log_ext("update_lock", "write failed: %s\n", strerror(errno));
 		}
-		d_log("update_lock: updating lock (%d)\n", raceI->data_incrementor);
+		d_log_ext("update_lock", "updating lock (incrementor=%d)\n", raceI->data_incrementor);
 	}
 	close(fd);
 	if (counter) {

@@ -1,5 +1,8 @@
 #include <errno.h>
+#include <signal.h>
 #include <fnmatch.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "zsfunctions.h"
 
@@ -36,30 +39,19 @@ struct USER   **user;
 struct GROUP  **group;
 #endif
 
-/*
- * d_log - create/put comments in a .debug file
- * Last revised by: js
- *        Revision: r1217
- */
-void 
-d_log(char *fmt,...)
+
+void
+vd_log(const char *fmt, va_list ap)
 {
-#if ( debug_mode == TRUE )
 	time_t		timenow;
 	FILE           *file;
-	va_list		ap;
 #if ( debug_altlog == TRUE )
 	static char	debugpath[PATH_MAX];
 	static char	debugname[PATH_MAX];
 #else
 	static char	debugname[] = ".debug";
 #endif
-#endif
 
-	if (fmt == NULL)
-		return;
-#if ( debug_mode == TRUE )
-	va_start(ap, fmt);
 	timenow = time(NULL);
 
 #if ( debug_altlog == TRUE )
@@ -81,11 +73,51 @@ d_log(char *fmt,...)
 	}
 #endif
 	chmod(debugname, 0666);
+}
+
+void 
+d_log(char *fmt,...)
+{
+#if ( debug_mode == TRUE )
+	va_list		ap;
+#endif
+
+	if (fmt == NULL)
+		return;
+#if ( debug_mode == TRUE )
+	va_start(ap, fmt);
+	vd_log(fmt, ap);
 	va_end(ap);
 #endif
 	return;
 }
 
+void
+d_log_ext(char *fname, char *fmt, ...)
+{
+#if ( debug_mode == TRUE )
+	va_list		ap;
+	char buffer[256];
+	char *new_fmt;
+#endif
+
+	if (fmt == NULL)
+		return;
+#if ( debug_mode == TRUE )
+	int res = snprintf(buffer, sizeof(buffer), "%s: %s", fname, fmt);
+	if (res >= sizeof(buffer)) {
+		new_fmt = fmt;
+	} else {
+		new_fmt = buffer;
+	}
+
+    va_start(ap, new_fmt);
+	vd_log(new_fmt, ap);
+	va_end(ap);
+
+#endif
+	return;
+}
 /*
  * create_missing - create a <filename>-missing 0byte file.
  * Last revised by: js
@@ -1982,4 +2014,17 @@ safe_snprintf(char *buffer, size_t size, const char *format, ...) {
 		d_log("resulting file path too long : %s (format %s) (max length %d)", first_arg, format, size);
 		exit(EXIT_FAILURE);
     }
+}
+
+
+bool is_process_running(pid_t pid) {
+    if (pid <= 0) 
+	    return false;
+
+	if (kill(pid, 0) == 0 || errno == EPERM) {
+	    d_log_ext("is_process_running", "Process pid=%d is still running.\n", pid);
+        return true;
+	}
+
+    return false;  // ESRCH
 }

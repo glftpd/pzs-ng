@@ -2,6 +2,7 @@
 #define _ZSFUNCTIONS_H_
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -82,6 +83,7 @@ extern struct dirent **dirlist;
 extern unsigned int direntries;
 
 extern void	d_log(char *,...);
+extern void	d_log_ext(char *, char *,...);
 
 extern void	create_missing(char *);
 extern char    *findfileext(DIR *, char *);
@@ -161,3 +163,4 @@ extern unsigned int insampledir(char *);
 
 extern int _err_file_banned(const char *fn, struct VARS *v);
 extern void safe_snprintf(char *buffer, size_t size, const char *format, ...);
+extern bool is_process_running(pid_t pid);
