@@ -97,7 +97,6 @@ main(int argc, char **argv)
 	// Change to the prefixed directory
 	if (chdir(prefixed_dirname) != 0) {
 		d_log("postdel: Failed to change directory to '%s': %s\n", prefixed_dirname, strerror(errno));
-		return 0;
 	}
 
 	d_log("postdel: Got a 'DELE %s' in '%s'\n", fname, prefixed_dirname);
