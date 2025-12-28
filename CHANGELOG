@@ -1,6 +1,9 @@
 PZS-NG CHANGELOG
 ----------------
 
+v1.2.1  --> 1.2.2 :
+		- Added support for zlib-ng to calculate crc32's faster
+
 v1.2.x  --> 1.2.1 :
 		- Refactored lock files including various fixes of closing files
 		- Removed some compile time errors

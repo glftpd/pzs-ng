@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT
-AC_CONFIG_HEADER(config.h)
+AC_CONFIG_HEADERS([config.h])
 #AC_PREFIX_DEFAULT(/glftpd/)
 
 AC_CANONICAL_BUILD 
@@ -39,12 +39,50 @@ if [[ -z "$MAKE" ]]; then AC_MSG_ERROR([Couldn't find make, quitting!]); fi
 AC_CHECK_PROG(UNAME, uname, uname)
 if [[ -z "$UNAME" ]]; then AC_MSG_ERROR([Couldn't find uname, quitting!]); fi
 
+
 dnl Checks for libraries.
+LIBS=""
+
 LCRYPT=""; PASSCHK=""
 if [[ $($UNAME -s) != "OpenBSD" ]]; then
 	#AC_CHECK_LIB(crypt, crypt, LCRYPT="-lcrypt", AC_MSG_ERROR([[Couldn't find libcrypt, quitting!]]))
 	AC_CHECK_LIB(crypt, crypt, LCRYPT="-lcrypt")
 fi
+
+LZLIB_NG=""
+AC_ARG_WITH([zlib_ng_path], [Path to zlib-ng library directory])
+AC_ARG_WITH([zlib_ng_include], [Path to zlib-ng include directory])
+
+AC_MSG_CHECKING([for pclmulqdq support])
+if $GREP -q "pclmulqdq" /proc/cpuinfo; then
+  AC_MSG_RESULT([yes!])
+  HAVE_PCLMULQDQQ=true
+else
+  AC_MSG_RESULT([no])
+fi
+
+if [[ "$HAVE_PCLMULQDQQ" == true ]]; then
+  if [[ -n "${with_zlib_ng_path}" ]] && [[ -n "${with_zlib_ng_include}" ]]; then
+    CFLAGS="$CFLAGS -I${with_zlib_ng_include}"
+    LDFLAGS="$LDFLAGS -L${with_zlib_ng_path}"
+
+    AC_MSG_NOTICE([using custom paths for zlib-ng support: "${with_zlib_ng_path}" ])
+
+    AC_CHECK_LIB(z-ng, zng_crc32, 
+    [LZLIB_NG="-lz-ng"],
+    AC_MSG_ERROR([zlib library not found - please install]))
+  else
+    AC_CHECK_LIB(z-ng, zng_crc32, 
+    [LZLIB_NG="-lz-ng"],
+    [AC_MSG_NOTICE([zlib-ng support not enabled, for custom paths use with --with-zlib_ng_path=/custom/path --with-zlib_ng_include=/custom/path])])
+  fi
+
+  if [[ -n "$LZLIB_NG" ]]; then
+    LIBS="$LZLIB_NG"
+    AC_DEFINE([USING_ZLIB_NG], [1], [Define if zlib-ng is available])
+  fi
+fi
+
 
 AH_TEMPLATE([PZSNG_SSL_EXT], [Define to 1 to if you have the required SSL-libs in place])
 PZSNG_SSL
@@ -54,9 +92,30 @@ if [[ -n "$SSL_LIBS" ]]; then
 fi
 
 dnl Checks for header files.
-AC_HEADER_TIME
+m4_warn([obsolete],
+[Update your code to rely only on HAVE_SYS_TIME_H,
+then remove this warning and the obsolete code below it.
+All current systems provide time.h; it need not be checked for.
+Not all systems provide sys/time.h, but those that do, all allow
+you to include it and time.h simultaneously.])dnl
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+# Obsolete code to be removed.
+if test $ac_cv_header_sys_time_h = yes; then
+  AC_DEFINE([TIME_WITH_SYS_TIME],[1],[Define to 1 if you can safely include both <sys/time.h>
+	     and <time.h>.  This macro is obsolete.])
+fi
+# End of obsolete code.
+
 AC_HEADER_DIRENT
-AC_HEADER_STDC
+m4_warn([obsolete],
+[The preprocessor macro 'STDC_HEADERS' is obsolete.
+  Except in unusual embedded environments, you can safely include all
+  C89 headers unconditionally.])dnl
+# Autoupdate added the next two lines to ensure that your configure
+# script's behavior did not change.  They are probably safe to remove.
+AC_CHECK_INCLUDES_DEFAULT
+AC_PROG_EGREP
+
 AC_CHECK_HEADERS(pwd.h regex.h fnmatch.h fcntl.h errno.h, , AC_MSG_ERROR([[Couldn't find required header, quitting!]]))
 AC_CHECK_HEADERS(sys/ipc.h sys/param.h sys/shm.h sys/time.h sys/uio.h sys/wait.h, , AC_MSG_ERROR([[Couldn't find required header, quitting!]]))
 AC_CHECK_HEADERS(hsregex.h, CFLAGS="$CFLAGS -DUSE_HSREGEX")
@@ -225,6 +284,9 @@ AC_SUBST(INSTALLPATH)
 AC_SUBST(STATIC)
 AC_SUBST(LCRYPT)
 AC_SUBST(LCRYPTO)
+AC_SUBST(LZLIB_NG)
+AC_SUBST(LIBS)
+
 AC_SUBST(PASSCHK)
 AC_SUBST(PASSCHK2)
 AC_SUBST(MAKE)

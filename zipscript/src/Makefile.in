@@ -7,6 +7,7 @@ using_glftpd=@USING_GLFTPD@
 CC=@CC@
 CFLAGS=@CFLAGS@ @STATIC@ @NOFORMAT@ @USING_GLFTPD@ @GLVERSION@ @FLAC_HEADERS@ -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE @DEFS@ -I../include/ -I../../ -I../../lib/
 LDFLAGS=@LDFLAGS@
+LIBS=@LIBS@
 RM=@RM@ -f
 INSTALL=@INSTALL@
 STRLCPY=../../lib/strl/strlcpy.o
@@ -33,42 +34,42 @@ all: postunnuke ng-undupe ng-deldir zipscript-c postdel racestats cleanup datacl
 $(ZS-DEPEND): ../conf/zsconfig.h
 
 strsep.o:
-	$(CC) $(CFLAGS) -o strsep.o -c strsep.c
+	$(CC) $(CFLAGS) -o strsep.o -c strsep.c $(LIBS) $(LDFLAGS)
 scandir.o:
-	$(CC) $(CFLAGS) -o scandir.o -c scandir.c
+	$(CC) $(CFLAGS) -o scandir.o -c scandir.c $(LIBS) $(LDFLAGS)
 
 zipscript-c: $(ZS-OBJECTS) $(ZS-DEPEND) $(SUNOBJS)
-	$(CC) $(CFLAGS) -o $@ $(ZS-OBJECTS) $(SUNOBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(ZS-OBJECTS) $(SUNOBJS) $(LIBS) $(LDFLAGS)
 
 postdel: $(PD-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(PD-OBJECTS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(PD-OBJECTS) $(LIBS) $(LDFLAGS)
 
 racestats: $(RS-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(RS-OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(RS-OBJECTS) $(LIBS) $(LDFLAGS)
 
 cleanup: $(CU-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(CU-OBJECTS) $(SUNOBJS)
+	$(CC) $(CFLAGS) -o $@ $(CU-OBJECTS) $(SUNOBJS) $(LIBS) $(LDFLAGS)
 
 datacleaner: $(DC-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(DC-OBJECTS) $(SUNOBJS)
+	$(CC) $(CFLAGS) -o $@ $(DC-OBJECTS) $(SUNOBJS) $(LIBS) $(LDFLAGS)
 
 ng-undupe: $(UD-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(UD-OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(UD-OBJECTS) $(LIBS) $(LDFLAGS)
 
 ng-deldir: $(DD-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(DD-OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(DD-OBJECTS) $(LIBS) $(LDFLAGS)
 
 ng-chown: $(CH-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(CH-OBJECTS) $(SUNOBJS)
+	$(CC) $(CFLAGS) -o $@ $(CH-OBJECTS) $(SUNOBJS) $(LIBS) $(LDFLAGS)
 
 audiosort: $(AS-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(AS-OBJECTS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(AS-OBJECTS) $(LIBS) $(LDFLAGS)
 
 rescan: $(SC-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(SC-OBJECTS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(SC-OBJECTS) $(LIBS) $(LDFLAGS)
 
 postunnuke: $(PU-OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(PU-OBJECTS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(PU-OBJECTS) $(LIBS) $(LDFLAGS)
 
 install:
 	if [ "x$(using_glftpd)" != "x" ] && [ ! -e "$(bindir)" ]; then exit 1; fi

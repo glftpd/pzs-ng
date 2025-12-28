@@ -70,10 +70,12 @@ are shown when you type:
 ./configure --help
 
 Among the options are these:
-  --enable-ss5            compiles the zipscript for use with SiteStat 5
-  --enable-static         enable static linking of zs-c
-  --with-glpath=PATH      specify nondefault path to root glftpd dir (/glftpd
-                          per default)
+  --enable-ss5                compiles the zipscript for use with SiteStat 5
+  --enable-static             enable static linking of zs-c
+  --with-glpath=PATH          specify nondefault path to root glftpd dir (/glftpd
+                              per default)
+  --with-zlib-ng-path=PATH    specify nondefault path for zlib-ng
+  --with-zlib-ng-include=PATH specify nondefault path for zlib-ng header files
 
 The configure process takes a couple of seconds. When it's done, it will have
 made zsconfig.h, which is a copy of zsconfig.h.dist. Do not edit zsconfig.h.dist
@@ -82,6 +84,21 @@ zipscript. Once zsconfig.h is made, you should edit it using you favorite
 editor. You'll find the config in zipscript/conf/zsconfig.h.
 If you worry about ./configure overwriting your old config - don't. It won't.
 It will only make a new zsconfig.h if none already exists.
+
+If you prefer faster crc32 checksum calculations, it is advised to use 
+the zlib-ng library.
+For example, the following command, when executed in the root folder of
+pzs-ng, builds zlib-ng:
+
+export pzs_ng_path=$(pwd) && \
+git clone https://github.com/zlib-ng/zlib-ng.git ${pzs_ng_path}/zlib-ng && \
+${pzs_ng_path}/zlib-ng && mkdir build && cd build && \
+cmake .. -DCMAKE_BUILD_TYPE=Release && \
+make -j$(nproc) && cd ${pzs_ng_path}
+
+Then, pzs-ng can be configured to be built using zlib-ng with:
+
+./configure --with-zlib-ng-path=${pzs_ng_path}/zlib-ng/build --with-zlib-ng-include=${pzs_ng_path}/zlib-ng/build
 
 Once you're done editing zsconfig, you should run make:
 
@@ -126,6 +143,10 @@ Usage: ./libcopy.sh <glftpd path>
 This will copy all libs needed by the binaries in glftpd's bin dir correctly.
 Can/should(?) be used once in a while to make sure all libs needed are present.
 
+If custom libraries are used, prefix the command with LD_LIBRARY_PATH.
+In case of zlib-ng with a custom path defined as above:
+
+LD_LIBRARY_PATH=${pzs_ng_path}/zlib-ng/build ./libcopy.sh <glftpd path>
 
 Changes in glftpd.conf:
 -----------------------
