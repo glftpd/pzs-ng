@@ -129,6 +129,20 @@ fi
 # Compile/install zipscript and sitewho
 echo -e "\nrunning 'make distclean'"
 make distclean 2>/dev/null
+curdir=$(pwd)
+if [ -d "zlib-ng" ]; then
+  rm -rf zlib-ng
+fi
+if grep -q "pclmulqdq" /proc/cpuinfo; then
+  if command -v cmake >/dev/null 2>&1; then
+    echo "grabbing the latest zlib-ng and compiling it, please wait..."
+    git clone -q https://github.com/zlib-ng/zlib-ng
+    mkdir -p zlib-ng/build && cd zlib-ng/build && cmake .. -DCMAKE_BUILD_TYPE=Release
+    make -j$(nproc)
+    configline="$configline --with-zlib-ng-path=${curdir}/zlib-ng/build --with-zlib-ng-include=${curdir}/zlib-ng/build"
+    cd $curdir
+  fi
+fi
 echo -e "\nrunning './configure $configline'"
 if [ ! -e ./zipscript/conf/zsconfig.h ]; then
   zsstop=1
@@ -147,7 +161,11 @@ make install
 # Run libcopy
 if [ -e "$glpath/bin/libcopy.sh" ]; then
   echo -e "\nrunning $glpath/bin/libcopy.sh'"
-  $glpath/bin/libcopy.sh "$glpath"
+  if [ -d "zlib-ng" ]; then
+    LD_LIBRARY_PATH=$curdir/zlib-ng/build $glpath/bin/libcopy.sh "$glpath"
+  else
+    $glpath/bin/libcopy.sh "$glpath"
+  fi
 fi
 
 # Check imdb script

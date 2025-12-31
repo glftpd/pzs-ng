@@ -88,11 +88,30 @@ lddsequence() {
     echo -n "   $(basename $lib): "
     libdir="$(dirname $lib)"
     if [ -f "$lib" ]; then
-       mkdir -p "$glroot$libdir"
-       rm -f "$glroot$lib"
-       cp -fRH "$lib" "$glroot$libdir"
-       echo "$libdir" >> "$glroot/etc/ld.so.conf"
-       echo "OK"
+       # Check if this is a non-standard library path (like from LD_LIBRARY_PATH)
+       if [[ "$libdir" == /lib* || "$libdir" == /usr/lib* || "$libdir" == /usr/local/lib* ]]; then
+           # Standard path - preserve structure
+           mkdir -p "$glroot$libdir"
+           rm -f "$glroot$lib"
+           cp -fRH "$lib" "$glroot$libdir"
+           echo "$libdir" >> "$glroot/etc/ld.so.conf"
+           echo "OK"
+       else
+           # Non-standard path (like from LD_LIBRARY_PATH) - put in /lib or /lib/x86_64-linux-gnu
+           # Try to detect if it's 64-bit or 32-bit
+           if file -L "$lib" 2>/dev/null | grep -q "x86-64"; then
+               libdir="/lib/x86_64-linux-gnu"
+           elif file -L "$lib" 2>/dev/null | grep -Eq "Intel 80386|80386"; then
+               libdir="/lib/i386-linux-gnu"
+           else
+               libdir="/lib"
+           fi
+           mkdir -p "$glroot$libdir"
+           rm -f "$glroot$libdir/$(basename $lib)"
+           cp -fRH "$lib" "$glroot$libdir/"
+           echo "$libdir" >> "$glroot/etc/ld.so.conf"
+           echo "OK (non-standard path, moved to $libdir)"
+       fi
     elif [ -f "/usr/compat/linux/$lib" ]; then
        mkdir -p "$glroot/usr/compat/linux"
        rm -f "$glroot/usr/compat/linux/$(basename $lib)"
