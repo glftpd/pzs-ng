@@ -92,7 +92,7 @@ pzs-ng, builds zlib-ng:
 
 export pzs_ng_path=$(pwd) && \
 git clone https://github.com/zlib-ng/zlib-ng.git ${pzs_ng_path}/zlib-ng && \
-${pzs_ng_path}/zlib-ng && mkdir build && cd build && \
+cd ${pzs_ng_path}/zlib-ng && mkdir build && cd build && \
 cmake .. -DCMAKE_BUILD_TYPE=Release && \
 make -j$(nproc) && cd ${pzs_ng_path}
 
