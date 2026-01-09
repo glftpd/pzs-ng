@@ -1,17 +1,12 @@
-/* Added standard, slice-by-4 and slice-by-8 algorithms based on the cpp code of
- * Stephan Brumme. See http://create.stephan-brumme.com/crc32/
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-
 #include "crc.h"
 #include "zsfunctions.h"
 #include "../conf/zsconfig.h"
 
-/* define endianess and some integer data types */
+/* define endianness and some integer data types */
 #ifdef _MSC_VER
   typedef unsigned __int8  uint8_t;
   typedef unsigned __int32 uint32_t;
@@ -31,6 +26,35 @@
     #include <endian.h>
   #endif
 #endif
+
+
+#ifdef USING_ZLIB_NG
+
+#include <zlib-ng.h>
+uint32_t calc_crc32(char *f) {
+  FILE		*in;
+  uint32_t crc = 0;
+  size_t   i;
+  unsigned char	buffer[65536];
+
+	if (!(in = fopen(f, "rb"))) {
+    d_log_ext("calc_crc32", "Error opening %s: %s\n", f, strerror(errno));
+    return 0;
+	}
+
+  d_log_ext("calc_crc32", "calculating crc32 of %s using zlib-ng!\n", f);
+  while ((i = fread(buffer, 1, sizeof(buffer), in)) > 0) { 
+    crc = zng_crc32(crc, buffer, (uInt)i);
+  }
+  fclose(in);
+  return crc;
+}
+
+#else 
+
+/* Added standard, slice-by-4 and slice-by-8 algorithms based on the cpp code of
+ * Stephan Brumme. See http://create.stephan-brumme.com/crc32/
+ */
 
 /* verify we can use the needed defines */
 #ifndef BYTE_ORDER
@@ -338,6 +362,7 @@ const uint32_t crc32_table[8][256] = {
     0x2C8E0FFF,0xE0240F61,0x6EAB0882,0xA201081C,0xA8C40105,0x646E019B,0xEAE10678,0x264B06E6 }
 };
 
+
 uint32_t calc_crc32(char *f) {
 	FILE		*in;
 #if (crc_algo == CRC_STANDARD)
@@ -351,9 +376,10 @@ uint32_t calc_crc32(char *f) {
 	int		k;
 
 	if (!(in = fopen(f, "r"))) {
-		d_log("calc_crc32: Error opening %s: %s\n", f, strerror(errno));
+		d_log_ext("calc_crc32", "Error opening %s: %s\n", f, strerror(errno));
 		return 0;
 	}
+  d_log_ext("calc_crc32", "calculating crc32 of %s using legacy pzs-ng code\n", f);
 
 	while ((i = fread(buf, 1, sizeof(buf), in)) > 0) {
 		crc = ~crc;
@@ -437,3 +463,4 @@ uint32_t calc_crc32(char *f) {
 	d_log("calc_crc32: crc for %s calculated to %X\n", f, crc);
 	return crc;
 }
+#endif

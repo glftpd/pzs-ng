@@ -184,6 +184,9 @@ case $os in
 		;;
 	linux)
 		bsdlibs="/lib/ld-linux.so.2"
+    if [[ ! -e $bsdlibs ]]; then
+   		bsdlibs="/lib64/ld-linux-x86-64.so.2"
+    fi
 		echo -e "\nCopying needed resolv-libs (if needed)..."
 		for linuxlib in /lib/libnss_dns* /lib/libresolv* ; do
 		  [[ -e "$linuxlib" ]] && {
