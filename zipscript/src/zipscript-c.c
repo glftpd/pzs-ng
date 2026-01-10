@@ -106,6 +106,12 @@ void validate_argc(int, char **);
 void get_file_ext(char **, char **);
 
 
+void set_permissions(void);
+void check_print_config(int, char **);
+void validate_argc(int, char **);
+void get_file_ext(char **, char **);
+
+
 void
 set_permissions()
 {
