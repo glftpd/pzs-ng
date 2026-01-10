@@ -52,8 +52,15 @@
 #endif
 
 
+void set_permissions(void);
+void check_print_config(int, char **);
+void validate_argc(int, char **);
+void get_file_ext(char **, char **);
+
+
 void
-set_permissions() {
+set_permissions()
+{
 	umask(0666 & 000);
 
 	d_log("zipscript-c: Zipscript executed by: (uid/gid) %d/%d\n", geteuid(), getegid());
@@ -72,7 +79,8 @@ set_permissions() {
 
 
 void
-check_print_config(int argc, char **argv) {
+check_print_config(int argc, char **argv)
+{
 	if (argc == 2 && strcmp("--fullconfig", argv[1]) == 0)
 	{
 		print_full_config();
@@ -83,6 +91,85 @@ check_print_config(int argc, char **argv) {
 		print_nondefault_config();
 		exit(0);
 	}
+}
+
+
+void
+validate_argc(int argc, char **argv)
+{
+#ifdef USING_GLFTPD
+	if (argc < 4) {
+		d_log("zipscript-c: Wrong number of arguments used\n");
+		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <filename> <path> <crc>\n", NG_VERSION, argv[0]);
+		printf("Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
+		exit(1);
+	}
+
+	/* introduced in glftpd 2.16 */
+	if (argc >= 5) {
+		int reason = atoi(argv[4]);
+		if (reason > 0 ) {
+			if (allow_file_resume) {
+				d_log("zipscript-c: Broken xfer according to glftpd; ignoring because of allow_file_resume.\n");
+			} else {
+				switch (reason) {
+					case 1:
+						d_log("zipscript-c: glftpd says transfer was aborted; exiting early.\n");
+						break;
+					case 2:
+						d_log("zipscript-c: glftpd says an error occured during transfer; exiting early.\n");
+						break;
+					case 3:
+						d_log("zipscript-c: glftpd says disconnect/process was terminated during transfer; exiting early.\n");
+						break;
+					default:
+						d_log("zipscript-c: glftpd indicates an unknown error (please update zipscript-c!); exiting early.\n");
+						break;
+				}
+				exit(EXIT_FAILURE);
+			}
+		}
+	}
+#else
+	if (argc < 8) {
+		d_log("zipscript-c: Wrong number of arguments used (ftpd-agnostic)\n");
+		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <absolute filepath> <crc> <user> <group> <tagline> <speed> <section>\n", NG_VERSION, argv[0]);
+		printf(" Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
+		exit(1);
+	}
+#endif
+}
+
+
+void
+get_file_ext(char **argv, char **fileext)
+{
+	char    *name_p, *temp_p = NULL;
+
+	d_log("zipscript-c: Parsing file extension from filename... (%s)\n", argv[1]);
+	for (temp_p = name_p = argv[1]; *name_p != 0; name_p++) {
+		if (*name_p == '.') {
+			temp_p = name_p;
+		}
+	}
+
+	if (*temp_p != '.') {
+		d_log("zipscript-c: Got: no extension\n");
+		temp_p = name_p;
+	} else {
+		d_log("zipscript-c: Got: %s\n", temp_p);
+		temp_p++;
+	}
+	name_p++;
+
+	*fileext = ng_realloc2(*fileext, name_p - temp_p, 1, 1, 1);
+	memcpy(*fileext, temp_p, name_p - temp_p);
+#if ( sfv_cleanup_lowercase == TRUE )
+	d_log("zipscript-c: Copied (lowercased version of) extension to memory\n");
+	strtolower(*fileext);
+#else
+	d_log("zipscript-c: Copied (unchanged version of) extension to memory\n");
+#endif
 }
 
 int 
@@ -96,8 +183,9 @@ main(int argc, char **argv)
         char            temp_path[PATH_MAX];
 #else
 	char            *temp_p_free = NULL, *env_p;
+	char            *temp_p = NULL;
 #endif
-	char           *fileext = NULL, *name_p, *temp_p = NULL;
+	char           *fileext = NULL;
 	char           *target = 0;
 	char	       *vinfo = 0;
 	char	       *ext = 0;
@@ -168,50 +256,14 @@ main(int argc, char **argv)
 
 	set_permissions();
 	check_print_config(argc, argv);
+	validate_argc(argc, argv);
 
 #ifdef USING_GLFTPD
-	if (argc < 4) {
-		d_log("zipscript-c: Wrong number of arguments used\n");
-		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <filename> <path> <crc>\n", NG_VERSION, argv[0]);
-		printf("Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
-		exit(1);
-	}
-
-	/* introduced in glftpd 2.16 */
-	if (argc >= 5) {
-		int reason = atoi(argv[4]);
-		if (reason > 0 ) {
-			if (allow_file_resume) {
-				d_log("zipscript-c: Broken xfer according to glftpd; ignoring because of allow_file_resume.\n");
-			} else {
-				switch (reason) {
-				case 1:
-					d_log("zipscript-c: glftpd says transfer was aborted; exiting early.\n");
-					break;
-				case 2:
-					d_log("zipscript-c: glftpd says an error occured during transfer; exiting early.\n");
-					break;
-				case 3:
-					d_log("zipscript-c: glftpd says disconnect/process was terminated during transfer; exiting early.\n");
-					break;
-				default:
-					d_log("zipscript-c: glftpd indicates an unknown error (please update zipscript-c!); exiting early.\n");
-					break;
-				}
-				exit(EXIT_FAILURE);
-			}
-		}
-	}
 	crc_arg = argv[3];
 #else
-	if (argc < 8) {
-		d_log("zipscript-c: Wrong number of arguments used (ftpd-agnostic)\n");
-		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <absolute filepath> <crc> <user> <group> <tagline> <speed> <section>\n", NG_VERSION, argv[0]);
-		printf(" Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
-		exit(1);
-	}
 	crc_arg = argv[2];
 #endif
+
 
 	d_log("zipscript-c: Clearing arrays\n");
 	bzero(&g.v.total, sizeof(struct race_total));
@@ -402,33 +454,11 @@ main(int argc, char **argv)
 	sprintf(g.v.misc.old_leader, "none");
 	g.v.file.unlink[0] = '\0';
 
-	/* Get file extension */
-	d_log("zipscript-c: Parsing file extension from filename... (%s)\n", argv[1]);
-	for (temp_p = name_p = argv[1]; *name_p != 0; name_p++) {
-		if (*name_p == '.') {
-			temp_p = name_p;
-		}
-	}
 
-	if (*temp_p != '.') {
-		d_log("zipscript-c: Got: no extension\n");
-		temp_p = name_p;
-	} else {
-		d_log("zipscript-c: Got: %s\n", temp_p);
-		temp_p++;
-	}
-	name_p++;
 
-#if ( sfv_cleanup_lowercase == TRUE )
-	d_log("zipscript-c: Copying (lowercased version of) extension to memory\n");
-#else
-	d_log("zipscript-c: Copying (unchanged version of) extension to memory\n");
-#endif
-	fileext = ng_realloc2(fileext, name_p - temp_p, 1, 1, 1);
-	memcpy(fileext, temp_p, name_p - temp_p);
-#if ( sfv_cleanup_lowercase == TRUE )
-	strtolower(fileext);
-#endif
+    get_file_ext(argv, &fileext);
+
+
 	d_log("zipscript-c: Reading directory structure\n");
 	dir = opendir(".");
 	parent = opendir("..");
