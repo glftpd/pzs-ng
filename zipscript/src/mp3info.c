@@ -230,7 +230,7 @@ get_id3(mp3info * mp3, struct audio *audio)
 {
 	int		retcode = 1;
 	char		fbuf      [4];
-	int		ignore = 0;
+	int		ignore;
 
 	if (mp3->datasize > 128) {
 		if (fseek(mp3->file, -128, SEEK_END)) {

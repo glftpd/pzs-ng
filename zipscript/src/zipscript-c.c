@@ -215,7 +215,7 @@ main(int argc, char **argv)
 	char	       *norace_halfway_type = 0;
 	char	       *inc_point[2];
 	char	       *affillist = 0;
-	unsigned char	affil_upload = FALSE;
+
 #ifdef _WITH_SS5
 	unsigned char	complete_type = 1;
 #else
@@ -535,9 +535,14 @@ main(int argc, char **argv)
 			break;
 	}
 
+
 	if (strlen(zipscript_header))
 		printf(zipscript_header);
 
+
+	#if (enable_affil_script == TRUE )
+		unsigned char	affil_upload = FALSE;
+	#endif
 	/* Hide users in group_dirs */
 	if (hide_group_uploaders && matchpath(group_dirs, g.l.path)) {
 		d_log("zipscript-c: Hiding user in group-dir:\n");
@@ -560,7 +565,9 @@ main(int argc, char **argv)
 			affillist = ng_realloc2(affillist, 5000, 1, 1, 1);
 			create_dirlist(group_dirs, affillist, 5000);
 			if (strlen(affillist) && strcomp(affillist, g.v.user.group)) {
+				#if (enable_affil_script == TRUE )
 				affil_upload = TRUE;
+				#endif
 				d_log("zipscript-c: Hiding affil group based on group_dirs:\n");
 				if ((int)strlen(hide_affil_gname)) {
 					d_log("zipscript-c:    Changing groupname.\n");
@@ -582,7 +589,9 @@ main(int argc, char **argv)
 			ng_free(affillist);
 		}
 		if (strlen(hide_affil_groups) && strcomp(hide_affil_groups, g.v.user.group)) {
+			#if (enable_affil_script == TRUE )
 			affil_upload = TRUE;
+			#endif
 			d_log("zipscript-c: Hiding affil group:\n");
 			if ((int)strlen(hide_affil_gname)) {
 				d_log("zipscript-c:    Changing groupname.\n");
@@ -602,7 +611,9 @@ main(int argc, char **argv)
 				d_log("zipscript-c:    No hidename given.\n");
 		}
 		if (strlen(hide_affil_users) && strcomp(hide_affil_users, g.v.user.name)) {
+			#if (enable_affil_script == TRUE )
 			affil_upload = TRUE;
+			#endif
 			d_log("zipscript-c: Hiding affil user:\n");
 			if ((int)strlen(hide_affil_uname)) {
 				d_log("zipscript-c:    Changing username.\n");

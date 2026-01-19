@@ -57,7 +57,7 @@ vd_log(const char *fmt, va_list ap)
 
 #if ( debug_altlog == TRUE )
 	getcwd(debugpath, PATH_MAX);
-	snprintf(debugname, PATH_MAX, "%s/%s/debug",
+	safe_snprintf(debugname, PATH_MAX, "%s/%s/debug",
 	         storage, debugpath);
 #endif
 
