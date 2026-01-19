@@ -336,7 +336,7 @@ main(int argc, char **argv)
 	if (temp_p) {
 		while ((signed)strlen(temp_p) - 4 > 0)
 			temp_p++;
-		snprintf(fileext, 4, "%s", temp_p);
+		safe_snprintf(fileext, 4, "%s", temp_p);
 	} else
 		*fileext = '\0';
 

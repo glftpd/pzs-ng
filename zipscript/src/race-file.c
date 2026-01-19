@@ -1196,7 +1196,6 @@ remove_lock(struct VARS *raceI)
 {
 	int			fd;
 	HEADDATA	hd;
-	char		lockfile[PATH_MAX + 1];
 
 	if ((fd = open(raceI->headpath, O_RDWR, 0666)) == -1) {
 		d_log_ext("remove_lock", "open(%s): %s\n", raceI->headpath, strerror(errno));

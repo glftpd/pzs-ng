@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 					printf("Something bad happened when trying to decide what dir to resort.\n");
 					return 1;
 				}
-				snprintf(targetDir, PATH_MAX, "%s/%s", cwdDir, argv[1]);
+				safe_snprintf(targetDir, PATH_MAX, "%s/%s", cwdDir, argv[1]);
 			}
 		}
 	}
