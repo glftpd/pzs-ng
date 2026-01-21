@@ -48,8 +48,10 @@ main(int argc, char *argv[])
 	unsigned int	crc;
 	struct stat	fileinfo;
 
+#ifdef USING_GLFTPD
 	uid_t		f_uid;
 	gid_t		f_gid;
+#endif
 	double		temp_time = 0;
 
 	DIR		*dir, *parent;
@@ -376,13 +378,13 @@ main(int argc, char *argv[])
 					ext++;
 				if (!strcasecmp(ext, "zip")) {
 					stat(dp->d_name, &fileinfo);
-					f_uid = fileinfo.st_uid;
-					f_gid = fileinfo.st_gid;
 					if ((timenow == fileinfo.st_ctime) && (fileinfo.st_mode & 0111)) {
 						d_log("rescan.c: Seems this file (%s) is in the process of being uploaded. Ignoring for now.\n", dp->d_name);
 						continue;
 					}
 #ifdef USING_GLFTPD
+					f_uid = fileinfo.st_uid;
+					f_gid = fileinfo.st_gid;
 					strlcpy(g.v.user.name, get_u_name(f_uid), sizeof(g.v.user.name));
 					strlcpy(g.v.user.group, get_g_name(f_gid), sizeof(g.v.user.group));
 #else
@@ -408,7 +410,7 @@ main(int argc, char *argv[])
 						writerace(g.l.race, &g.v, crc, F_CHECKED);
 					} else {
 						writerace(g.l.race, &g.v, crc, F_BAD);
-						if (g.v.file.name)
+						if (strlen(g.v.file.name) > 0)
 							unlink(g.v.file.name);
 						removedir(".unzipped");
 						continue;
@@ -418,7 +420,7 @@ main(int argc, char *argv[])
                         	        if ((!findfileextcount(dir, ".nfo") || findfileextcount(dir, ".zip")) && check_zipfile(".unzipped", g.v.file.name, findfileextcount(dir, ".nfo"))) {
                                 	        d_log("rescan: File %s is password protected.\n", g.v.file.name);
 						writerace(g.l.race, &g.v, crc, F_BAD);
-						if (g.v.file.name)
+						if (strlen(g.v.file.name) > 0)
 							unlink(g.v.file.name);
 						seekdir(dir, tempstream);
 						continue;
@@ -615,10 +617,9 @@ main(int argc, char *argv[])
 				if (ignore_zero_sized_on_rescan && !fileinfo.st_size)
 					continue;
 
+#ifdef USING_GLFTPD
 				f_uid = fileinfo.st_uid;
 				f_gid = fileinfo.st_gid;
-
-#ifdef USING_GLFTPD
 				strlcpy(g.v.user.name, get_u_name(f_uid), sizeof(g.v.user.name));
 				strlcpy(g.v.user.group, get_g_name(f_gid), sizeof(g.v.user.group));
 #else
@@ -664,7 +665,7 @@ main(int argc, char *argv[])
  					crc = 1;
 
 				if (!S_ISDIR(fileinfo.st_mode)) {
-					if (g.v.file.name)
+					if (strlen(g.v.file.name) > 0)
 						unlink_missing(g.v.file.name);
 					if (l > 44) {
 						if (crc == 1)

@@ -403,10 +403,10 @@ convert_audio(struct VARS *raceI, char *instr)
 char           *
 convert_sitename(char *instr)
 {
-	int		val1, val2;
-	char           *out_p;
-	char           *m;
-	char		ctrl[15];
+	int		val1;
+	char  *out_p;
+	char      *m;
+	char ctrl[15];
 
 	out_p = output2;
 
@@ -436,12 +436,7 @@ convert_sitename(char *instr)
 					instr++;
 				if (m != instr && instr-m < (int)sizeof(ctrl)) {
 					sprintf(ctrl, "%.*s", (int)(instr - m), m);
-					val2 = strtol(ctrl, NULL, 10);
-				} else {
-					val2 = 0;
 				}
-			} else {
-				val2 = -1;
 			}
 
 			switch (*instr) {
