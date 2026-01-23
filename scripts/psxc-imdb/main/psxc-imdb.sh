@@ -15,7 +15,7 @@ CONFFILE=/etc/psxc-imdb.conf
 ###################
 
 # version number. do not change.
-VERSION="v2.9w"
+VERSION="v3.0-api"
 
 ######################################################################################################
 
@@ -59,8 +59,56 @@ export LC_ALL=""
 export LANG=""
 
 if [ -z "$USERAGENT" ]; then
-  USERAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
+  USERAGENT="psxc-imdb/3.0"
 fi
+
+if [ -z "$IMDBAPI_BASE" ]; then
+  IMDBAPI_BASE="https://api.imdbapi.dev"
+fi
+if [ -z "$IMDBAPI_TIMEOUT" ]; then
+  IMDBAPI_TIMEOUT=30
+fi
+if [ -z "$API_RETRY_COUNT" ]; then
+  API_RETRY_COUNT=3
+fi
+if [ -z "$API_RETRY_DELAY" ]; then
+  API_RETRY_DELAY=2
+fi
+if [ -z "$JQ_BIN" ]; then
+  JQ_BIN="/bin/jq"
+fi
+if [ -z "$CERTCOUNTRY" ]; then
+  CERTCOUNTRY="US"
+fi
+if [ -z "$PREMIERECOUNTRY" ]; then
+  PREMIERECOUNTRY="US"
+fi
+
+api_request() {
+  local endpoint="$1"
+  local retries=0
+  local response=""
+
+  while [ $retries -lt $API_RETRY_COUNT ]; do
+    response=$(curl $CURLFLAGS -s -A "$USERAGENT" \
+      --connect-timeout $IMDBAPI_TIMEOUT \
+      "${IMDBAPI_BASE}${endpoint}" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$response" ]; then
+      if echo "$response" | $JQ_BIN -e . >/dev/null 2>&1; then
+        echo "$response"
+        return 0
+      fi
+    fi
+    retries=$((retries + 1))
+    sleep $API_RETRY_DELAY
+  done
+  return 1
+}
+
+extract_imdb_id() {
+  local url="$1"
+  echo "$url" | grep -oP 'tt[0-9]+' | head -1
+}
 
 if [ ! -z "$RECVDARGS" ]; then
 
@@ -378,7 +426,6 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   PREMIERE=""
   LIMITED=""
   EXEMPTED=""
-  LYNXTRIESORIG=$LYNXTRIES
   IMDBURL="$(echo $IMDBLINE | cut -d "|" -f 1)"
   IMDBLNK="$(echo $IMDBLINE | cut -d "|" -f 2)"
   IMDBDST="$(echo $IMDBLINE | cut -d "|" -f 3)"
@@ -450,414 +497,242 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
    echo "$DEBUGCOUNT : USEBOT = '$USEBOT'"
   fi
 
-# grab info from web
+# grab info from API
 ####################
-  OUTPUTTRIES=1
+  IMDB_ID=$(extract_imdb_id "$IMDBURL")
   OUTPUTOK=""
-  while [ -z "$OUTPUTOK" ]; do
-   while [ $OUTPUTTRIES -le $LYNXTRIESORIG ]; do
-    let OUTPUTTRIES=OUTPUTTRIES+1
-    OUTPUTOK="OK"
-    while [ $LYNXTRIES -gt 0 ]; do
-     if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-     lynx $LYNXFLAGS $IMDBURL/reference/ | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/\.\.\.~ /... /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE 2>&1
-      if [ $? = "0" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       sleep 1
-      fi
-     else
-      if [ ! -z "$USEWGET" ]; then
-       #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $IMDBURL/reference/ >/dev/null 2>&1
-      elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $IMDBURL/reference/ >/dev/null 2>&1
-      fi
-      if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
-       TMBURL=$(grep -a "\.jpg" $TMPFILE | head -n 1 | tr ' \"' '\n' | grep -a "\.jpg" | head -n 1)
-       LYNXTRIES=$LYNXTRIESORIG
-       HTMLPAGE="$(lynx $LYNXFLAGS -force_html $TMPFILE)"
-    #   echo "$HTMLPAGE" | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/\.\.\.~ /... /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE 2>&1
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       echo -n "" > $TMPFILE
-       sleep 1
-      fi
-     fi
-    done
-    if [ $LYNXTRIES -ne $LYNXTRIESORIG ]; then
-     exit 0
-    fi
 
-# Check for a movie-title. This *must* be present, else the script will just exit.
-##################################################################################
-    TITLE=$(grep -oP '"originalTitleText":\{"text":"\K[^"]+' "$TMPFILE" | head -n1)
-    YEAR=$(grep -oP '"releaseYear":\{"year":\K[0-9]{4}' "$TMPFILE" | head -n1)
-    if [ -z "$TITLE" ]; then
-     OUTPUTOK=""
-     break
+  if [ -z "$IMDB_ID" ]; then
+    if [ ! -z $DEBUG ]; then
+      echo "DEBUG: Could not extract IMDb ID from $IMDBURL"
     fi
-    ORIGTITLE=$(grep -oP '"originalTitleText":\{"text":"\K[^"]+' "$TMPFILE" | head -n1)
-
-# Grab hold of the info we'll use later. Also do some formatting.
-#################################################################
-
-    TITLENAME=$TITLE
-    TITLEYEAR=$YEAR
-    if [ -z "$TITLEYEAR" ]; then
-     OUTPUTOK=""
-     break
-    fi
-    if [ ! -z "$USEORIGTITLE" ] && [ ! -z "$ORIGTITLE" ]; then
-     TITLENAME="$( echo $ORIGTITLE | sed -e 's/^ *//g' -e 's/ (original title)//' )"
-     TITLE="$TITLENAME $TITLEYEAR"
-    fi
-    GENRE="Genre........: $(grep -o '"genres":\[[^]]*' $TMPFILE | head -1 | grep -o '"text":"[^"]*' | cut -d'"' -f4 | uniq | paste -sd '/' - | head -n $GENRENUM)"
-    GENRECLEAN=$(echo $GENRE | sed "s/Genre........: *//")
-    RATINGVAL="$(grep -o '"aggregateRating":[0-9.]*' $TMPFILE | head -1 | cut -d':' -f2)"
-    VOTECOUNT="$(grep -o '"voteCount":[0-9]*' $TMPFILE | head -1 | cut -d':' -f2)"
-    VOTES="$(awk '{n=$1; s=""; while(n>=1000){s=sprintf(",%03d%s",n%1000,s); n=int(n/1000)}; printf "%d%s", n, s}' <<< "$VOTECOUNT")"
-    RATING="User Rating..: $RATINGVAL ($VOTES)"
-    if [ "$RATING" = "User Rating..: 0 (0)" ]; then
-      RATING="User Rating..: Awaiting 5 votes"
-    fi
-    RATINGCLEAN=$(echo $RATING | sed "s/User Rating..: *//")
-    if [ "$(echo $RATINGCLEAN | grep -a -e "[Ww][Aa][Ii][Tt]")" = "" ]; then
-     RATINGVOTES=$(echo $RATINGCLEAN | sed "s/.* (//;s/)//")
-     RATINGSCORE=$(echo $RATINGCLEAN | sed "s/ (.*//")
-     PLUS="##########"
-     MINUS="----------"
-     PNUM=$(echo $RATINGSCORE | cut -d '.' -f 1)
-     let MNUM=10-PNUM
-     if [ $MNUM -eq 0 ]; then
-      RATINGBAR="$MINUS"
-     elif [ $MNUM -eq 10 ]; then
-      RATINGBAR="$PLUS"
-     else
-      RATINGBAR="$(echo $PLUS | cut -c 1-$PNUM)""$(echo $MINUS | cut -c 1-$MNUM)"
-     fi
-    else
-     RATINGVOTES=""
-     RATINGSCORE=""
-     RATINGBAR=""
-    fi
-    TOP=$(grep -a -e "Top Rated Movies: #" "$TMPFILE" | head -n 1 | cut -d '#' -f 2 | tr -cd '0-9')
-    BOTTOM=$(grep -a -e "Bottom Rated Movies: #" "$TMPFILE" | head -n 1 | cut -d '#' -f 2 | tr -cd '0-9')
-    if [ ! -z "$TOP" ]; then
-      RATINGCLEAN="$(echo "$RATINGCLEAN Top 250: #$TOP")"
-    fi
-    if [ ! -z "$BOTTOM" ]; then
-      RATINGCLEAN="$(echo "$RATINGCLEAN Bottom 100: #$BOTTOM")"
-    fi
-    COUNTRY="Country......: $(grep -o '"countriesOfOrigin":{[^}]*}' $TMPFILE | grep -o '"id":"[^"]*' | cut -d'"' -f4 | uniq | sed 's/GB/United Kingdom/; s/US/United States/' | paste -sd '/' - | head -n $COUNTRYNUM)"
-    COUNTRYCLEAN=$(echo $COUNTRY | sed "s/Country......: *//")
-    TAGLINE=$(grep -oP '"taglines":\{[^}]*"text":"\K(?:\\.|[^"\\])*' "$TMPFILE" | head -1 | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/[\r\n]\+/ /g')
-    TAGLINECLEAN=$(echo $TAGLINE | sed "s/Tagline......: *//")
-    LANGUAGE="Language.....: $(grep -o '"spokenLanguages":\[[^]]*' $TMPFILE | head -1 | grep -o '"text":"[^"]*' | cut -d'"' -f4 | uniq | paste -sd '/' -)"
-    LANGUAGECLEAN=$(echo $LANGUAGE | sed "s/Language.....: *//")
-    # Yeah, this keeps getting worse ;)
-    if [ -z $PLOTWIDTH ]; then
-      PLOTWIDTH=275
-    fi
-    PLOT="Plot: "$(grep -oP '"plotText":\{"plainText":"\K(.+?)(?<!\\)"' "$TMPFILE" \
-        | head -1 \
-        | sed 's/\\u0026/\&/g;' \
-        | sed s/\"/$QUOTECHAR/g | sed 's/^\ *//g' | tr -s ' ' | sed "s/ *$//" \
-        | sed 's/\\n/'"$NEWLINE"'/g' | sed 's/\(.\{1000\}\).*/\1.../' \
-        | tr -d '\\' | sed "s|'$||")
-    PLOTCLEAN=$(echo "$PLOT" | sed "s/Plot: *//")
-    if [ ! -z "$(echo "$PLOTCLEAN" | grep -a -e "\(\ \)\ \(\ \)")" ]; then
-     OUTPUTOK=""
-     break
-    fi
-    CERT=$(grep -o '<a [^>]*certificates=[^>]*>[^<]*</a>' "$TMPFILE" | sed -E 's/.*>([^<]+)<.*/\1/' | paste -sd '/' - | head -n "$CERTIFICATIONNUM")
-    CERTCLEAN=$(echo $CERT | sed "s/Certification: *//" | tr '/' '\n' | grep -a -e "United States:" | tr -d ' ' | tail -n 1)
-    CAST=$(grep -o '"nameText":{[^}]*}' $TMPFILE | grep -o '"text":"[^"]*' | cut -d'"' -f4 | awk '!a[$0]++' | head -n "${CASTNUM}")
-    CASTCLEAN=$(echo "$CAST" | sed "s/\.\.\..*/|/g" | tr -s '\n' ' ' | sed "s/^\ *//g" | sed "s/\ *$//g" | sed "s/ |/\,/g" | sed "s/,$//")
-    CASTLEADNAME="$(echo "$CAST" | head -n 1 | sed 's/\.\.\./\n/' | head -n 1 | tr -s ' ' | sed "s/^\ //g" | sed "s/\ $//g")"
-    CASTLEADCHAR="$(echo "$CAST" | head -n 1 | sed 's/\.\.\./\n/' | tail -n 1 | tr -s ' ' | sed "s/^\ //g" | sed "s/\ $//g")"
-    COMMENTSHORT="User Reviews: Not supported anymore."
-    COMMENTSHORTCLEAN=$(echo $COMMENTSHORT | sed "s/User Reviews: *//")
-    COMMENT="Not supported anymore"
-    [[ -n "$COMMENT" ]] && COMMENTCLEAN=$(echo "$COMMENT" | sed "s/^\ *//g" | sed "s/\ *$//g" | sed s/\{\}\"/$QUOTECHAR/g | tr '\n' '|' | sed "s/[ /]*$//")
-
-    runtime_sec=$(grep -o '"runtime":{[^}]*}' $TMPFILE | grep -o '"seconds":[0-9]*' | cut -d':' -f2 | head -1)
-    if [ -n "$runtime_sec" ]; then
-      hours=$((runtime_sec/3600))
-      mins=$(( (runtime_sec%3600)/60 ))
-      if [ $hours -gt 0 ]; then
-	RUNTIME=$(printf "%dh %dmin" "$hours" "$mins")
-      else
-	RUNTIME=$(printf "%dmin" "$mins")
-      fi
-    else
-      mins=$(grep -o '"runtime":[0-9]*' $TMPFILE | cut -d':' -f2 | head -1)
-      if [ -n "$mins" ]; then
-	hours=$((mins/60))
-	minleft=$((mins%60))
-	if [ $hours -gt 0 ]; then
-	  RUNTIME=$(printf "%dh %dmin" "$hours" "$minleft")
-	else
-	  RUNTIME=$(printf "%dmin" "$minleft")
-	fi
-      fi
-    fi
-    RUNTIMECLEAN=$RUNTIME
-    if [ ! -z "$RUNTIMECLEAN" ]; then
-     RUNTIMECLEAN="$RUNTIMECLEAN"
-    fi
-    DIRECTOR=$(sed -n '/Directed by$/,/^[^ ]/p' "$TMPFILE" | sed '1,2d;$d;s/^ *//' | sed 's/\"/$QUOTECHAR/g' | head -n $DIRECTORNUM | tr '\n' '/' | sed "s/ \.\.\..*//;s/ *$//;s/\/$//")
-    DIRECTORCLEAN=$(echo $DIRECTOR)
-    if [ ! -z "$(echo "$DIRECTOR" | grep -a -e "\(\ \)\ \(\ \)")" ]; then
-     OUTPUTOK=""
-     break
-    fi
-    ONELINE="$(echo "$BOLD$TITLE$BOLD""[$COUNTRY]: $GENRE - $BOLD$RATING$BOLD"" - $IMDBURL" | sed "s/Genre........: //" | sed "s/User Rating..: //" | sed "s/Country......: *//" | tr -s ' ')"
-    if [ ! -z "$(echo "$ONELINE" | grep -a -e "\(\ \)\ \(\ \)")" ]; then
-     OUTPUTOK=""
-     break
-    fi
-    if [ ! -z "$(echo "$GENRECLEAN" | grep -a -e "with other users on IMDb")" ] || [ ! -z "$(echo "$GENRECLEAN" | grep -a -e "laserdisc details")" ] || [ ! -z "$(echo "$GENRECLEAN" | grep -a -e "(\ )")" ] || [ ! -z "$(echo "$GENRECLEAN" | grep -a -e "\.\.\.")" ] || [ ! -z "$(echo "$GENRECLEAN" | grep -a -e "Binary")" ]; then
-     OUTPUTOK=""
-     break
-    fi
-    if [ ! -z "$OUTPUTOK" ]; then
-     OUTPUTTRIES=$LYNXTRIESORIG
-     break
-    fi
-   done
-   if [ $OUTPUTTRIES -gt $LYNXTRIESORIG ]; then
-    break
-   fi
-  done
-  if [ -z "$OUTPUTOK" ]; then
-   DOTIMDB=""
-   USEBOT=""
-   if [ ! -z "$(echo $IMDBLKL | grep -a -e "/dev/null")" ]; then
-    if [ -z "$LOGFORMAT" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Failed to fetch iMDB details. Please try again.\" \"$IMDBDST\"" >> $GLLOG
-    elif [ "$LOGFORMAT" = "MYOWN" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Failed to fetch iMDB details. Please try again.\" \"$IMDBDST\"" >> $GLLOG
-    else
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"\" \"Failed to fetch iMDB details. Please try again.\"" >> $GLLOG
-    fi
-   else
-    rm -f "$GLROOT/$IMDBLKL/$INFOTEMPNAME" >/dev/null 2>&1
-    rmdir "$GLROOT/$IMDBLKL/$INFOTEMPNAME" >/dev/null 2>&1
-   fi
   else
+    API_RESPONSE=$(api_request "/titles/${IMDB_ID}")
 
-# We won't check business and release as closely right away... may do so later
-##############################################################################
-   BUSINESSURL="${IMDBURL}/" # Page has become imdbpro, need to parse from main page
-   RELEASEURL="$(echo "$IMDBURL""/releaseinfo" | tr -s '/' | sed "s|:/|://|")"
-   if [ ! -z "$USEBUSINESS" ]; then
-    while [ $LYNXTRIES -gt 0 ]; do
-     if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-      lynx $LYNXFLAGS $BUSINESSURL | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/:~ /: /g" | tr '~' '\n' | sed 's/*/\\\*/'> $TMPFILE 2>&1
-      if [ $? = "0" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       sleep 1
+    if [ $? -eq 0 ] && [ -n "$API_RESPONSE" ]; then
+      TITLE=$($JQ_BIN -r '.primaryTitle // empty' <<< "$API_RESPONSE")
+      ORIGTITLE=$($JQ_BIN -r '.originalTitle // .primaryTitle // empty' <<< "$API_RESPONSE")
+      TITLEYEAR=$($JQ_BIN -r '.startYear // empty' <<< "$API_RESPONSE")
+      TITLETYPE=$($JQ_BIN -r '.titleType // .type // empty' <<< "$API_RESPONSE")
+
+      UNSUPPORTED_TYPE=""
+      case "$TITLETYPE" in
+        short|tvShort|tvSpecial|tvEpisode|videoGame)
+          UNSUPPORTED_TYPE="YES"
+          ;;
+      esac
+
+      if [ -n "$UNSUPPORTED_TYPE" ]; then
+        if [ ! -z $DEBUG ]; then
+          echo "DEBUG: Title type '$TITLETYPE' not fully supported by API for $IMDB_ID"
+        fi
+      elif [ -n "$TITLE" ] && [ -n "$TITLEYEAR" ]; then
+        OUTPUTOK="OK"
+
+        TITLENAME=$TITLE
+        if [ ! -z "$USEORIGTITLE" ] && [ ! -z "$ORIGTITLE" ] && [ "$ORIGTITLE" != "null" ]; then
+          TITLENAME="$ORIGTITLE"
+        fi
+
+        if [ -z "$ORIGTITLE" ] || [ "$ORIGTITLE" = "null" ] || [ "$ORIGTITLE" = "$TITLE" ]; then
+          AKA_RESPONSE=$(api_request "/titles/${IMDB_ID}/akas")
+          if [ $? -eq 0 ] && [ -n "$AKA_RESPONSE" ]; then
+            AKA_TITLE=$($JQ_BIN -r '(.akas // []) | map(select(.text != "'"$TITLE"'")) | .[0].text // empty' <<< "$AKA_RESPONSE" 2>/dev/null)
+            if [ -n "$AKA_TITLE" ] && [ "$AKA_TITLE" != "null" ] && [ "$AKA_TITLE" != "$TITLE" ]; then
+              ORIGTITLE="$AKA_TITLE"
+              if [ ! -z "$USEORIGTITLE" ]; then
+                TITLENAME="$ORIGTITLE"
+              fi
+            fi
+          fi
+        fi
+
+        TITLE="$TITLENAME ($TITLEYEAR)"
+
+        GENRECLEAN=$($JQ_BIN -r '(.genres // []) | .[0:'"$GENRENUM"'] | join("/")' <<< "$API_RESPONSE")
+        GENRE="Genre........: $GENRECLEAN"
+
+        RATINGSCORE=$($JQ_BIN -r '.rating.aggregateRating // empty' <<< "$API_RESPONSE")
+        VOTECOUNT=$($JQ_BIN -r '.rating.voteCount // empty' <<< "$API_RESPONSE")
+        if [ -n "$VOTECOUNT" ]; then
+          RATINGVOTES=$(printf "%'d" "$VOTECOUNT" 2>/dev/null || echo "$VOTECOUNT")
+        else
+          RATINGVOTES=""
+        fi
+
+        if [ -n "$RATINGSCORE" ] && [ -n "$RATINGVOTES" ]; then
+          RATING="User Rating..: $RATINGSCORE ($RATINGVOTES)"
+          RATINGCLEAN="$RATINGSCORE ($RATINGVOTES)"
+          PLUS="##########"
+          MINUS="----------"
+          PNUM=$(echo "$RATINGSCORE" | cut -d '.' -f 1)
+          MNUM=$((10 - PNUM))
+          if [ $MNUM -eq 0 ]; then
+            RATINGBAR="$PLUS"
+          elif [ $MNUM -eq 10 ]; then
+            RATINGBAR="$MINUS"
+          else
+            RATINGBAR="$(echo $PLUS | cut -c 1-$PNUM)$(echo $MINUS | cut -c 1-$MNUM)"
+          fi
+        else
+          RATING="User Rating..: Awaiting votes"
+          RATINGCLEAN="Awaiting votes"
+          RATINGVOTES=""
+          RATINGSCORE=""
+          RATINGBAR=""
+        fi
+
+        COUNTRYCLEAN=$($JQ_BIN -r '(.originCountries // []) | map(.name // .code // empty) | .[0:'"$COUNTRYNUM"'] | join("/")' <<< "$API_RESPONSE")
+        if [ -z "$COUNTRYCLEAN" ] || [ "$COUNTRYCLEAN" = "null" ]; then
+          COUNTRYCLEAN=$($JQ_BIN -r '(.countries // []) | map(.name // .code // empty) | .[0:'"$COUNTRYNUM"'] | join("/")' <<< "$API_RESPONSE")
+        fi
+        COUNTRY="Country......: $COUNTRYCLEAN"
+
+        LANGUAGECLEAN=$($JQ_BIN -r '(.spokenLanguages // []) | map(.name // .code // empty) | .[0:'"$LANGUAGENUM"'] | join("/")' <<< "$API_RESPONSE")
+        LANGUAGE="Language.....: $LANGUAGECLEAN"
+
+        PLOTCLEAN=$($JQ_BIN -r '.plot // empty' <<< "$API_RESPONSE" | sed "s/\"/$QUOTECHAR/g" | head -c "$PLOTWIDTH")
+        PLOT="Plot: $PLOTCLEAN"
+
+        runtime_sec=$($JQ_BIN -r '.runtimeSeconds // empty' <<< "$API_RESPONSE")
+        if [ -n "$runtime_sec" ] && [ "$runtime_sec" != "null" ]; then
+          hours=$((runtime_sec / 3600))
+          mins=$(((runtime_sec % 3600) / 60))
+          if [ $hours -gt 0 ]; then
+            RUNTIME="${hours}h ${mins}min"
+          else
+            RUNTIME="${mins}min"
+          fi
+        else
+          runtime_min=$($JQ_BIN -r '.runtime // empty' <<< "$API_RESPONSE")
+          if [ -n "$runtime_min" ] && [ "$runtime_min" != "null" ]; then
+            hours=$((runtime_min / 60))
+            mins=$((runtime_min % 60))
+            if [ $hours -gt 0 ]; then
+              RUNTIME="${hours}h ${mins}min"
+            else
+              RUNTIME="${mins}min"
+            fi
+          else
+            RUNTIME=""
+          fi
+        fi
+        RUNTIMECLEAN="$RUNTIME"
+
+        DIRECTORCLEAN=$($JQ_BIN -r '(.directors // []) | .[0:'"$DIRECTORNUM"'] | map(.displayName // .name // empty) | join("/")' <<< "$API_RESPONSE")
+        DIRECTOR="Directed by..: $DIRECTORCLEAN"
+
+        CASTCLEAN=$($JQ_BIN -r '(.stars // []) | .[0:'"$CASTNUM"'] | map(.displayName // .name // empty) | join(", ")' <<< "$API_RESPONSE")
+        CASTLEADNAME=$($JQ_BIN -r '(.stars // [])[0].displayName // (.stars // [])[0].name // empty' <<< "$API_RESPONSE")
+        CASTLEADCHAR=""
+
+        TAGLINECLEAN=""
+
+        CERTCLEAN=""
+        if [ ! -z "$USECERT" ]; then
+          CERT_RESPONSE=$(api_request "/titles/${IMDB_ID}/certificates")
+          if [ $? -eq 0 ] && [ -n "$CERT_RESPONSE" ]; then
+            CERTCLEAN=$($JQ_BIN -r '(.certificates // []) | map(select(.country.code == "'"$CERTCOUNTRY"'")) | map(.rating + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) | .[0] // empty' <<< "$CERT_RESPONSE")
+          fi
+        fi
+        CERT="$CERTCLEAN"
+
+        COMMENTSHORT="User Reviews: N/A (API)"
+        COMMENTSHORTCLEAN="N/A (API)"
+        COMMENT=""
+        COMMENTCLEAN=""
+
+        ONELINE="$BOLD$TITLE$BOLD [$COUNTRYCLEAN]: $GENRECLEAN - $BOLD$RATINGCLEAN$BOLD - $IMDBURL"
       fi
-     else
-      if [ ! -z "$USEWGET" ]; then
-       #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BUSINESSURL >/dev/null 2>&1
-      elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BUSINESSURL >/dev/null 2>&1
-      fi
-      if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       HTMLPAGE="$(lynx $LYNXFLAGS -force_html $TMPFILE)"
-       echo "$HTMLPAGE" | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/:~ /: /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       echo -n "" > $TMPFILE
-       sleep 1
-      fi
-     fi
-    done
-    if [ "$LYNXTRIES" = "$LYNXTRIESORIG" ]; then
-     BUSINESS=$(sed -n '/^Box Office$/,/^ See more on IMDbPro/p' "$TMPFILE" | sed '1d;$d' | sed s/\"/$QUOTECHAR/g)
-     ISLIMITED=""
-     [[ -n "$(echo "$BUSINESS" | grep -a "^Opening Weekend.* Limited Release$")" ]] && ISLIMITED="$LIMITEDYES"
-     [[ -n "$(echo "$BUSINESS" | grep -a "^Opening Weekend.* Wide Release$")" ]] && ISLIMITED="$LIMITEDNO"
-     # IMDBPro only, replaced by BOM below (where possible)
-     BUSINESSSHORT=""
-     BUSINESSSCREENS=""
-     BUSINESSSHORTUSA=$( echo "$BUSINESS" | sed -n -E 's/^Opening Weekend (USA|United States): ([0-9,$]+), ([0-9]{1,2}) ([A-Z][a-z][a-z])[a-z]* ([0-9]{4})/\2 \3 \4 \5/p' )
-     BUSINESSSHORTUK=$( echo "$BUSINESS" | sed -n -E 's/^Opening Weekend (UK|United Kingdom): ([0-9,$]+), ([0-9]{1,2}) ([A-Z][a-z][a-z])[a-z]* ([0-9]{4})/\2 \3 \4 \5/p' )
-     if [ -z "$BUSINESSSHORTUSA" ]; then
-      BUSINESSSHORT="$BUSINESSSHORTUK"
-     else
-      BUSINESSSHORT="$BUSINESSSHORTUSA"
-     fi
     fi
-   fi
-   if [ ! -z "$USEPREMIERE" ] || [ ! -z "$USELIMITED" ]; then
-    while [ $LYNXTRIES -gt 0 ]; do
-     if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-      lynx $LYNXFLAGS $RELEASEURL | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/:~ /: /g" | tr '~' '\n' > $TMPFILE 2>&1
-      if [ $? = "0" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       sleep 1
-      fi
-     else
-      if [ ! -z "$USEWGET" ]; then
-       #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $RELEASEURL >/dev/null 2>&1
-      elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $RELEASEURL >/dev/null 2>&1
-      fi
-      if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       HTMLPAGE="$(lynx $LYNXFLAGS -force_html $TMPFILE)"
-       echo "$HTMLPAGE" | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/:~ /: /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       echo -n "" > $TMPFILE
-       sleep 1
-      fi
-     fi
-    done
-    if [ "$LYNXTRIES" = "$LYNXTRIESORIG" ]; then
-     if [ ! -z "$USEPREMIERE" ]; then
-      PREMIERE=$(grep -a -e "(premiere)" "$TMPFILE" | head -n 1 | sed "s/ (premiere)//" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
-      if [ -z "$PREMIERE" ]; then
-       PREMIERE=$(sed -n "/^Release Date$/,+1p" "$TMPFILE" | tail -n 1 | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
-      fi
-      if [ -z "$(echo "$PREMIERE" | tr -cd '0-9')" ]; then
-       PREMIERE=""
-      fi
-     fi
-     if [ ! -z "$USELIMITED" ]; then
-      LIMITED=$(grep -a -e "(limited)" "$TMPFILE" | head -n 1 | sed "s/ (limited)//" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | sed s/\"/$QUOTECHAR/g)
-     fi
+  fi
+
+  if [ -z "$OUTPUTOK" ]; then
+    DOTIMDB=""
+    USEBOT=""
+    ERROR_MSG="Failed to fetch iMDB details. Please try again."
+    if [ -n "$UNSUPPORTED_TYPE" ]; then
+      ERROR_MSG="iMDB type '$TITLETYPE' not fully supported by API (limited data available)"
     fi
-   fi
+    if [ ! -z "$(echo $IMDBLKL | grep -a -e "/dev/null")" ]; then
+      if [ -z "$LOGFORMAT" ]; then
+        echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ERROR_MSG\" \"$IMDBDST\"" >> $GLLOG
+      elif [ "$LOGFORMAT" = "MYOWN" ]; then
+        echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ERROR_MSG\" \"$IMDBDST\"" >> $GLLOG
+      else
+        echo "$DATE $TRIGGER \"$IMDBLKL\" \"\" \"$ERROR_MSG\"" >> $GLLOG
+      fi
+    else
+      rm -f "$GLROOT/$IMDBLKL/$INFOTEMPNAME" >/dev/null 2>&1
+      rmdir "$GLROOT/$IMDBLKL/$INFOTEMPNAME" >/dev/null 2>&1
+    fi
+  else
+    BUSINESS=""
+    BUSINESSSHORT=""
+    BUSINESSSCREENS=""
+    PREMIERE=""
+    LIMITED=""
+    ISLIMITED=""
 
-# Get screens/islimited from parsing Box Office Mojo page (source: slftp) 
-##############################################################################
+    if [ ! -z "$USEBUSINESS" ]; then
+      BOX_RESPONSE=$(api_request "/titles/${IMDB_ID}/boxOffice")
+      if [ $? -eq 0 ] && [ -n "$BOX_RESPONSE" ]; then
+        BUDGET=$($JQ_BIN -r '.budget.amount // empty' <<< "$BOX_RESPONSE")
+        BUDGET_CUR=$($JQ_BIN -r '.budget.currency // "USD"' <<< "$BOX_RESPONSE")
+        OPENING=$($JQ_BIN -r '.openingWeekendGross.amount // empty' <<< "$BOX_RESPONSE")
+        OPENING_CUR=$($JQ_BIN -r '.openingWeekendGross.currency // "USD"' <<< "$BOX_RESPONSE")
+        GROSS=$($JQ_BIN -r '.worldwideGross.amount // empty' <<< "$BOX_RESPONSE")
 
-   if [ ! -z "$USEBOM" ]; then
-    BOMURL="https://www.boxofficemojo.com/title/$(echo "$IMDBURL" | grep -Pow "tt[0-9]+")/"
-    while [ $LYNXTRIES -gt 0 ]; do
-     if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-      lynx -source $LYNXFLAGS $BOMURL > $TMPFILE 2>&1
-      if [ $? = "0" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       sleep 1
+        if [ -n "$OPENING" ]; then
+          BUSINESSSHORT="$OPENING_CUR $(printf "%'d" "$OPENING" 2>/dev/null || echo "$OPENING")"
+        fi
+        if [ -n "$BUDGET" ]; then
+          BUSINESS="Budget: $BUDGET_CUR $(printf "%'d" "$BUDGET" 2>/dev/null || echo "$BUDGET")"
+        fi
       fi
-     else
-      if [ ! -z "$USEWGET" ]; then
-       #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BOMURL >/dev/null 2>&1
-      elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BOMURL >/dev/null 2>&1
+    fi
+
+    if [ ! -z "$USEPREMIERE" ] || [ ! -z "$USELIMITED" ]; then
+      RELEASE_RESPONSE=$(api_request "/titles/${IMDB_ID}/releaseDates")
+      if [ $? -eq 0 ] && [ -n "$RELEASE_RESPONSE" ]; then
+        if [ ! -z "$USEPREMIERE" ]; then
+          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + "-" + (.releaseDate.month|pad2) + "-" + (.releaseDate.day|pad2); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'")) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
+        fi
+        if [ ! -z "$USELIMITED" ]; then
+          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + "-" + (.releaseDate.month|pad2) + "-" + (.releaseDate.day|pad2); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'" and ((.attributes // []) | join(" ") | test("limited"; "i")))) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
+        fi
       fi
-      if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       echo -n "" > $TMPFILE
-       sleep 1
+    fi
+
+    if [ ! -z "$USEBOM" ]; then
+      BOMURL="https://www.boxofficemojo.com/title/${IMDB_ID}/"
+      BOM_RESPONSE=$(curl $CURLFLAGS -s -A "$USERAGENT" --connect-timeout $IMDBAPI_TIMEOUT "$BOMURL" 2>/dev/null)
+      if [ -n "$BOM_RESPONSE" ]; then
+        BOMRELEASEGROUP=$(echo "$BOM_RESPONSE" | sed -n -E 's|.*<option value="(/releasegroup/gr[0-9]+/)">Original Release</option>.*|\1|p')
+        if [ -n "$BOMRELEASEGROUP" ]; then
+          BOMURLRELEASEGROUP="https://www.boxofficemojo.com${BOMRELEASEGROUP}"
+          BOM_RELEASE=$(curl $CURLFLAGS -s -A "$USERAGENT" --connect-timeout $IMDBAPI_TIMEOUT "$BOMURLRELEASEGROUP" 2>/dev/null)
+          BOMRELEASE=$(echo "$BOM_RELEASE" | sed -n -E 's|.*<a class="a-link-normal" href="(/release/rl[0-9]+/)[^\"]*">Domestic[^\n]*</a>.*|\1|p' | head -1)
+          if [ -n "$BOMRELEASE" ]; then
+            BOMURLRELEASE="https://www.boxofficemojo.com${BOMRELEASE}"
+            BOM_DETAIL=$(curl $CURLFLAGS -s -A "$USERAGENT" --connect-timeout $IMDBAPI_TIMEOUT "$BOMURLRELEASE" 2>/dev/null)
+            if [ ! -z "$USEWIDEST" ]; then
+              BUSINESSSCREENS=$(echo "$BOM_DETAIL" | sed -n -E 's|.*<div[^>]*><span>Widest Release</span><span>([0-9,]+) theaters</span></div>.*|\1|p' | head -1 | tr -d ',')
+            else
+              BUSINESSSCREENS=$(echo "$BOM_DETAIL" | sed -n -E 's|.*<div[^>]*><span>Opening</span><span><span class="money">[0-9,$]+</span><br/>*([0-9,]+)$|\1|p' | head -1 | tr -d ',')
+            fi
+          fi
+        fi
       fi
-     fi
-    done
-    BOMRELEASEGROUP="$(sed -n -E 's|.*<option value="(/releasegroup/gr[0-9]+/)">Original Release</option>.*|\1|p' $TMPFILE)"
-    BOMURLRELEASEGROUP="https://www.boxofficemojo.com${BOMRELEASEGROUP}"
-    while [ $LYNXTRIES -gt 0 ]; do
-     if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-      lynx -source $LYNXFLAGS $BOMURLRELEASEGROUP > $TMPFILE 2>&1
-      if [ $? = "0" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       sleep 1
+
+      if [ -n "$BUSINESSSCREENS" ] && [ -z "$ISLIMITED" ]; then
+        if [ "$BUSINESSSCREENS" -lt 500 ] 2>/dev/null; then
+          ISLIMITED=$LIMITEDYES
+        else
+          ISLIMITED=$LIMITEDNO
+        fi
       fi
-     else
-      if [ ! -z "$USEWGET" ]; then
-       #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BOMURLRELEASEGROUP >/dev/null 2>&1
-      elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BOMURLRELEASEGROUP >/dev/null 2>&1
-      fi
-      if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       echo -n "" > $TMPFILE
-       sleep 1
-      fi
-     fi
-    done
-    BOMRELEASE="$(sed -n -E 's|.*<a class="a-link-normal" href="(/release/rl[0-9]+/)[^\"]*">Domestic[^\n]*</a>.*|\1|p' $TMPFILE | head -n 1)"
-    BOMURLRELEASE="https://www.boxofficemojo.com${BOMRELEASE}"
-    while [ $LYNXTRIES -gt 0 ]; do
-     if [ -z "$USEWGET" ] && [ -z "$USECURL" ]; then
-      #lynx $LYNXFLAGS $BOMURLRELEASE | grep -a -v "^$" | tr '\t' ' ' | tr -s ' ' | tr '\n' '~' | sed "s/:~ /: /g" | tr '~' '\n' | sed 's/*/\\\*/' > $TMPFILE 2>&1
-      lynx -source $LYNXFLAGS $BOMURLRELEASE > $TMPFILE 2>&1
-      if [ $? = "0" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       sleep 1
-      fi
-     else
-      if [ ! -z "$USEWGET" ]; then
-       #http_proxy=192.168.0.1:8080
-       wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $BOMURLRELEASE >/dev/null 2>&1
-      elif [ ! -z "$USECURL" ]; then
-       curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $BOMURLRELEASE >/dev/null 2>&1
-      fi
-      if [ $? = "0" ] || [ -z "$(cat $TMPFILE)" ]; then
-       LYNXTRIES=$LYNXTRIESORIG
-       break
-      else
-       let LYNXTRIES=LYNXTRIES-1
-       echo -n "" > $TMPFILE
-       sleep 1
-      fi
-     fi
-    done
-    if [ "$LYNXTRIES" = "$LYNXTRIESORIG" ]; then
-     if [ ! -z "$USEWIDEST" ]; then
-      BUSINESSSCREENS="$(sed -n -E 's|.*<div[^>]*><span>Widest Release</span><span>([0-9,]+) theaters</span></div>.*|\1|p' $TMPFILE | head -n1 | tr -d ',' )"
-     else 
-      BUSINESSSCREENS=$(sed -n -E 's|.*<div[^>]*><span>Opening</span><span><span class="money">[0-9,$]+</span><br/>*([0-9,]+)$|\1|p' $TMPFILE | head -n1 | tr -d ',' )
-     fi
-     if [ -z "$(echo "$BUSINESSSCREENS" | tr -cd '0-9')" ]; then
-      BUSINESSSCREENS=""
-     fi
-     if [ ! -z "$BUSINESSSCREENS" ] && [ -z "$ISLIMITED" ]; then
-      if [ $BUSINESSSCREENS -lt 500 ]; then
-       ISLIMITED=$LIMITEDYES
-      else
-       ISLIMITED=$LIMITEDNO
-      fi
-     else
-      ISLIMITED=""
-     fi
-    fi 
-   fi
+    fi
    if [ ! -z "$IMDBHEAD" ]; then
     BOTHEAD=$(echo $BOTHEADORIG | sed "s/RELEASENAME/$BOLD$IMDBDIR$BOLD/")
    fi
