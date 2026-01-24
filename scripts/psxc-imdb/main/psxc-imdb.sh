@@ -696,10 +696,10 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       RELEASE_RESPONSE=$(api_request "/titles/${IMDB_ID}/releaseDates")
       if [ $? -eq 0 ] && [ -n "$RELEASE_RESPONSE" ]; then
         if [ ! -z "$USEPREMIERE" ]; then
-          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + "-" + (.releaseDate.month|pad2) + "-" + (.releaseDate.day|pad2); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'")) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
+          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + (if .releaseDate.month then "-" + (.releaseDate.month|pad2) else "" end) + (if .releaseDate.day then "-" + (.releaseDate.day|pad2) else "" end); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'")) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
         fi
         if [ ! -z "$USELIMITED" ]; then
-          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + "-" + (.releaseDate.month|pad2) + "-" + (.releaseDate.day|pad2); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'" and ((.attributes // []) | join(" ") | test("limited"; "i")))) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
+          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + (if .releaseDate.month then "-" + (.releaseDate.month|pad2) else "" end) + (if .releaseDate.day then "-" + (.releaseDate.day|pad2) else "" end); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'" and ((.attributes // []) | join(" ") | test("limited"; "i")))) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
         fi
       fi
     fi
