@@ -632,7 +632,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         if [ ! -z "$USECERT" ]; then
           CERT_RESPONSE=$(api_request "/titles/${IMDB_ID}/certificates")
           if [ $? -eq 0 ] && [ -n "$CERT_RESPONSE" ]; then
-            CERTCLEAN=$($JQ_BIN -r '(.certificates // []) | map(select(.country.code == "'"$CERTCOUNTRY"'")) | map(.rating + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) | .[0] // empty' <<< "$CERT_RESPONSE")
+            CERTCLEAN=$($JQ_BIN -r '(.certificates // []) | map(select(.country.code == "'"$CERTCOUNTRY"'")) | map(.rating) | .[0] // empty' <<< "$CERT_RESPONSE")
           fi
         fi
         CERT="$CERTCLEAN"
