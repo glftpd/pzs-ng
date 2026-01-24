@@ -534,17 +534,10 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
           TITLENAME="$ORIGTITLE"
         fi
 
-        if [ -z "$ORIGTITLE" ] || [ "$ORIGTITLE" = "null" ] || [ "$ORIGTITLE" = "$TITLE" ]; then
-          AKA_RESPONSE=$(api_request "/titles/${IMDB_ID}/akas")
-          if [ $? -eq 0 ] && [ -n "$AKA_RESPONSE" ]; then
-            AKA_TITLE=$($JQ_BIN -r '(.akas // []) | map(select(.text != "'"$TITLE"'")) | .[0].text // empty' <<< "$AKA_RESPONSE" 2>/dev/null)
-            if [ -n "$AKA_TITLE" ] && [ "$AKA_TITLE" != "null" ] && [ "$AKA_TITLE" != "$TITLE" ]; then
-              ORIGTITLE="$AKA_TITLE"
-              if [ ! -z "$USEORIGTITLE" ]; then
-                TITLENAME="$ORIGTITLE"
-              fi
-            fi
-          fi
+        # If originalTitle is null/empty, leave it empty
+        # The API's primaryTitle is always in English, no need for AKA fallback
+        if [ "$ORIGTITLE" = "null" ]; then
+          ORIGTITLE=""
         fi
 
         TITLE="$TITLENAME ($TITLEYEAR)"
