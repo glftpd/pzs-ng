@@ -534,17 +534,10 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
           TITLENAME="$ORIGTITLE"
         fi
 
-        if [ -z "$ORIGTITLE" ] || [ "$ORIGTITLE" = "null" ] || [ "$ORIGTITLE" = "$TITLE" ]; then
-          AKA_RESPONSE=$(api_request "/titles/${IMDB_ID}/akas")
-          if [ $? -eq 0 ] && [ -n "$AKA_RESPONSE" ]; then
-            AKA_TITLE=$($JQ_BIN -r '(.akas // []) | map(select(.text != "'"$TITLE"'")) | .[0].text // empty' <<< "$AKA_RESPONSE" 2>/dev/null)
-            if [ -n "$AKA_TITLE" ] && [ "$AKA_TITLE" != "null" ] && [ "$AKA_TITLE" != "$TITLE" ]; then
-              ORIGTITLE="$AKA_TITLE"
-              if [ ! -z "$USEORIGTITLE" ]; then
-                TITLENAME="$ORIGTITLE"
-              fi
-            fi
-          fi
+        # If originalTitle is null/empty, leave it empty
+        # The API's primaryTitle is always in English, no need for AKA fallback
+        if [ "$ORIGTITLE" = "null" ]; then
+          ORIGTITLE=""
         fi
 
         TITLE="$TITLENAME ($TITLEYEAR)"
@@ -632,7 +625,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         if [ ! -z "$USECERT" ]; then
           CERT_RESPONSE=$(api_request "/titles/${IMDB_ID}/certificates")
           if [ $? -eq 0 ] && [ -n "$CERT_RESPONSE" ]; then
-            CERTCLEAN=$($JQ_BIN -r '(.certificates // []) | map(select(.country.code == "'"$CERTCOUNTRY"'")) | map(.rating + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) | .[0] // empty' <<< "$CERT_RESPONSE")
+            CERTCLEAN=$($JQ_BIN -r '(.certificates // []) | map(select(.country.code == "'"$CERTCOUNTRY"'")) | map(.rating) | .[0] // empty' <<< "$CERT_RESPONSE")
           fi
         fi
         CERT="$CERTCLEAN"
@@ -696,10 +689,10 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       RELEASE_RESPONSE=$(api_request "/titles/${IMDB_ID}/releaseDates")
       if [ $? -eq 0 ] && [ -n "$RELEASE_RESPONSE" ]; then
         if [ ! -z "$USEPREMIERE" ]; then
-          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + "-" + (.releaseDate.month|pad2) + "-" + (.releaseDate.day|pad2); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'")) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
+          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + (if .releaseDate.month then "-" + (.releaseDate.month|pad2) else "" end) + (if .releaseDate.day then "-" + (.releaseDate.day|pad2) else "" end); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'")) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
         fi
         if [ ! -z "$USELIMITED" ]; then
-          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + "-" + (.releaseDate.month|pad2) + "-" + (.releaseDate.day|pad2); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'" and ((.attributes // []) | join(" ") | test("limited"; "i")))) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
+          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + (if .releaseDate.month then "-" + (.releaseDate.month|pad2) else "" end) + (if .releaseDate.day then "-" + (.releaseDate.day|pad2) else "" end); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'" and ((.attributes // []) | join(" ") | test("limited"; "i")))) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
         fi
       fi
     fi
@@ -831,7 +824,20 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         MYOWNFORMAT1="$(echo "${MYOWNFORMAT1}" | sed "s^$MYOWNSTRING^$MYOWNEMPTY^g")"
        fi
       done
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      if [ "$IMDBSPLITLINES" = "YES" ]; then
+       LINE1="${MYOWNFORMAT1%%\\n*}"
+       LINE2="${MYOWNFORMAT1#*\\n}"
+       if [ "$LINE1" != "$LINE2" ]; then
+        echo "$DATE $TRIGGER \"$IMDBLKL\" \"$LINE1\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+        CURTRIG="$TRIGGER"
+        [ -n "$IMDBSPLITTRIG" ] && CURTRIG="$IMDBSPLITTRIG"
+        echo "$DATE $CURTRIG \"$IMDBLKL\" \"$LINE2\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+       else
+        echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+       fi
+      else
+       echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      fi
      else
       echo "$DATE $TRIGGER \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
      fi
