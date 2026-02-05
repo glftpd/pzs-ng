@@ -418,20 +418,26 @@ main(int argc, char **argv)
 	if (stat(g.v.file.name, &fileinfo)) {
 		d_log("zipscript-c: Failed to stat file: %s\n", strerror(errno));
 		g.v.file.size = 0;
-		g.v.total.stop_time = 0;
+		gettimeofday(&g.v.total.stop_time, NULL);
 	} else {
 		g.v.file.size = fileinfo.st_size;
 		d_log("zipscript-c: File size was: %d\n", g.v.file.size);
-		g.v.total.stop_time = fileinfo.st_mtime;
+		gettimeofday(&g.v.total.stop_time, NULL);
 	}
 
 	d_log("zipscript-c: Setting race times\n");
-	if (g.v.file.size != 0)
-		g.v.total.start_time = g.v.total.stop_time - ((unsigned int)(g.v.file.size) / g.v.file.speed);
-	else
-		g.v.total.start_time = g.v.total.stop_time > (g.v.total.stop_time - 1) ? g.v.total.stop_time : (g.v.total.stop_time -1);
-	if ((int)(g.v.total.stop_time - g.v.total.start_time) < 1)
-		g.v.total.stop_time = g.v.total.start_time + 1;
+	if (g.v.file.size != 0) {
+		unsigned int duration_sec = (unsigned int)(g.v.file.size) / g.v.file.speed;
+		g.v.total.start_time.tv_sec = g.v.total.stop_time.tv_sec - duration_sec;
+		g.v.total.start_time.tv_usec = g.v.total.stop_time.tv_usec;
+	} else {
+		g.v.total.start_time.tv_sec = g.v.total.stop_time.tv_sec - 1;
+		g.v.total.start_time.tv_usec = g.v.total.stop_time.tv_usec;
+	}
+	if ((g.v.total.stop_time.tv_sec - g.v.total.start_time.tv_sec) < 1) {
+		g.v.total.stop_time.tv_sec = g.v.total.start_time.tv_sec + 1;
+		g.v.total.stop_time.tv_usec = g.v.total.start_time.tv_usec;
+	}
 
 	n = (g.l.length_path = (int)strlen(g.l.path)) + 1;
 

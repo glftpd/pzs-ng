@@ -507,6 +507,22 @@ debug_mode <TRUE|FALSE>
 	Related option(s): debug_altlog debug_announce
 	Default: FALSE
 
+time_precision <INTEGER>
+	Number of decimal places to show for seconds in duration output.
+	Valid values: 0-3
+	0 = no decimal places (82s, 1m22s)
+	1 = one decimal place (82.3s, 1m22.3s)
+	2 = two decimal places (82.39s, 1m22.39s)
+	3 = three decimal places for milliseconds (82.396s, 1m22.396s)
+	Default: 3
+
+time_format_seconds_only <TRUE|FALSE>
+	Determines if the duration is shown in total seconds only or in
+	Hours/Minutes/Seconds format.
+	TRUE  = 71.276s
+	FALSE = 1m11.276s
+	Default: FALSE
+
 del_banned_release <TRUE|FALSE>
 	If you want to make absolutely sure the banned release does not take up
 	more bandwith or space than necessary, you can choose to completely
@@ -1746,4 +1762,3 @@ zsinternal_checks_completed <STRING>
 	Output in benchmark mode.
 	In default value, %0.6f = six digits number of seconds.
 	Default: "Checks completed in %0.6f seconds.\n"
-
