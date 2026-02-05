@@ -113,8 +113,8 @@ struct current_file {
 };
 
 struct race_total {
-	unsigned int	start_time;
-	unsigned int	stop_time;
+	struct timeval	start_time;
+	struct timeval	stop_time;
 	unsigned char	users;
 	unsigned char	groups;
 	int		files;

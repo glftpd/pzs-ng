@@ -375,6 +375,16 @@
 #define debug_mode                                FALSE
 #endif
 
+#ifndef time_precision
+#define time_precision_is_defaulted
+#define time_precision                            3
+#endif
+
+#ifndef time_format_seconds_only
+#define time_format_seconds_only_is_defaulted
+#define time_format_seconds_only                  FALSE
+#endif
+
 #ifndef del_audio_completebar
 #define del_audio_completebar_is_defaulted
 #define del_audio_completebar                     "^\\[.*] - \\( .*F - COMPLETE - .*) - \\[.*]$"
@@ -1434,4 +1444,3 @@
 #define zsinternal_checks_completed_is_defaulted
 #define zsinternal_checks_completed               "Checks completed in %0.6f seconds.\n"
 #endif
-
