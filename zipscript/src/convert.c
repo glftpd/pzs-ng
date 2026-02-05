@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <ctype.h>
 #include <time.h>
+#include <math.h>
 #include "objects.h"
 #include "zsfunctions.h"
 #include "../conf/zsconfig.h"
@@ -12,33 +13,34 @@
 
 char output[2048], output2[1024];
 
-/*
- * char *hms(char *ttime, int secs)
- * 
- * Converts source integer to bolded time string.
- * 
- */
 char *
-hms(char *ttime, int secs)
+hms(char *ttime, double secs)
 {
-	int		hours = 0,	mins = 0, tmp = 0;
+	int tmp = 0;
+	int total_secs = (int)secs;
+	double fractional = secs - total_secs;
+	int hours = 0, mins = 0, remaining_secs;
 
-	while (secs >= 3600) {
-		hours++;
-		secs -= 3600;
-	}
-	while (secs >= 60) {
-		mins++;
-		secs -= 60;
-	}
+	remaining_secs = total_secs;
+	hours = remaining_secs / 3600;
+	remaining_secs %= 3600;
+	mins = remaining_secs / 60;
+	remaining_secs %= 60;
 
 	if (hours)
-		tmp = sprintf(ttime, "%ih", (int)hours);
+		tmp += sprintf(ttime + tmp, "%ih", hours);
 	if (mins)
-		tmp += sprintf(ttime + tmp, "%im", (int)mins);
-	if (secs || !tmp)
-		tmp += sprintf(ttime + tmp, "%is", (int)secs);
-	
+		tmp += sprintf(ttime + tmp, "%im", mins);
+	if (remaining_secs || (!hours && !mins)) {
+		tmp += sprintf(ttime + tmp, "%i", remaining_secs);
+		if (time_precision > 0 && fractional > 0) {
+			char format[16];
+			sprintf(format, ".%%0%dd", time_precision);
+			tmp += sprintf(ttime + tmp, format, (int)(fractional * pow(10, time_precision)));
+		}
+		tmp += sprintf(ttime + tmp, "s");
+	}
+
 	return ttime;
 }
 
@@ -513,8 +515,11 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->total.speed / 1024. / raceI->total.files));
 				break;
 			case 'A':
-				out_p += sprintf(out_p, "%*.*f", val1, val2,
-						 (double)((raceI->total.size / (raceI->total.stop_time - raceI->total.start_time)) / 1024.));
+			{
+				double duration_sec = (raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) +
+					(raceI->total.stop_time.tv_usec - raceI->total.start_time.tv_usec) / 1000000.0;
+				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.size / duration_sec) / 1024.));
+			}
 				break;
 			case 'b':
 				out_p += sprintf(out_p, "%*u", val1, (unsigned int)raceI->total.size);
@@ -603,11 +608,23 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 				instr--;
 				break;
 			case 'd':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)hms(ttime, raceI->total.stop_time - raceI->total.start_time));
+			{
+				double duration_sec = (raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) +
+					(raceI->total.stop_time.tv_usec - raceI->total.start_time.tv_usec) / 1000000.0;
+#if ( time_format_seconds_only == TRUE )
+				out_p += sprintf(out_p, "%*.*f", val1, val2, duration_sec);
+#else
+				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)hms(ttime, duration_sec));
+#endif
+			}
 				break;
 			case '$':
-				out_p += sprintf(out_p, "%*.*s", val1, val2,
-						 (char *)hms(ttime, (((((raceI->total.stop_time - raceI->total.start_time) + (raceI->total.files - raceI->total.files_missing) > 0 ? (raceI->total.stop_time - raceI->total.start_time) + (raceI->total.files - raceI->total.files_missing) : 1 )) / (raceI->total.files - raceI->total.files_missing)) * raceI->total.files) - (raceI->total.stop_time - raceI->total.start_time)));
+			{
+				double duration_sec = (raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) +
+					(raceI->total.stop_time.tv_usec - raceI->total.start_time.tv_usec) / 1000000.0;
+				double eta_sec = ((((duration_sec + (raceI->total.files - raceI->total.files_missing) > 0 ? duration_sec + (raceI->total.files - raceI->total.files_missing) : 1)) / (raceI->total.files - raceI->total.files_missing)) * raceI->total.files) - duration_sec;
+				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)hms(ttime, eta_sec));
+			}
 				break;
 			case '&':
 				out_p += sprintf(out_p, "%llu", (unsigned long long)time(0));
