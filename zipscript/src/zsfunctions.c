@@ -1724,6 +1724,23 @@ ng_realloc(void *mempointer, int memsize, int zero_it, int exit_on_error, struct
 }
 
 void *
+ng_malloc(int memsize, int zero_it, int exit_on_error)
+{
+	void *mempointer; 
+	mempointer = malloc(memsize);
+
+	if (mempointer == NULL) {
+		d_log("ng_malloc: malloc failed: %s\n", strerror(errno));
+		if (exit_on_error) {
+			exit(EXIT_FAILURE);
+		}
+	} else if (zero_it)
+		bzero(mempointer, memsize);
+	return mempointer;
+}
+
+
+void *
 ng_realloc2(void *mempointer, int memsize, int zero_it, int exit_on_error, int zero_pointer)
 {
 	if (zero_pointer)
