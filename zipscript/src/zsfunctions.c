@@ -1198,6 +1198,30 @@ execute(char *s)
 	return i;
 }
 
+int
+execute_argv(char *const argv[])
+{
+	int	status = 0;
+	pid_t	pid;
+
+	pid = fork();
+	if (pid == -1) {
+		d_log("execute_argv: fork: %s\n", strerror(errno));
+		return -1;
+	}
+	if (pid == 0) {
+		execvp(argv[0], argv);
+		_exit(127);
+	}
+	while (waitpid(pid, &status, 0) == -1) {
+		if (errno != EINTR) {
+			d_log("execute_argv: waitpid: %s\n", strerror(errno));
+			return -1;
+		}
+	}
+	return status;
+}
+
 #ifdef USING_GLFTPD
 /* Only under glftpd do we have a uid/gid-lookup, so these
  * are only needed there. */
