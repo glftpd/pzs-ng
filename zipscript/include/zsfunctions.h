@@ -126,6 +126,7 @@ extern void	createlink(char *, char *, char *, char *);
 extern void	readsfv_ffile(struct VARS *);
 extern void	get_rar_info(char *, struct VARS *);
 extern int	execute(char *);
+extern int	execute_argv(char *const []);
 
 #ifdef USING_GLFTPD
 extern char    *get_g_name(int);

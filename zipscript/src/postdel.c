@@ -363,10 +363,11 @@ main(int argc, char **argv)
 		if (!fileexists("file_id.diz")) {
 			temp_p = findfileext(dir, ".zip");
 			if (temp_p != NULL) {
+				char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", temp_p, "file_id.diz", NULL };
+
 				_err_file_banned(temp_p, &g.v);
 				d_log("postdel: file_id.diz does not exist, trying to extract it from %s\n", temp_p);
-				sprintf(target, "%s -qqjnCLL \"%s\" file_id.diz", unzip_bin, temp_p);
-				execute(target);
+				execute_argv(unzip_diz_args);
 				if (chmod("file_id.diz", 0666))
 					d_log("postdel: Failed to chmod %s: %s\n", "file_id.diz", strerror(errno));
 			}
