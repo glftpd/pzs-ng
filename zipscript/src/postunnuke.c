@@ -154,7 +154,7 @@ main(int argc, char *argv[])
 		snprintf(g.v.sectionname, 127, "%s", getenv("SECTION"));
 	}
 #else
-        snprintf(g.v.sectionname, 127, argv[8]);
+        snprintf(g.v.sectionname, sizeof(g.v.sectionname), "%s", argv[8]);
 #endif
 
 	g.l.race = ng_realloc2(g.l.race, n = (int)strlen(g.l.path) + 12 + sizeof(storage), 1, 1, 1);
