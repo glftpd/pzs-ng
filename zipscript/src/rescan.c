@@ -233,7 +233,7 @@ main(int argc, char *argv[])
 		snprintf(g.v.sectionname, sizeof(g.v.sectionname), "%s", getenv("SECTION"));
 	}
 #else
-        snprintf(g.v.sectionname, sizeof(g.v.sectionname), argv[4]);
+        snprintf(g.v.sectionname, sizeof(g.v.sectionname), "%s", argv[4]);
 #endif
 
 	g.l.length_path = (int)strlen(g.l.path);

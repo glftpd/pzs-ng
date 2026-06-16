@@ -264,11 +264,11 @@ main(int argc, char **argv)
 #ifndef USING_GLFTPD
         d_log("zipscript-c: Reading data from commandline (ftpd-agnostic)\n");
         
-        sprintf(g.v.user.name, argv[3]);
-        sprintf(g.v.user.group, argv[4]);
+        snprintf(g.v.user.name, sizeof(g.v.user.name), "%s", argv[3]);
+        snprintf(g.v.user.group, sizeof(g.v.user.group), "%s", argv[4]);
         if (!(int)strlen(g.v.user.group))
                 memcpy(g.v.user.group, "NoGroup", 8);
-        sprintf(g.v.user.tagline, argv[5]);
+        snprintf(g.v.user.tagline, sizeof(g.v.user.tagline), "%s", argv[5]);
         if (!(int)strlen(g.v.user.tagline))
                 memcpy(g.v.user.tagline, "No Tagline Set", 15);
         g.v.file.speed = strtoul(argv[6], NULL, 0);
@@ -276,7 +276,7 @@ main(int argc, char **argv)
                 g.v.file.speed = 2005;
 
         d_log("zipscript-c: Reading section from arg (%s)\n", argv[7]);
-        snprintf(g.v.sectionname, 127, argv[7]);
+        snprintf(g.v.sectionname, sizeof(g.v.sectionname), "%s", argv[7]);
         g.v.section = 0;
 
         /* XXX We need a better way to handle this. wzd supports sections too.. ;-)
@@ -1937,4 +1937,3 @@ main(int argc, char **argv)
 	d_log("zipscript-c: Exit %d\n", exit_value);
 	return exit_value;
 }
-
