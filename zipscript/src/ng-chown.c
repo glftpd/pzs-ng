@@ -179,23 +179,34 @@ matchpath2(char *instr, char *path)
 	return 0;
 }
 
+static short int allowed_path(char *path)
+{
+	struct stat st;
+
+	if (matchpath2(group_dirs, path) || matchpath2(zip_dirs, path) || matchpath2(sfv_dirs, path)) {
+		if (lstat(path, &st) == 0 && S_ISLNK(st.st_mode))
+			return 0;
+		return 1;
+	}
+	return 0;
+}
+
 int 
 myscandir(char *my_path, char *my_name)
 {
+	if (!allowed_path(my_path)) {
+		printf("%s - Error: %s is not in allowed paths or is a symlink.\n", my_name, my_path);
+		return 1;
+	}
 	if (chdir(my_path) != -1) {
-		if (matchpath2(group_dirs, my_path) || matchpath2(zip_dirs, my_path) || matchpath2(sfv_dirs, my_path)) {
-			if (direntries > 0) {
-				while (direntries--) {
-					ng_free3(dirlist[direntries]);
-				}
-				ng_free3(dirlist);
+		if (direntries > 0) {
+			while (direntries--) {
+				ng_free3(dirlist[direntries]);
 			}
-			direntries = scandir(".", &dirlist, selector3, alphasort);
-			return 0;
-		} else {
-			printf("%s - Error: %s is not in allowed paths (group/zip/sfv-dirs).\n", my_name, my_path);
-			return 1;
+			ng_free3(dirlist);
 		}
+		direntries = scandir(".", &dirlist, selector3, alphasort);
+		return 0;
 	} else {
 		printf("%s - Error: Unable to chdir to %s : %s\n", my_name, my_path, strerror(errno));
 		return 1;
@@ -226,6 +237,10 @@ myscan(int my_result, int new_user, int new_group, int user_flag, int group_flag
 				}
 			}
 			if ((my_result == 0) && (dir_flag == 1)) {
+				if (!allowed_path(my_path)) {
+					printf("%s - Error: %s is not in allowed paths or is a symlink.\n", my_name, my_path);
+					return 1;
+				}
 				if (new_user != 0 && new_group != 0) {
 					if (chown(my_path, new_user, new_group) == -1) {
 						printf("%s - Warning: Failed to chown() %s: %s\n", my_name, my_path, strerror(errno));
@@ -238,6 +253,10 @@ myscan(int my_result, int new_user, int new_group, int user_flag, int group_flag
 		}
 	} else {
 		if (dir_flag == 1) {
+			if (!allowed_path(my_path)) {
+				printf("%s - Error: %s is not in allowed paths or is a symlink.\n", my_name, my_path);
+				return 1;
+			}
 			my_result = close(open(my_path, O_NONBLOCK));
 			if (my_result == 0) {
 				if (new_user != 0 && new_group != 0) {
