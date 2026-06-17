@@ -18,6 +18,27 @@
 #include "../conf/zsconfig.h"
 #include "../include/zsconfig.defaults.h"
 
+
+static int valid_rel_path(const char *p)
+{
+	const char *s;
+
+	if (!p || *p == '/' || strlen(p) >= PATH_MAX)
+		return 0;
+	if (strstr(p, ".."))
+		return 0;
+	for (s = p; *s; ) {
+		if (*s == '/') {
+			s++;
+			if (s[0] == '.' && s[1] == '/')
+				return 0;
+		} else {
+			s++;
+		}
+	}
+	return 1;
+}
+
 int 
 main(int argc, char **argv)
 {
@@ -49,7 +70,11 @@ main(int argc, char **argv)
 	g.v.file.name[0] = '.';
 	g.v.file.name[1] = 0;
 
-	strcpy(g.l.path, argv[1]);
+	if (!valid_rel_path(argv[1])) {
+		printf("%s: invalid path argument: %s\n", argv[0], argv[1]);
+		goto END;
+	}
+	snprintf(g.l.path, PATH_MAX, "%s", argv[1]);
 
 	n = strlen(g.l.path);
 	if (g.l.path[n] == '/') {
