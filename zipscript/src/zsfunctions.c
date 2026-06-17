@@ -1030,6 +1030,22 @@ fileexists(char *f)
  * Last modified by: psxc
  *         Revision: r1228
  */
+
+static int safe_sort_name(const char *s)
+{
+	const char *p;
+
+	if (!s || !*s)
+		return 0;
+	for (p = s; *p; p++) {
+		if ((unsigned char)*p < 32 || *p == '/')
+			return 0;
+	}
+	if (s[0] == '.' && (s[1] == '\0' || (s[1] == '.' && s[2] == '\0')))
+		return 0;
+	return 1;
+}
+
 void 
 createlink(char *factor1, char *factor2, char *source, char *ltarget)
 {
@@ -1044,6 +1060,11 @@ createlink(char *factor1, char *factor2, char *source, char *ltarget)
 
 	if (factor1 == NULL || factor2 == NULL || source == NULL || ltarget == NULL) {
 		d_log("zsfunctions.c: createlink() - received a null value as one of the arguments: (%s, %s, %s, %s)\n", factor1, factor2, source, ltarget);
+		return;
+	}
+
+	if (!safe_sort_name(factor2) || !safe_sort_name(ltarget)) {
+		d_log("createlink: refusing unsafe sort factor (%s, %s)\n", factor2, ltarget);
 		return;
 	}
 
