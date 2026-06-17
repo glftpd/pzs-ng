@@ -127,6 +127,8 @@ extern void	readsfv_ffile(struct VARS *);
 extern void	get_rar_info(char *, struct VARS *);
 extern int	execute(char *);
 extern int	execute_argv(char *const []);
+extern int	execute_hook(char *, char *);
+extern int	execute_cookies(char *, char *);
 
 #ifdef USING_GLFTPD
 extern char    *get_g_name(int);

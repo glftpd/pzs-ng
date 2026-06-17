@@ -815,9 +815,8 @@ main(int argc, char *argv[])
 			if (!fileexists(rescan_script)) {
 				d_log("rescan: Warning - rescan_script (%s) - file does not exist!\n", rescan_script);
 			} else {
-				snprintf(target, sizeof(target), rescan_script " \"%s\"", g.v.file.name);
 				_err_file_banned(g.v.file.name, &g.v);
-				if (execute(target) != 0)
+					if (execute_hook(rescan_script, g.v.file.name) != 0)
 					d_log("rescan: Failed to execute rescan_script: %s\n", strerror(errno));
 			}
 #endif
