@@ -1467,7 +1467,7 @@ int
 check_zipfile(const char *dirname, const char *zipfile, int do_nfo)
 {
 	int             ret = 0;
-	char            path_buf[PATH_MAX], target[PATH_MAX];
+	char            path_buf[PATH_MAX];
 #if (extract_nfo)
 	char            nfo_buf[NAME_MAX];
 	time_t          t = 0;
@@ -1498,8 +1498,9 @@ check_zipfile(const char *dirname, const char *zipfile, int do_nfo)
 			if (!fileexists(zip_bin))
 				d_log("check_zipfile: ERROR! Not able to remove banned file from zip - zip_bin (%s) does not exist!\n", zip_bin);
 			else {
-				sprintf(target, "%s -qqd \"%s\" \"%s\"", zip_bin, zipfile, dp->d_name);
-				if (execute(target))
+				char *zip_args[] = { zip_bin, "-qqd", (char *)zipfile, dp->d_name, NULL };
+
+				if (execute_argv(zip_args))
 					d_log("check_zipfile: Failed to remove banned (%s) file from zip.\n", dp->d_name);
 			}
 			continue;

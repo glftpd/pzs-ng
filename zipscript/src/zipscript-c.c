@@ -117,6 +117,7 @@ main(int argc, char **argv)
 #endif
 
 	unsigned int	crc, s_crc = 0;
+	int		zip_status = 0;
 	unsigned char	exit_value = EXIT_SUCCESS;
 	unsigned char	no_check = FALSE;
 	unsigned char	do_not_del = FALSE;
@@ -264,11 +265,11 @@ main(int argc, char **argv)
 #ifndef USING_GLFTPD
         d_log("zipscript-c: Reading data from commandline (ftpd-agnostic)\n");
         
-        sprintf(g.v.user.name, argv[3]);
-        sprintf(g.v.user.group, argv[4]);
+        snprintf(g.v.user.name, sizeof(g.v.user.name), "%s", argv[3]);
+        snprintf(g.v.user.group, sizeof(g.v.user.group), "%s", argv[4]);
         if (!(int)strlen(g.v.user.group))
                 memcpy(g.v.user.group, "NoGroup", 8);
-        sprintf(g.v.user.tagline, argv[5]);
+        snprintf(g.v.user.tagline, sizeof(g.v.user.tagline), "%s", argv[5]);
         if (!(int)strlen(g.v.user.tagline))
                 memcpy(g.v.user.tagline, "No Tagline Set", 15);
         g.v.file.speed = strtoul(argv[6], NULL, 0);
@@ -276,7 +277,7 @@ main(int argc, char **argv)
                 g.v.file.speed = 2005;
 
         d_log("zipscript-c: Reading section from arg (%s)\n", argv[7]);
-        snprintf(g.v.sectionname, 127, argv[7]);
+        snprintf(g.v.sectionname, sizeof(g.v.sectionname), "%s", argv[7]);
         g.v.section = 0;
 
         /* XXX We need a better way to handle this. wzd supports sections too.. ;-)
@@ -685,14 +686,23 @@ main(int argc, char **argv)
 			} else {
 #if (test_for_password || extract_nfo)
 				if ((!findfileextcount(dir, ".nfo") ||
-				  findfileextcount(dir, ".zip")) && !mkdir(".unzipped", 0777))
-					sprintf(target, "%s -qqjo \"%s\" -d .unzipped", unzip_bin, g.v.file.name);
-				else
-					sprintf(target, "%s -qqt \"%s\"", unzip_bin, g.v.file.name);
+				  findfileextcount(dir, ".zip")) && !mkdir(".unzipped", 0777)) {
+					char *unzip_args[] = { unzip_bin, "-qqjo", g.v.file.name, "-d", ".unzipped", NULL };
+
+					zip_status = execute_argv(unzip_args);
+				} else {
+					char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+
+					zip_status = execute_argv(unzip_args);
+				}
 #else
-				sprintf(target, "%s -qqt \"%s\"", unzip_bin, g.v.file.name);
+				{
+					char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+
+					zip_status = execute_argv(unzip_args);
+				}
 #endif
-				if (execute(target) != 0 || (allow_error2_in_unzip == TRUE && errno > 2 )) {
+				if (zip_status != 0 || (allow_error2_in_unzip == TRUE && errno > 2 )) {
 					d_log("zipscript-c: Integrity check failed (#%d): %s\n", errno, strerror(errno));
 					sprintf(g.v.misc.error_msg, BAD_ZIP);
 					mark_as_bad(g.v.file.name);
@@ -743,9 +753,10 @@ main(int argc, char **argv)
 				}
 			}
 			if (!fileexists("file_id.diz")) {
+				char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", g.v.file.name, "file_id.diz", NULL };
+
 				d_log("zipscript-c: file_id.diz does not exist, trying to extract it from %s\n", g.v.file.name);
-				sprintf(target, "%s -qqjnCLL \"%s\" file_id.diz 2>.delme", unzip_bin, g.v.file.name);
-				if (execute(target) != 0)
+				if (execute_argv(unzip_diz_args) != 0)
 					d_log("zipscript-c: No file_id.diz found (#%d): %s\n", errno, strerror(errno));
 				else {
 					if ((loc = findfile(dir, "file_id.diz.bad"))) {
@@ -1937,4 +1948,3 @@ main(int argc, char **argv)
 	d_log("zipscript-c: Exit %d\n", exit_value);
 	return exit_value;
 }
-

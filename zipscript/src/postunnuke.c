@@ -37,7 +37,7 @@
 int 
 main(int argc, char *argv[])
 {
-	int		k, n, m, l, complete_type = 0;
+	int		k, n, m, l, complete_type = 0, zip_status = 0;
 
 #ifdef USING_GLFTPD
         int             gnum = 0, unum = 0;
@@ -154,7 +154,7 @@ main(int argc, char *argv[])
 		snprintf(g.v.sectionname, 127, "%s", getenv("SECTION"));
 	}
 #else
-        snprintf(g.v.sectionname, 127, argv[8]);
+        snprintf(g.v.sectionname, sizeof(g.v.sectionname), "%s", argv[8]);
 #endif
 
 	g.l.race = ng_realloc2(g.l.race, n = (int)strlen(g.l.path) + 12 + sizeof(storage), 1, 1, 1);
@@ -278,8 +278,9 @@ main(int argc, char *argv[])
 
 				_err_file_banned(g.v.file.name, &g.v);
 				if (!fileexists("file_id.diz")) {
-					sprintf(exec, "%s -qqjnCLL \"%s\" file_id.diz 2>.delme", unzip_bin, g.v.file.name);
-					if (execute(exec) != 0) {
+					char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", g.v.file.name, "file_id.diz", NULL };
+
+					if (execute_argv(unzip_diz_args) != 0) {
 						d_log("ng-post_unnuke: No file_id.diz found (#%d): %s\n", errno, strerror(errno));
 					} else {
 						if ((loc = findfile(dir, "file_id.diz.bad"))) {
@@ -291,8 +292,12 @@ main(int argc, char *argv[])
 							d_log("ng-post_unnuke: Failed to chmod %s: %s\n", "file_id.diz", strerror(errno));
 					}
 				}
-				sprintf(exec, "%s -qqt \"%s\" >.delme", unzip_bin, g.v.file.name);
-				if (system(exec) == 0) {
+				{
+					char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+
+					zip_status = execute_argv(unzip_args);
+				}
+				if (zip_status == 0) {
 					writerace(g.l.race, &g.v, crc, F_CHECKED);
 				} else {
 					writerace(g.l.race, &g.v, crc, F_BAD);

@@ -28,6 +28,22 @@
 
 #include "datacleaner.h"
 
+static int
+has_parent_component(const char *path)
+{
+	const char	*p = path;
+
+	while (*p) {
+		while (*p == '/')
+			p++;
+		if (p[0] == '.' && p[1] == '.' && (p[2] == '/' || p[2] == '\0'))
+			return 1;
+		while (*p && *p != '/')
+			p++;
+	}
+	return 0;
+}
+
 int 
 main(int argc, char **argv)
 {
@@ -42,6 +58,14 @@ main(int argc, char **argv)
 		check_dir_loop(storage, zd_length);
 	} else {
 		if ((zd_length + 1 + (int)strlen(argv[1])) < PATH_MAX) {
+			if ( !strncmp(argv[1], "RMD ", 4) && has_parent_component(argv[1] + 4)) {
+				fprintf(stderr, "Unsafe path: %s\n", argv[1] + 4);
+				return 2;
+			}
+			if ( strncmp(argv[1], "RMD ", 4) && !strncmp(argv[1], "/", 1) && has_parent_component(argv[1])) {
+				fprintf(stderr, "Unsafe path: %s\n", argv[1]);
+				return 2;
+			}
 			if ( !strncmp(argv[1], "RMD ", 4)) {
 				/* script is called as a cscript for RMD */
 				if (!strncmp(argv[1] + 4, "/", 1)) {
@@ -69,6 +93,8 @@ main(int argc, char **argv)
 					free(wd);
 				}
 			}
+		} else {
+			return 2;
 		}
 		/* check subdirs */
 		check_dir_loop(st, zd_length);
@@ -152,4 +178,3 @@ check_dir_loop(char *path, int zd_length)
 	}
 	closedir(dir1);
 }
-
