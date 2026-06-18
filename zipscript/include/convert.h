@@ -1,7 +1,7 @@
 #ifndef _CONVERT_H_
 #define _CONVERT_H_
 
-char *hms(char *, int);
+char *hms(char *, double);
 char *convert(struct VARS *, struct USERINFO **, struct GROUPINFO **, char *);
 char *convert_user(struct VARS *, struct USERINFO *, struct GROUPINFO **, char *, short);
 char *convert_group(struct VARS *, struct GROUPINFO *, char *, short);

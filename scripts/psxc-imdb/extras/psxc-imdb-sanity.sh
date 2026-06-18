@@ -9,11 +9,11 @@
 # and chmod'ed world read-writable.
 
 # version number. do not change.
-VERSION="v2.7d"
+VERSION="v3.0-api"
 
 # needed binaries. do not change.
-BINARIES="date cat echo cut lynx grep head sed awk fold rm bash ls basename dirname chmod ps wc wget"
-BINARIESCHROOT="wc grep tr sed head echo bash chmod basename pwd"
+BINARIES="date cat echo cut curl jq grep head sed awk fold rm bash ls basename dirname chmod ps wc"
+BINARIESCHROOT="wc grep tr sed head echo bash chmod basename pwd curl jq"
 
 # your glftpd root path.
 GLROOT=/glftpd
@@ -215,21 +215,29 @@ GLROOT=$MYGLROOT
    echo " Failed."
    echo "    Please make sure you're using bash v2.05 or newer."
   fi
-  echo -n "Verifying that lynx works ..."
-  lynxerror="`lynx -dump -nolist -width=1000 -hiddenlinks=ignore -connect_timeout=10 http://www.imdb.com >/dev/null`"
+  echo -n "Verifying that curl works ..."
+  curlerror="`curl -s -A "psxc-imdb-sanity" --connect-timeout 10 https://www.imdb.com -o /dev/null 2>&1`"
   if [ $? -eq 0 ]; then
    echo " looks good."
   else
-   echo " lynx returned an error. Please check and correct."
-   echo "$lynxerror"
+   echo " curl returned an error. Please check and correct."
+   echo "$curlerror"
   fi
-  echo -n "Verifying that wget works ..."
-  wgeterror="`wget -U "Internet Explorer" -O /dev/null --timeout=10 http://www.imdb.com 2>/dev/null`"
-  if [ $? -eq 0 ]; then
+  echo -n "Verifying that jq works ..."
+  jqtest="`echo '{\"test\":\"ok\"}' | jq -r '.test' 2>&1`"
+  if [ "$jqtest" = "ok" ]; then
    echo " looks good."
   else
-   echo " wget returned an error. Please check and correct."
-   echo "$wgeterror"
+   echo " jq returned an error. Please check and correct."
+   echo "$jqtest"
+  fi
+  echo -n "Verifying that imdbapi.dev API is reachable ..."
+  apitest="`curl -s -A "psxc-imdb-sanity" --connect-timeout 10 https://api.imdbapi.dev/titles/tt0111161 2>&1 | jq -r '.primaryTitle' 2>&1`"
+  if [ "$apitest" = "The Shawshank Redemption" ]; then
+   echo " looks good."
+  else
+   echo " API test failed. Please check your connection."
+   echo "    Response: $apitest"
   fi
   echo -n "Checking for locale settings ..."
   if [ -z "$LC_ALL" ]; then
@@ -256,16 +264,10 @@ GLROOT=$MYGLROOT
   else
    echo "OK."
   fi
-  touch $GLROOT/etc/lynx.cfg
   if [ ! "$CHGLROOT" = "$GLROOT" ]; then
-   if [ -z "`echo $LYNXFLAGS | grep -e "\-cfg="`" ]; then
-    echo "You seem to run psxc-imdb totally under chroot. This require a change in your setup."
-    echo "Please change the following in psxc-imdb.conf :"
-    echo "   LYNXFLAGS=\"$LYNXFLAGS\""
-    echo "to"
-    echo "   LYNXFLAGS=\"$LYNXFLAGS -cfg=\$GLROOT/etc/lynx.cfg\""
-    echo ""
-   fi
+   echo "You seem to run psxc-imdb totally under chroot."
+   echo "Make sure curl and jq are available in $GLROOT/bin/"
+   echo ""
   fi
   echo ""
   echo "Done testing."

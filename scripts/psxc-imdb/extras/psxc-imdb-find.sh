@@ -40,16 +40,18 @@
 #       Fix searching for imdb number, lower length to 5 digits and
 #        only use if it's the only searchword
 #       Use https
+# v3.0  Rewritten to use imdbapi.dev REST API
 ##################################################
 
 ########
 # CONFIG
 
 # Version. No need to change.
-VERSION=2.9v
+VERSION=3.0
 
 # (full) path to psxc-imdb.conf
-PSXC_IMDB_CONF=/glftpd/etc/psxc-imdb.conf
+PSXC_IMDB_CONF=/mnt/glftpd/etc/psxc-imdb.conf
+#PSXC_IMDB_CONF=/etc/psxc-imdb.conf
 
 # max hits listed
 MAXLIST=10
@@ -58,28 +60,28 @@ MAXLIST=10
 DEFLIST=5
 
 # bold char - set to "" to disable.
-BOLD=""
+BOLD=""
 
 # different (mirc) colors.
-WHITE="00"
-BLACK="01"
-DARKBLUE="02"
-GREEN="03"
-RED="04"
-DARKRED="05"
-DARKPURPLE="06"
-ORANGE="07"
-YELLOW="08"
-LIGHTGREEN="09"
-BLUEGREEN="10"
-CYAN="11"
-BLUE="12"
-PURPLE="13"
-GREY="14"
-LIGHTGREY="15"
+WHITE="00"
+BLACK="01"
+DARKBLUE="02"
+GREEN="03"
+RED="04"
+DARKRED="05"
+DARKPURPLE="06"
+ORANGE="07"
+YELLOW="08"
+LIGHTGREEN="09"
+BLUEGREEN="10"
+CYAN="11"
+BLUE="12"
+PURPLE="13"
+GREY="14"
+LIGHTGREY="15"
 
 # color off
-COLOROFF=""
+COLOROFF=""
 
 # Word before text output
 PREWORD="$BOLD""IMDB:""$BOLD"
@@ -98,11 +100,10 @@ VERBOSE=""
 
 DESTINATION=$1
 shift
-IMDBSEARCHORIGA=`echo -n "$@" | tr -cd 'A-Za-z0-9\-\,+\=\.\ '`
-IMDBSEARCHORIG="`echo $IMDBSEARCHORIGA | tr ' \.' '\n' | grep -v "^-" | grep -v "^$" | tr '\n' ' '`"
+IMDBSEARCHORIGA=$(echo -n "$@" | tr -cd 'A-Za-z0-9\-\,+\=\.\ ')
+IMDBSEARCHORIG="$(echo $IMDBSEARCHORIGA | tr ' \.' '\n' | grep -v "^-" | grep -v "^$" | tr '\n' ' ')"
 if [ -z "$IMDBSEARCHORIG" ]; then
  echo "$PREWORD psxc-imdb channel trigger v$VERSION - argument(s) missing."
- echo "$PREWORD   use ${BOLD}-f${BOLD}   to make a ${BOLD}f${BOLD}uzzy (alternative) search."
  echo "$PREWORD   use ${BOLD}-lXX${BOLD} to ${BOLD}l${BOLD}ist ${BOLD}XX${BOLD} matches (max $MAXLIST, default $DEFLIST)."
  echo "$PREWORD   use ${BOLD}-n${BOLD}   to ${BOLD}n${BOLD}ot search for imdb ID's in the search-string."
  echo "$PREWORD   /msg <botname> <search> will give the results in private."
@@ -110,21 +111,14 @@ if [ -z "$IMDBSEARCHORIG" ]; then
  echo "$PREWORD   words starting with '-' are ignored."
  exit 0
 fi
-IMDBFUZZ=""
-if [ ! -z "`echo $IMDBSEARCHORIGA | grep -e "\-[fF]"`" ]; then
- IMDBFUZZ="&type=fuzzy"
-fi
 IMDBNOURL=""
-if [ ! -z "`echo $IMDBSEARCHORIGA | grep -e "\-[nN]"`" ]; then
+if [ ! -z "$(echo $IMDBSEARCHORIGA | grep -e "\-[nN]")" ]; then
  IMDBNOURL="ON"
 fi
 IMDBPRIVATE=""
-#if [ ! -z "`echo $IMDBSEARCHORIGA | grep -e "\-[pP]"`" ]; then
-# IMDBPRIVATE="ON"
-#fi
- IMDBLIST=""
-if [ ! -z "`echo $IMDBSEARCHORIGA | grep -e "\-[lL]"`" ]; then
- IMDBLIST="`echo $IMDBSEARCHORIGA | tr ' ' '\n' | grep -e "\-[lL]" | head -n 1 | tr -cd '0-9'`"
+IMDBLIST=""
+if [ ! -z "$(echo $IMDBSEARCHORIGA | grep -e "\-[lL]")" ]; then
+ IMDBLIST="$(echo $IMDBSEARCHORIGA | tr ' ' '\n' | grep -e "\-[lL]" | head -n 1 | tr -cd '0-9')"
  if [ -z "$IMDBLIST" ]; then
   IMDBLIST=$DEFLIST
  else
@@ -136,92 +130,111 @@ if [ ! -z "`echo $IMDBSEARCHORIGA | grep -e "\-[lL]"`" ]; then
  fi
 fi
 
-IMDBSEARCHORIG="`echo $IMDBSEARCHORIGA | tr ' \.' '\n' | grep -v "^-" | grep -v "^$" | tr '\n' ' '`"
+IMDBSEARCHORIG="$(echo $IMDBSEARCHORIGA | tr ' \.' '\n' | grep -v "^-" | grep -v "^$" | tr '\n' ' ')"
 if [ -z "$IMDBSEARCHORIG" ]; then
  echo "$PREWORD psxc-imdb channel trigger v$VERSION - please add something to search for."
  exit 0
 fi
 URLTOUSE=""
-IMDBSEARCHWORDS="`echo $IMDBSEARCHORIG`"
-IMDBSEARCHCNT=`echo $IMDBSEARCHORIG | tr '-' '\n' | wc | awk '{print $1}'`
-let IMDBSEARCHCNT=IMDBSEARCHCNT-1
-if [ $IMDBSEARCHCNT -lt 1 ]; then
- IMDBSEARCHCNT=1
-fi
-IMDBSEARCHTITLA=`echo "$IMDBSEARCHORIG" | sed 's/\([^0-9]*[0-9]\{4\}\).*/\1/'`
-IMDBSEARCHTITLE="`echo $IMDBSEARCHTITLA | tr ' -' '+'`""$IMDBFUZZ"
-IMDBSEARCHTITLB=`echo $IMDBSEARCHTITLA`
+IMDBSEARCHWORDS="$(echo $IMDBSEARCHORIG)"
+IMDBSEARCHTITLA=$(echo "$IMDBSEARCHORIG" | sed 's/\([^0-9]*[0-9]\{4\}\).*/\1/')
+IMDBSEARCHTITLE="$(echo $IMDBSEARCHTITLA | tr ' ' '+' | sed 's/+$//')"
+IMDBSEARCHTITLB=$(echo $IMDBSEARCHTITLA)
 
 . $PSXC_IMDB_CONF
+
+if [ -z "$IMDBAPI_BASE" ]; then
+  IMDBAPI_BASE="https://api.imdbapi.dev"
+fi
+if [ -z "$IMDBAPI_TIMEOUT" ]; then
+  IMDBAPI_TIMEOUT=30
+fi
+if [ -z "$JQ_BIN" ]; then
+  JQ_BIN="/bin/jq"
+fi
+if [ -z "$USERAGENT" ]; then
+  USERAGENT="psxc-imdb/3.0"
+fi
+if [ -z "$CURLFLAGS" ]; then
+  CURLFLAGS="-L"
+fi
 
 IMDBLOCAL="$LOCALURL"
 if [ -z "$IMDBLOCAL" ]; then
  IMDBLOCAL="www"
 fi
 
-# Only check for ID when only one searchword
 if [ -z "$IMDBNOURL" ] && [ $(echo "$IMDBSEARCHWORDS" | wc -w) -eq 1 ]; then
- IMDBSEARCHID="`echo -n "$IMDBSEARCHWORDS" | tr -cd '0-9'`"
+ IMDBSEARCHID="$(echo -n "$IMDBSEARCHWORDS" | tr -cd '0-9')"
  if [ ! -z "$IMDBSEARCHID" ]; then
   IMDBIDWC=$(echo -n "$IMDBSEARCHID" | wc -c)
   if [ $IMDBIDWC -ge 5 ] && [ $IMDBIDWC -le 8 ]; then
-   # Need at least 7 digits and imdb doesn't care how many zeroes are in front, so always add 2 zeroes
-    URLTOUSE="https://""$IMDBLOCAL"".imdb.com/title/tt00""$IMDBSEARCHID"
+    URLTOUSE="https://$IMDBLOCAL.imdb.com/title/tt$IMDBSEARCHID"
   fi
  fi
 fi
 
-MYLYNXFLAGS=`echo $LYNXFLAGS | sed "s| -nolist||"`
 if [ -z "$URLTOUSE" ]; then
- CONTENT=$(curl -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3" -L "https://www.imdb.com/find/?s=tt&q=$IMDBSEARCHTITLE" 2> /dev/null | grep -oi "title/tt[0-9][0-9]*/?ref_=fn_t_1" | head -1 | cut -d '?' -f1)
- if [ $? -gt 0 ]; then
-  echo "$PREWORD Internal Error. www.imdb.com may be down, or not answering. Try again later."
-  exit 0
- fi
- if [ -z "$IMDBLIST" ]; then
-  URLTOUSE=$(echo "$CONTENT" | sed 's|title/|https://www.imdb.com/title/|')
- else
-  a=1
-  b=1
-  URLS=""
-  for LINKNONAME in `echo "$CONTENT" | grep "imdb.com/title/tt" | uniq -s 5 | tr -d ' '`; do
-   URLTOUSE=`echo "$LINKNONAME" | cut -d '.' -f 2-`
-   LINKNO=`echo "$LINKNONAME" | cut -d '.' -f 1`
-   LINKNAME=`echo "$CONTENT" | grep "\[$LINKNO\]" | head -n 1 | tr '\]' '\n' | tail -n 1`
-   if [ ! -z "$LINKNAME" ]; then
-    if [ ! -z "$URLTOUSE" ] && [ -z "`echo "$URLS" | grep -e "$URLTOUSE"`" ]; then
-     if [ $a -eq 1 ]; then
-      echo "$PREWORD Listing up to $IMDBLIST hits (duplicates removed)..."
-      URLORIG="$URLTOUSE"
-     fi
-     echo "$PREWORD $b"". (""$URLTOUSE"") $LINKNAME" | sed "s|/www.|/$IMDBLOCAL.|"
-     let b=b+1
-    fi
-    URLS="$URLS $URLTOUSE"
-    let a=a+1
-    if [ $a -gt $IMDBLIST ]; then
-     break
-    fi
-   fi
-  done
-  if [ $b -gt 2 ]; then
-   exit 0
-  fi
-  URLTOUSE="$URLORIG"
- fi
+  SEARCH_RESPONSE=$(curl $CURLFLAGS -s -A "$USERAGENT" \
+    --connect-timeout $IMDBAPI_TIMEOUT \
+    "${IMDBAPI_BASE}/search/titles?query=$(echo "$IMDBSEARCHTITLE" | sed 's/+/%20/g')" 2>/dev/null)
 
-# No more redirects
-### Just in case there's only one hit, imdb redirects us to the page. this will check to see if this is the case.
-# if [ -z "$URLTOUSE" ]; then
-#  WGETOUT=`wget -U "Internet Explorer" -O /dev/null --timeout=10 "https://www.imdb.com/find?s=tt&q=$IMDBSEARCHTITLE" 2>&1`
-#  URLTOUSE=`echo "$WGETOUT" | tr ' ' '\n' | grep -e "imdb" | tr '><&' '\n' | grep -i -e "\/title\/" | tr '\?' '\n' | head -n 1`
-# fi
+  if [ $? -gt 0 ] || [ -z "$SEARCH_RESPONSE" ]; then
+    echo "$PREWORD Internal Error. API may be down, or not answering. Try again later."
+    exit 0
+  fi
+
+  if ! echo "$SEARCH_RESPONSE" | $JQ_BIN -e . >/dev/null 2>&1; then
+    echo "$PREWORD Internal Error. Invalid API response. Try again later."
+    exit 0
+  fi
+
+  RESULT_COUNT=$($JQ_BIN -r '(.titles // .results // []) | length' <<< "$SEARCH_RESPONSE" 2>/dev/null)
+  if [ -z "$RESULT_COUNT" ] || [ "$RESULT_COUNT" -eq 0 ]; then
+    echo "$PREWORD Sorry, nothing found on '${BOLD}${IMDBSEARCHWORDS}${BOLD}'."
+    exit 0
+  fi
+
+  if [ -z "$IMDBLIST" ]; then
+    FIRST_ID=$($JQ_BIN -r '(.titles // .results // [])[0].id // empty' <<< "$SEARCH_RESPONSE")
+    if [ -n "$FIRST_ID" ]; then
+      URLTOUSE="https://www.imdb.com/title/$FIRST_ID"
+    fi
+  else
+    echo "$PREWORD Listing up to $IMDBLIST hits..."
+    COUNTER=0
+    while [ $COUNTER -lt $IMDBLIST ] && [ $COUNTER -lt $RESULT_COUNT ]; do
+      RESULT_ID=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].id // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_TITLE=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].primaryTitle // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_YEAR=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].startYear // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_TYPE=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].type // (.titles // .results // [])[$COUNTER].titleType // empty" <<< "$SEARCH_RESPONSE")
+
+      if [ -n "$RESULT_ID" ] && [ -n "$RESULT_TITLE" ]; then
+        DISPLAY_NUM=$((COUNTER + 1))
+        RESULT_URL="https://$IMDBLOCAL.imdb.com/title/$RESULT_ID"
+        if [ -n "$RESULT_YEAR" ]; then
+          echo "$PREWORD $DISPLAY_NUM. ($RESULT_URL) $RESULT_TITLE ($RESULT_YEAR) [$RESULT_TYPE]"
+        else
+          echo "$PREWORD $DISPLAY_NUM. ($RESULT_URL) $RESULT_TITLE [$RESULT_TYPE]"
+        fi
+      fi
+      COUNTER=$((COUNTER + 1))
+    done
+
+    if [ $RESULT_COUNT -eq 1 ]; then
+      FIRST_ID=$($JQ_BIN -r '(.titles // .results // [])[0].id // empty' <<< "$SEARCH_RESPONSE")
+      URLTOUSE="https://www.imdb.com/title/$FIRST_ID"
+    else
+      exit 0
+    fi
+  fi
 fi
+
 if [ ! -z "$URLTOUSE" ]; then
- URLTOSHOW=`echo $URLTOUSE | sed "s|/www.|/$IMDBLOCAL.|"`
+ URLTOSHOW=$(echo $URLTOUSE | sed "s|/www.|/$IMDBLOCAL.|")
  if [ -z "$VERBOSE" ] && [ -z "$IMDBPRIVATE" ]; then
   if [ -z "$IMDBLIST" ]; then
-   echo -n "$PREWORD '$IMDBSEARCHTITLB' found @ ""$BOLD""$URLTOSHOW""$BOLD"". "
+   echo -n "$PREWORD '$IMDBSEARCHTITLB' found @ ${BOLD}${URLTOSHOW}${BOLD}. "
   else
    echo -n "$PREWORD Only one hit found - "
   fi
@@ -234,6 +247,6 @@ if [ ! -z "$URLTOUSE" ]; then
   echo "$URLTOUSE|/dev/null|$DESTINATION" | sed "s%/|%|%" >>$IMDBLOG
  fi
 else
- echo "$PREWORD Sorry, nothing found on '""$BOLD""$IMDBSEARCHWORDS""$BOLD""'."
+ echo "$PREWORD Sorry, nothing found on '${BOLD}${IMDBSEARCHWORDS}${BOLD}'."
 fi
 exit 0

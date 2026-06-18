@@ -32,6 +32,13 @@
 #define ignored_types			",diz,debug,message,imdb"
 
 #define debug_mode			TRUE
+
+/* 
+ * Show duration in seconds only?
+ * TRUE  = 71.276s
+ * FALSE = 1m11.276s
+ */
+#define time_format_seconds_only     FALSE
 #define remove_dot_files_on_delete	FALSE
 #define remove_dot_debug_on_delete	TRUE
 
@@ -67,4 +74,3 @@
 
 #define max_users_in_top		12
 #define max_groups_in_top		6
-

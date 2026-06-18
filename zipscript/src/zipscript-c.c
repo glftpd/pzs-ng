@@ -52,8 +52,15 @@
 #endif
 
 
+void set_permissions(void);
+void check_print_config(int, char **);
+void validate_argc(int, char **);
+void get_file_ext(char **, char **);
+
+
 void
-set_permissions() {
+set_permissions()
+{
 	umask(0666 & 000);
 
 	d_log("zipscript-c: Zipscript executed by: (uid/gid) %d/%d\n", geteuid(), getegid());
@@ -72,7 +79,8 @@ set_permissions() {
 
 
 void
-check_print_config(int argc, char **argv) {
+check_print_config(int argc, char **argv)
+{
 	if (argc == 2 && strcmp("--fullconfig", argv[1]) == 0)
 	{
 		print_full_config();
@@ -83,6 +91,85 @@ check_print_config(int argc, char **argv) {
 		print_nondefault_config();
 		exit(0);
 	}
+}
+
+
+void
+validate_argc(int argc, char **argv)
+{
+#ifdef USING_GLFTPD
+	if (argc < 4) {
+		d_log("zipscript-c: Wrong number of arguments used\n");
+		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <filename> <path> <crc>\n", NG_VERSION, argv[0]);
+		printf("Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
+		exit(1);
+	}
+
+	/* introduced in glftpd 2.16 */
+	if (argc >= 5) {
+		int reason = atoi(argv[4]);
+		if (reason > 0 ) {
+			if (allow_file_resume) {
+				d_log("zipscript-c: Broken xfer according to glftpd; ignoring because of allow_file_resume.\n");
+			} else {
+				switch (reason) {
+					case 1:
+						d_log("zipscript-c: glftpd says transfer was aborted; exiting early.\n");
+						break;
+					case 2:
+						d_log("zipscript-c: glftpd says an error occured during transfer; exiting early.\n");
+						break;
+					case 3:
+						d_log("zipscript-c: glftpd says disconnect/process was terminated during transfer; exiting early.\n");
+						break;
+					default:
+						d_log("zipscript-c: glftpd indicates an unknown error (please update zipscript-c!); exiting early.\n");
+						break;
+				}
+				exit(EXIT_FAILURE);
+			}
+		}
+	}
+#else
+	if (argc < 8) {
+		d_log("zipscript-c: Wrong number of arguments used (ftpd-agnostic)\n");
+		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <absolute filepath> <crc> <user> <group> <tagline> <speed> <section>\n", NG_VERSION, argv[0]);
+		printf(" Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
+		exit(1);
+	}
+#endif
+}
+
+
+void
+get_file_ext(char **argv, char **fileext)
+{
+	char    *name_p, *temp_p = NULL;
+
+	d_log("zipscript-c: Parsing file extension from filename... (%s)\n", argv[1]);
+	for (temp_p = name_p = argv[1]; *name_p != 0; name_p++) {
+		if (*name_p == '.') {
+			temp_p = name_p;
+		}
+	}
+
+	if (*temp_p != '.') {
+		d_log("zipscript-c: Got: no extension\n");
+		temp_p = name_p;
+	} else {
+		d_log("zipscript-c: Got: %s\n", temp_p);
+		temp_p++;
+	}
+	name_p++;
+
+	*fileext = ng_realloc2(*fileext, name_p - temp_p, 1, 1, 1);
+	memcpy(*fileext, temp_p, name_p - temp_p);
+#if ( sfv_cleanup_lowercase == TRUE )
+	d_log("zipscript-c: Copied (lowercased version of) extension to memory\n");
+	strtolower(*fileext);
+#else
+	d_log("zipscript-c: Copied (unchanged version of) extension to memory\n");
+#endif
 }
 
 int 
@@ -96,8 +183,9 @@ main(int argc, char **argv)
         char            temp_path[PATH_MAX];
 #else
 	char            *temp_p_free = NULL, *env_p;
+	char            *temp_p = NULL;
 #endif
-	char           *fileext = NULL, *name_p, *temp_p = NULL;
+	char           *fileext = NULL;
 	char           *target = 0;
 	char	       *vinfo = 0;
 	char	       *ext = 0;
@@ -128,7 +216,7 @@ main(int argc, char **argv)
 	char	       *norace_halfway_type = 0;
 	char	       *inc_point[2];
 	char	       *affillist = 0;
-	unsigned char	affil_upload = FALSE;
+
 #ifdef _WITH_SS5
 	unsigned char	complete_type = 1;
 #else
@@ -169,50 +257,14 @@ main(int argc, char **argv)
 
 	set_permissions();
 	check_print_config(argc, argv);
+	validate_argc(argc, argv);
 
 #ifdef USING_GLFTPD
-	if (argc < 4) {
-		d_log("zipscript-c: Wrong number of arguments used\n");
-		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <filename> <path> <crc>\n", NG_VERSION, argv[0]);
-		printf("Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
-		exit(1);
-	}
-
-	/* introduced in glftpd 2.16 */
-	if (argc >= 5) {
-		int reason = atoi(argv[4]);
-		if (reason > 0 ) {
-			if (allow_file_resume) {
-				d_log("zipscript-c: Broken xfer according to glftpd; ignoring because of allow_file_resume.\n");
-			} else {
-				switch (reason) {
-				case 1:
-					d_log("zipscript-c: glftpd says transfer was aborted; exiting early.\n");
-					break;
-				case 2:
-					d_log("zipscript-c: glftpd says an error occured during transfer; exiting early.\n");
-					break;
-				case 3:
-					d_log("zipscript-c: glftpd says disconnect/process was terminated during transfer; exiting early.\n");
-					break;
-				default:
-					d_log("zipscript-c: glftpd indicates an unknown error (please update zipscript-c!); exiting early.\n");
-					break;
-				}
-				exit(EXIT_FAILURE);
-			}
-		}
-	}
 	crc_arg = argv[3];
 #else
-	if (argc < 8) {
-		d_log("zipscript-c: Wrong number of arguments used (ftpd-agnostic)\n");
-		printf(" - - PZS-NG ZipScript-C %s - -\n\nUsage: %s <absolute filepath> <crc> <user> <group> <tagline> <speed> <section>\n", NG_VERSION, argv[0]);
-		printf(" Usage: %s --(full)config - shows (full) config compiled.\n\n", argv[0]);
-		exit(1);
-	}
 	crc_arg = argv[2];
 #endif
+
 
 	d_log("zipscript-c: Clearing arrays\n");
 	bzero(&g.v.total, sizeof(struct race_total));
@@ -366,20 +418,26 @@ main(int argc, char **argv)
 	if (stat(g.v.file.name, &fileinfo)) {
 		d_log("zipscript-c: Failed to stat file: %s\n", strerror(errno));
 		g.v.file.size = 0;
-		g.v.total.stop_time = 0;
+		gettimeofday(&g.v.total.stop_time, NULL);
 	} else {
 		g.v.file.size = fileinfo.st_size;
 		d_log("zipscript-c: File size was: %d\n", g.v.file.size);
-		g.v.total.stop_time = fileinfo.st_mtime;
+		gettimeofday(&g.v.total.stop_time, NULL);
 	}
 
 	d_log("zipscript-c: Setting race times\n");
-	if (g.v.file.size != 0)
-		g.v.total.start_time = g.v.total.stop_time - ((unsigned int)(g.v.file.size) / g.v.file.speed);
-	else
-		g.v.total.start_time = g.v.total.stop_time > (g.v.total.stop_time - 1) ? g.v.total.stop_time : (g.v.total.stop_time -1);
-	if ((int)(g.v.total.stop_time - g.v.total.start_time) < 1)
-		g.v.total.stop_time = g.v.total.start_time + 1;
+	if (g.v.file.size != 0) {
+		unsigned int duration_sec = (unsigned int)(g.v.file.size) / g.v.file.speed;
+		g.v.total.start_time.tv_sec = g.v.total.stop_time.tv_sec - duration_sec;
+		g.v.total.start_time.tv_usec = g.v.total.stop_time.tv_usec;
+	} else {
+		g.v.total.start_time.tv_sec = g.v.total.stop_time.tv_sec - 1;
+		g.v.total.start_time.tv_usec = g.v.total.stop_time.tv_usec;
+	}
+	if ((g.v.total.stop_time.tv_sec - g.v.total.start_time.tv_sec) < 1) {
+		g.v.total.stop_time.tv_sec = g.v.total.start_time.tv_sec + 1;
+		g.v.total.stop_time.tv_usec = g.v.total.start_time.tv_usec;
+	}
 
 	n = (g.l.length_path = (int)strlen(g.l.path)) + 1;
 
@@ -403,33 +461,11 @@ main(int argc, char **argv)
 	sprintf(g.v.misc.old_leader, "none");
 	g.v.file.unlink[0] = '\0';
 
-	/* Get file extension */
-	d_log("zipscript-c: Parsing file extension from filename... (%s)\n", argv[1]);
-	for (temp_p = name_p = argv[1]; *name_p != 0; name_p++) {
-		if (*name_p == '.') {
-			temp_p = name_p;
-		}
-	}
 
-	if (*temp_p != '.') {
-		d_log("zipscript-c: Got: no extension\n");
-		temp_p = name_p;
-	} else {
-		d_log("zipscript-c: Got: %s\n", temp_p);
-		temp_p++;
-	}
-	name_p++;
 
-#if ( sfv_cleanup_lowercase == TRUE )
-	d_log("zipscript-c: Copying (lowercased version of) extension to memory\n");
-#else
-	d_log("zipscript-c: Copying (unchanged version of) extension to memory\n");
-#endif
-	fileext = ng_realloc2(fileext, name_p - temp_p, 1, 1, 1);
-	memcpy(fileext, temp_p, name_p - temp_p);
-#if ( sfv_cleanup_lowercase == TRUE )
-	strtolower(fileext);
-#endif
+    get_file_ext(argv, &fileext);
+
+
 	d_log("zipscript-c: Reading directory structure\n");
 	dir = opendir(".");
 	parent = opendir("..");
@@ -500,9 +536,14 @@ main(int argc, char **argv)
 			break;
 	}
 
+
 	if (strlen(zipscript_header))
 		printf(zipscript_header);
 
+
+	#if (enable_affil_script == TRUE )
+		unsigned char	affil_upload = FALSE;
+	#endif
 	/* Hide users in group_dirs */
 	if (hide_group_uploaders && matchpath(group_dirs, g.l.path)) {
 		d_log("zipscript-c: Hiding user in group-dir:\n");
@@ -525,7 +566,9 @@ main(int argc, char **argv)
 			affillist = ng_realloc2(affillist, 5000, 1, 1, 1);
 			create_dirlist(group_dirs, affillist, 5000);
 			if (strlen(affillist) && strcomp(affillist, g.v.user.group)) {
+				#if (enable_affil_script == TRUE )
 				affil_upload = TRUE;
+				#endif
 				d_log("zipscript-c: Hiding affil group based on group_dirs:\n");
 				if ((int)strlen(hide_affil_gname)) {
 					d_log("zipscript-c:    Changing groupname.\n");
@@ -547,7 +590,9 @@ main(int argc, char **argv)
 			ng_free(affillist);
 		}
 		if (strlen(hide_affil_groups) && strcomp(hide_affil_groups, g.v.user.group)) {
+			#if (enable_affil_script == TRUE )
 			affil_upload = TRUE;
+			#endif
 			d_log("zipscript-c: Hiding affil group:\n");
 			if ((int)strlen(hide_affil_gname)) {
 				d_log("zipscript-c:    Changing groupname.\n");
@@ -567,7 +612,9 @@ main(int argc, char **argv)
 				d_log("zipscript-c:    No hidename given.\n");
 		}
 		if (strlen(hide_affil_users) && strcomp(hide_affil_users, g.v.user.name)) {
+			#if (enable_affil_script == TRUE )
 			affil_upload = TRUE;
+			#endif
 			d_log("zipscript-c: Hiding affil user:\n");
 			if ((int)strlen(hide_affil_uname)) {
 				d_log("zipscript-c:    Changing username.\n");
@@ -656,8 +703,7 @@ main(int argc, char **argv)
 			d_log("zipscript-c: Executing sample_script (%s).\n", sample_script);
 			if (!fileexists(sample_script))
 				d_log("zipscript-c: Warning - sample_script (%s) - file does not exist!\n", sample_script);
-			sprintf(target, sample_script " \"%s\"", g.v.file.name);
-			if (execute(target) != 0)
+			if (execute_hook(sample_script, g.v.file.name) != 0)
 				d_log("zipscript-c: Failed to execute sample_script: %s\n", strerror(errno));
 		}
 	} else {
@@ -1014,8 +1060,7 @@ main(int argc, char **argv)
 				d_log("zipscript-c: Warning - nfo_script (%s) - file does not exist!\n", nfo_script);
 			}
 			d_log("zipscript-c: Executing nfo script (%s)\n", nfo_script);
-			sprintf(target, nfo_script " \"%s\"", g.v.file.name);
-			if (execute(target) != 0)
+			if (execute_hook(nfo_script, g.v.file.name) != 0)
 				d_log("zipscript-c: Failed to execute nfo_script: %s\n", strerror(errno));
 #endif
 
@@ -1070,8 +1115,7 @@ main(int argc, char **argv)
 								if (!fileexists(unduper_script)) {
 									d_log("zipscript-c: Warning - undupe script (%s) does not exist.\n", unduper_script);
 								}
-								sprintf(target, unduper_script " \"%s\"", g.v.file.name);
-								if (execute(target) == 0)
+								if (execute_hook(unduper_script, g.v.file.name) == 0)
 									d_log("zipscript-c: undupe of %s successful.\n", g.v.file.name);
 								else
 									d_log("zipscript-c: undupe of %s failed.\n", g.v.file.name);
@@ -1214,8 +1258,7 @@ main(int argc, char **argv)
 							d_log("zipscript-c: Warning -  audio_script (%s) - file does not exist!\n", audio_script);
 						}
 						d_log("zipscript-c: Executing audio script (%s %s)\n", audio_script, convert(&g.v, g.ui, g.gi, audio_script_cookies));
-						sprintf(target, "%s %s", audio_script, convert(&g.v, g.ui, g.gi, audio_script_cookies));
-						if (execute(target) != 0)
+												if (execute_cookies(audio_script, convert(&g.v, g.ui, g.gi, audio_script_cookies)) != 0)
 							d_log("zipscript-c: Failed to execute audio_script: %s\n", strerror(errno));
 					}
 					if (!matchpath(audio_nocheck_dirs, g.l.path)) {
@@ -1368,7 +1411,6 @@ main(int argc, char **argv)
 //						d_log("zipscript-c: Executing sample_script (%s).\n", sample_script);
 //						if (!fileexists(sample_script))
 //							d_log("zipscript-c: Warning - sample_script (%s) - file does not exist!\n", sample_script);
-//						sprintf(target, sample_script " \"%s\"", g.v.file.name);
 //						if (execute(target) != 0)
 //							d_log("zipscript-c: Failed to execute sample_script: %s\n", strerror(errno));
 //					}
@@ -1738,8 +1780,7 @@ main(int argc, char **argv)
 					d_log("zipscript-c: Warning - accept_script (%s) - file does not exist!\n", accept_script);
 				}
 				d_log("zipscript-c: Executing accept script (before complete_script)\n");
-				sprintf(target, accept_script " \"%s\"", g.v.file.name);
-				if (execute(target) != 0)
+				if (execute_hook(accept_script, g.v.file.name) != 0)
 					d_log("zipscript-c: Failed to execute accept_script: %s\n", strerror(errno));
 			}
 #endif
@@ -1748,8 +1789,7 @@ main(int argc, char **argv)
 				d_log("zipscript-c: Warning - complete_script (%s) - file does not exist!\n", complete_script);
 			}
 			d_log("zipscript-c: Executing complete script\n");
-			sprintf(target, complete_script " \"%s\"", g.v.file.name);
-			if (execute(target) != 0)
+			if (execute_hook(complete_script, g.v.file.name) != 0)
 				d_log("zipscript-c: Failed to execute complete_script: %s\n", strerror(errno));
 
 #if ( enable_nfo_script == TRUE )
@@ -1758,8 +1798,7 @@ main(int argc, char **argv)
 					d_log("zipscript-c: Warning - nfo_script (%s) - file does not exist!\n", nfo_script);
 				}
 				d_log("zipscript-c: Executing nfo script (%s)\n", nfo_script);
-				sprintf(target, nfo_script " \"%s\"", g.v.file.name);
-				if (execute(target) != 0)
+				if (execute_hook(nfo_script, g.v.file.name) != 0)
 					d_log("zipscript-c: Failed to execute nfo_script: %s\n", strerror(errno));
 			}
 #endif
@@ -1836,8 +1875,7 @@ main(int argc, char **argv)
 			d_log("zipscript-c: Warning - accept_script (%s) - file does not exist!\n", accept_script);
 		}
 		d_log("zipscript-c: Executing accept script\n");
-		sprintf(target, accept_script " \"%s\"", g.v.file.name);
-		if (execute(target) != 0)
+		if (execute_hook(accept_script, g.v.file.name) != 0)
 			d_log("zipscript-c: Failed to execute accept_script: %s\n", strerror(errno));
 
 #if ( enable_nfo_script == TRUE )
@@ -1846,8 +1884,7 @@ main(int argc, char **argv)
 				d_log("zipscript-c: Warning - nfo_script (%s) - file does not exist!\n", nfo_script);
 			}
 			d_log("zipscript-c: Executing nfo script (%s)\n", nfo_script);
-			sprintf(target, nfo_script " \"%s\"", g.v.file.name);
-			if (execute(target) != 0)
+			if (execute_hook(nfo_script, g.v.file.name) != 0)
 				d_log("zipscript-c: Failed to execute nfo_script: %s\n", strerror(errno));
 		}
 #endif
@@ -1870,8 +1907,7 @@ main(int argc, char **argv)
 			d_log("zipscript-c: Warning - affil_script (%s) - file does not exist!\n", affil_script);
 		}
 		d_log("zipscript-c: Executing affil script\n");
-		sprintf(target, affil_script " \"%s\"", g.v.file.name);
-		if (execute(target) != 0)
+		if (execute_hook(affil_script, g.v.file.name) != 0)
 			d_log("zipscript-c: Failed to execute affil_script: %s\n", strerror(errno));
 	}
 #endif
@@ -1882,8 +1918,7 @@ main(int argc, char **argv)
 			if (!fileexists(delbanned_script))
 				d_log("zipscript-c: Warning - delbanned script (%s) does not exist.\n", delbanned_script);
 
-			sprintf(target, delbanned_script " \"%s\"", g.l.path);
-			if (execute(target) == 0)
+			if (execute_hook(delbanned_script, g.l.path) == 0)
 				d_log("zipscript-c: marking deleted of %s successful.\n", g.l.path);
 			else {
 				d_log("zipscript-c: marking deleted of %s failed.\n", g.l.path);

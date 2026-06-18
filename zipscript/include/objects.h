@@ -113,8 +113,8 @@ struct current_file {
 };
 
 struct race_total {
-	unsigned int	start_time;
-	unsigned int	stop_time;
+	struct timeval	start_time;
+	struct timeval	stop_time;
 	unsigned char	users;
 	unsigned char	groups;
 	int		files;
@@ -189,6 +189,6 @@ typedef struct {
 /* sfv_version - must be > 5. Should not be any need to add a version
  * for racedata - if either sfv_data or racedata changes, they both
  * should be removed */
-#define sfv_version	17
+#define sfv_version	18
 
 #endif

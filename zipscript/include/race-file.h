@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include "objects.h"
 #include "zsfunctions.h"
 
@@ -14,7 +15,7 @@ typedef struct {
 				* via sfv_version checking when using readrace()
 				*/
 	off_t		size;
-	time_t		start_time;
+	struct timeval	start_time;
 	unsigned char	status;
 	unsigned char	dummy1;
 	char		fname[NAMEMAX],
@@ -71,4 +72,3 @@ extern int read_headdata(const char *);
 extern bool create_lock_link(struct VARS *);
 extern void remove_lock_link(struct VARS *);
 #endif
-

@@ -32,6 +32,13 @@
 #define debug_mode                   FALSE
 #define debug_altlog                 TRUE
 
+/* 
+ * Show duration in seconds only?
+ * TRUE  = 71.276s
+ * FALSE = 1m11.276s
+ */
+#define time_format_seconds_only     FALSE
+
 #define status_bar_type              BAR_DIR
 #define incompleteislink             TRUE
 

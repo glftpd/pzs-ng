@@ -37,7 +37,7 @@
 int 
 main(int argc, char *argv[])
 {
-	int		k, n, m, l, complete_type = 0, zip_status = 0;
+	int		k, n, l, complete_type = 0, zip_status = 0;
 
 #ifdef USING_GLFTPD
         int             gnum = 0, unum = 0;
@@ -47,8 +47,11 @@ main(int argc, char *argv[])
 	unsigned int	crc;
 	struct stat	fileinfo;
 
+#ifdef USING_GLFTPD	
 	uid_t		f_uid;
 	gid_t		f_gid;
+#endif
+
 	double		temp_time = 0;
 
 	DIR		*dir, *parent;
@@ -247,7 +250,7 @@ main(int argc, char *argv[])
 		rewinddir(dir);
 		timenow = time(NULL);
 		while ((dp = readdir(dir))) {
-			m = l = (int)strlen(dp->d_name);
+			l = (int)strlen(dp->d_name);
 			
 			ext = find_last_of(dp->d_name, ".");
 			if (*ext == '.')
@@ -255,8 +258,6 @@ main(int argc, char *argv[])
 
 			if (!strcasecmp(ext, "zip")) {
 				stat(dp->d_name, &fileinfo);
-				f_uid = fileinfo.st_uid;
-				f_gid = fileinfo.st_gid;
 
 				if ((timenow == fileinfo.st_ctime) && (fileinfo.st_mode & 0111)) {
 					d_log("ng-post_unnuke: Seems this file (%s) is in the process of being uploaded. Ignoring for now.\n", dp->d_name);
@@ -264,6 +265,8 @@ main(int argc, char *argv[])
 				}
 
 #ifdef USING_GLFTPD
+				f_uid = fileinfo.st_uid;
+				f_gid = fileinfo.st_gid;
 				strcpy(g.v.user.name, get_u_name(f_uid));
 				strcpy(g.v.user.group, get_g_name(f_gid));
 #else
@@ -274,7 +277,8 @@ main(int argc, char *argv[])
 				strlcpy(g.v.file.name, dp->d_name, NAME_MAX);
 				g.v.file.speed = 2005 * 1024;
 				g.v.file.size = fileinfo.st_size;
-				g.v.total.start_time = 0;
+				g.v.total.start_time.tv_sec = 0;
+				g.v.total.start_time.tv_usec = 0;
 
 				_err_file_banned(g.v.file.name, &g.v);
 				if (!fileexists("file_id.diz")) {
@@ -301,7 +305,7 @@ main(int argc, char *argv[])
 					writerace(g.l.race, &g.v, crc, F_CHECKED);
 				} else {
 					writerace(g.l.race, &g.v, crc, F_BAD);
-					if (g.v.file.name)
+					if (strlen(g.v.file.name) > 0)
 						unlink(g.v.file.name);
 				}
 			}
@@ -395,7 +399,7 @@ main(int argc, char *argv[])
 
 		if (copysfv(g.v.file.name, g.l.sfv, &g.v)) {
 			while ((dp = readdir(dir))) {
-				m = l = (int)strlen(dp->d_name);
+				l = (int)strlen(dp->d_name);
 				ext = find_last_of(dp->d_name, "-");
 				if (!strncmp(ext, "-missing", 8))
 					unlink(dp->d_name);
@@ -417,10 +421,11 @@ main(int argc, char *argv[])
 
 			return 0;
 		}
-		g.v.total.start_time = 0;
+		g.v.total.start_time.tv_sec = 0;
+		g.v.total.start_time.tv_usec = 0;
 		rewinddir(dir);
 		while ((dp = readdir(dir))) {
-			m = l = (int)strlen(dp->d_name);
+			l = (int)strlen(dp->d_name);
 
 			ext = find_last_of(dp->d_name, ".");
 			if (*ext == '.')
@@ -449,10 +454,10 @@ main(int argc, char *argv[])
 				if (ignore_zero_sized_on_rescan && !fileinfo.st_size)
 					continue;
 
-				f_uid = fileinfo.st_uid;
-				f_gid = fileinfo.st_gid;
 
 #ifdef USING_GLFTPD
+				f_uid = fileinfo.st_uid;
+				f_gid = fileinfo.st_gid;
 				strcpy(g.v.user.name, get_u_name(f_uid));
 				strcpy(g.v.user.group, get_g_name(f_gid));
 #else
@@ -466,12 +471,18 @@ main(int argc, char *argv[])
 
 				temp_time = fileinfo.st_mtime;
 				
-				if (g.v.total.start_time == 0)
-					g.v.total.start_time = temp_time;
-				else
-					g.v.total.start_time = (g.v.total.start_time < temp_time ? g.v.total.start_time : temp_time);
-				
-				g.v.total.stop_time = (temp_time > g.v.total.stop_time ? temp_time : g.v.total.stop_time);
+				if (g.v.total.start_time.tv_sec == 0) {
+					g.v.total.start_time.tv_sec = temp_time;
+					g.v.total.start_time.tv_usec = 0;
+				} else if (temp_time < g.v.total.start_time.tv_sec) {
+					g.v.total.start_time.tv_sec = temp_time;
+					g.v.total.start_time.tv_usec = 0;
+				}
+
+				if (temp_time > g.v.total.stop_time.tv_sec) {
+					g.v.total.stop_time.tv_sec = temp_time;
+					g.v.total.stop_time.tv_usec = 0;
+				}
 
 				/* Hide users in group_dirs */
 				if (matchpath(group_dirs, g.l.path) && (hide_group_uploaders == TRUE)) {
@@ -498,7 +509,7 @@ main(int argc, char *argv[])
  					crc = 1;
 
 				if (!S_ISDIR(fileinfo.st_mode)) {
-					if (g.v.file.name)
+					if (strlen(g.v.file.name) > 0)
 						unlink_missing(g.v.file.name);
 				}
 				if ((g.l.race && !match_file(g.l.race, dp->d_name)) || !fileexists(dp->d_name))

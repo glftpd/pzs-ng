@@ -39,6 +39,7 @@ struct USER   **user;
 struct GROUP  **group;
 #endif
 
+void vd_log(const char *, va_list);
 
 void
 vd_log(const char *fmt, va_list ap)
@@ -56,7 +57,7 @@ vd_log(const char *fmt, va_list ap)
 
 #if ( debug_altlog == TRUE )
 	getcwd(debugpath, PATH_MAX);
-	snprintf(debugname, PATH_MAX, "%s/%s/debug",
+	safe_snprintf(debugname, PATH_MAX, "%s/%s/debug",
 	         storage, debugpath);
 #endif
 
@@ -104,19 +105,18 @@ d_log_ext(char *fname, char *fmt, ...)
 	if (fmt == NULL)
 		return;
 #if ( debug_mode == TRUE )
+	va_start(ap, fmt);
+	
 	int res = snprintf(buffer, sizeof(buffer), "%s: %s", fname, fmt);
-	if (res >= sizeof(buffer)) {
+	if (res < 0 || (size_t) res >= sizeof(buffer)) {
 		new_fmt = fmt;
 	} else {
 		new_fmt = buffer;
 	}
 
-    va_start(ap, new_fmt);
 	vd_log(new_fmt, ap);
 	va_end(ap);
-
 #endif
-	return;
 }
 /*
  * create_missing - create a <filename>-missing 0byte file.
@@ -728,15 +728,10 @@ removecomplete(int rtype)
 	struct dirent	*dp;
 
         struct stat     fileinfo;
-        char            deref_link[PATH_MAX];
-        ssize_t         len;
 
         if (message_file_name != DISABLED && message_file_name && lstat(message_file_name, &fileinfo) != -1) {
-                if (S_ISLNK(fileinfo.st_mode) && stat(message_file_name, &fileinfo) != -1 && (len = readlink(message_file_name, deref_link, sizeof(deref_link)-1)) != -1) {
-                        d_log("removecomplete: message_file_name is a symlink: %s points to %s\n", message_file_name, deref_link);
-                        deref_link[len] = '\0';
-                        unlink(deref_link);
-                }
+                if (S_ISLNK(fileinfo.st_mode))
+                        d_log("removecomplete: message_file_name is a symlink; removing only the symlink (%s)\n", message_file_name);
                 unlink(message_file_name);
         }
 
@@ -1035,6 +1030,22 @@ fileexists(char *f)
  * Last modified by: psxc
  *         Revision: r1228
  */
+
+static int safe_sort_name(const char *s)
+{
+	const char *p;
+
+	if (!s || !*s)
+		return 0;
+	for (p = s; *p; p++) {
+		if ((unsigned char)*p < 32 || *p == '/')
+			return 0;
+	}
+	if (s[0] == '.' && (s[1] == '\0' || (s[1] == '.' && s[2] == '\0')))
+		return 0;
+	return 1;
+}
+
 void 
 createlink(char *factor1, char *factor2, char *source, char *ltarget)
 {
@@ -1049,6 +1060,11 @@ createlink(char *factor1, char *factor2, char *source, char *ltarget)
 
 	if (factor1 == NULL || factor2 == NULL || source == NULL || ltarget == NULL) {
 		d_log("zsfunctions.c: createlink() - received a null value as one of the arguments: (%s, %s, %s, %s)\n", factor1, factor2, source, ltarget);
+		return;
+	}
+
+	if (!safe_sort_name(factor2) || !safe_sort_name(ltarget)) {
+		d_log("createlink: refusing unsafe sort factor (%s, %s)\n", factor2, ltarget);
 		return;
 	}
 
@@ -1220,6 +1236,43 @@ execute_argv(char *const argv[])
 		}
 	}
 	return status;
+}
+
+/* Execute a configured hook script with a single untrusted argument */
+int
+execute_hook(char *script, char *arg)
+{
+	char	*argv[4];
+	char	argbuf[PATH_MAX * 2];
+
+	if (!script || !arg)
+		return -1;
+	argv[0] = script;
+	snprintf(argbuf, sizeof(argbuf), "%s", arg);
+	argv[1] = argbuf;
+	argv[2] = NULL;
+	return execute_argv(argv);
+}
+
+/* Execute a configured hook script with whitespace-separated cookie args */
+int
+execute_cookies(char *script, char *argline)
+{
+	char	*argv[64];
+	char	buf[PATH_MAX * 2];
+	char	*p;
+	int	argc = 0;
+
+	if (!script)
+		return -1;
+	argv[argc++] = script;
+	if (argline) {
+		snprintf(buf, sizeof(buf), "%s", argline);
+		for (p = strtok(buf, " \t"); p && argc < 63; p = strtok(NULL, " \t"))
+			argv[argc++] = p;
+	}
+	argv[argc] = NULL;
+	return execute_argv(argv);
 }
 
 #ifdef USING_GLFTPD
@@ -1441,7 +1494,7 @@ sfv_compare_size(char *fileext, off_t fsize)
 		}
 	}
 
-	if (!(l = l - fsize) > 0)
+	if ((!(l = l - fsize)) > 0)
 		l = 0;
 
 	closedir(dir);
@@ -1589,7 +1642,7 @@ getrelname(GLOBAL *g)
 	d_log("\t\t\tg->l.path:\t%s\n", g->l.path);
 
 	if (subc) {
-		snprintf(g->v.misc.release_name, PATH_MAX, "%s/%s", path[0], path[1]);
+		safe_snprintf(g->v.misc.release_name, PATH_MAX, "%s/%s", path[0], path[1]);
 		strlcpy(g->l.link_source, g->l.path, PATH_MAX);
 		strlcpy(g->l.link_target, path[1], PATH_MAX);
 		if (matchpath(incomplete_generic1_path, g->l.path)) {
@@ -1746,6 +1799,23 @@ ng_realloc(void *mempointer, int memsize, int zero_it, int exit_on_error, struct
 		bzero(mempointer, memsize);
 	return mempointer;
 }
+
+void *
+ng_malloc(int memsize, int zero_it, int exit_on_error)
+{
+	void *mempointer; 
+	mempointer = malloc(memsize);
+
+	if (mempointer == NULL) {
+		d_log("ng_malloc: malloc failed: %s\n", strerror(errno));
+		if (exit_on_error) {
+			exit(EXIT_FAILURE);
+		}
+	} else if (zero_it)
+		bzero(mempointer, memsize);
+	return mempointer;
+}
+
 
 void *
 ng_realloc2(void *mempointer, int memsize, int zero_it, int exit_on_error, int zero_pointer)

@@ -130,8 +130,7 @@ readsfv(const char *path, struct VARS *raceI, int getfcount)
 }
 
 /*
- * First Version: 2013.07.15	by	: Sked
- * Description	: Gets the first filename from the sfvdata and returns it. This should be freed later.
+ * Gets the first filename from the sfvdata and returns it. This should be freed later.
  */
 char *
 get_first_filename_from_sfvdata(const char *sfvdatafile)
@@ -148,7 +147,7 @@ get_first_filename_from_sfvdata(const char *sfvdatafile)
 	fread(&sd, sizeof(SFVDATA), 1, sfvfile);
 	fclose(sfvfile);
 
-	firstfile = ng_realloc2(firstfile, (strlen(sd.fname) + 1), 0, 1, 1);
+	firstfile = ng_malloc((strlen(sd.fname) + 1), 0, 1);
 	strcpy(firstfile, sd.fname);
 
 	return firstfile;
@@ -365,12 +364,11 @@ testfiles(struct LOCATIONS *locations, struct VARS *raceI, int rstatus)
 			if (!fileexists(unduper_script)) {
 				d_log("Failed to undupe '%s' - '%s' does not exist.\n", rd.fname, unduper_script);
 			} else {
-				sprintf(target, unduper_script " \"%s\"", rd.fname);
 				_err_file_banned(rd.fname, NULL);
-				if (execute(target) == 0)
-					d_log("testfiles: undupe of %s successful (%s).\n", rd.fname, target);
+				if (execute_hook(unduper_script, rd.fname) == 0)
+					d_log("testfiles: undupe of %s successful (%s).\n", rd.fname, unduper_script);
 				else
-					d_log("testfiles: undupe of %s failed (%s).\n", rd.fname, target);
+					d_log("testfiles: undupe of %s failed (%s).\n", rd.fname, unduper_script);
 			}
 #endif
 		}
@@ -1196,7 +1194,6 @@ remove_lock(struct VARS *raceI)
 {
 	int			fd;
 	HEADDATA	hd;
-	char		lockfile[PATH_MAX + 1];
 
 	if ((fd = open(raceI->headpath, O_RDWR, 0666)) == -1) {
 		d_log_ext("remove_lock", "open(%s): %s\n", raceI->headpath, strerror(errno));
