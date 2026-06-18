@@ -50,7 +50,21 @@
 #
 # What dirs to execute in (no wildcards). Use "/" to include all.
 # Example: validdirs="/site/MOVIES/ /site/FILMS/"
-validdirs="/"
+validdirs=""
+# Validate URLs derived from network responses
+url_is_safe() {
+  local url="$1"
+  case "$url" in
+    http://*|https://*)
+      return 0
+      ;;
+    *)
+      echo "Refusing unsafe URL: $url"
+      return 1
+      ;;
+  esac
+}
+
 
 # quality of trailer. Choose between
 # 320 (smallest), 480, 640, 480p, 720p, 1080p (highest)
@@ -212,7 +226,7 @@ let countdot=countdot-0
 while [ 1 ]; do
   releasenamedot="$(echo "$releasename" | sed $sedswitch "s/\.[12][0-9][0-9][0-9]\.*$//")"
   releasename="$(echo "$releasenamedot" | tr -d '\.' | sed $sedswitch "s/([dw]o|[sc][h]*a|[sw][h]*ould|must|[wh]a[sd]|did|are)(nt)/\1n't/g" )"
-  output="$(wget $wgetflags -o "$wgetoutput" -O - "http://www.apple.com/trailers/home/scripts/quickfind.php?q=$releasename")"
+  output="$(wget $wgetflags -o "$wgetoutput" -O - "https://www.apple.com/trailers/home/scripts/quickfind.php?q=$releasename")"
   outparse="$(echo $output | tr -d '\"' | tr ',' '\n')"
   iserror=$(echo $outparse | grep -i "error:true")
   isresult=$(echo $outparse | grep -i "results:\[\]")
@@ -251,7 +265,7 @@ releasenamespace=$(echo "$releasenamedot" | sed $sedswitch "s/(.*)\.$/\1/" | tr 
 poster=$(echo "$outparse" | grep -i "^poster:" | cut -d ':' -f 2- | tr -d '\\' | head -n 1)
 location="http://www.apple.com$(echo "$outparse" | grep -i "^location:" | cut -d ':' -f 2- | tr -d '\\' | tr ' ' '\n' | head -n 1)"
 
-output2="$(wget $wgetflags -o "$wgetoutput" -O - $location)"
+output2="$(wget $wgetflags -o "$wgetoutput" -O - "$location")"
 output2parse="$(echo $output2 | tr ' \?' '\n' | grep -v "/images/" | grep -E -i "^href=.*\.mov[\"]*$|^href=.*small[_]?.*\.html[\"]*|^href=.*medium[_]?.*\.html[\"]*|^href=.*large[_]?.*\.html[\"]*|^href=.*low[_]?.*\.html[\"]*|^href=.*high[_]?.*\.html[\"]?.*" | tr -d '\"' | cut -d '=' -f 2-)"
 #echo DEBUG 1: $output2parse
 #echo DEBUG 5: $location
@@ -316,7 +330,8 @@ done
     [[ "$downloadall" != "" ]] && {
       trailername=""
     }
-    wget $wgetflags -o "$wgetoutput" -O "$wgettemp" $urllink
+    url_is_safe "$urllink" || continue
+    wget $wgetflags -o "$wgetoutput" -O "$wgettemp" "$urllink"
     fakelinkname=$(echo $urllink | tr '/' '\n' | grep -i "\.mov$")
     reallinkname=$(cat "$wgettemp" | tr -c 'a-zA-Z0-9\-\.\_' '\n' | grep -i "\.mov" | sed "s|[Rr][Mm][Dd][Rr]||" | sed "
 s|^0||")
@@ -349,7 +364,8 @@ s|^0||")
       }
       chmod +w "$trailerdir"
     }
-    wget $wgetflags2 -o "$wgetoutput" -O ${trailerdir}${trailername} $reallink
+    url_is_safe "$reallink" || continue
+    wget $wgetflags2 -o "$wgetoutput" -O "${trailerdir}${trailername}" "$reallink"
 #    wget --ignore-length --timeout=10 -U "QuickTime/7.6.2 (qtver=7.6.2;os=Windows NT 5.1 Service Pack 3)" -o "$wgetoutput" -O ${trailerdir}${trailername} $reallink
     [[ ! -s "${trailerdir}${trailername}" ]] && {
       echo "For unknown reasons the script failed to download the trailer"
@@ -396,7 +412,8 @@ s|^0||")
     }
     chmod +w "$(dirname "$imagename")"
   }
-  wget $wgetflags -o "$wgetoutput" -O "$imagename" $poster
+  url_is_safe "$poster" || exit 1
+  wget $wgetflags -o "$wgetoutput" -O "$imagename" "$poster"
   [[ "$imagenameperms" != "" ]] && {
     chmod $imagenameperms "$imagename"
   }
