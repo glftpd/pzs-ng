@@ -352,9 +352,10 @@ namespace eval ::ngBot::plugin::Blow {
 		variable keyxqueue
 
 		foreach var [list "blowkey" "keyxinit" "keyxtimer" "keyxqueue"] {
-			if {[info exists $var($nick)]} {
-				set $var($newnick) $var($nick)
-				unset $var($nick)
+			upvar 0 $var arr
+			if {[info exists arr($nick)]} {
+				set arr($newnick) $arr($nick)
+				unset arr($nick)
 			}
 		}
 	}
