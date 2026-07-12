@@ -492,17 +492,17 @@ main(int argc, char *argv[])
 				if (matchpath(group_dirs, g.l.path) && (hide_group_uploaders == TRUE)) {
 					d_log("ng-post_unnuke: Hiding user in group-dir:\n");
 					if ((int)strlen(hide_gname) > 0) {
-						snprintf(g.v.user.group, 18, "%s", hide_gname);
+						snprintf(g.v.user.group, sizeof(g.v.user.group), "%s", hide_gname);
 						d_log("ng-post_unnuke:    Changing groupname\n");
 					}
 					if ((int)strlen(hide_uname) > 0) {
-						snprintf(g.v.user.name, 18, "%s", hide_uname);
+						snprintf(g.v.user.name, sizeof(g.v.user.name), "%s", hide_uname);
 						d_log("ng-post_unnuke:    Changing username\n");
 					}
 #if (show_users_in_group_dirs == FALSE)
 					if ((int)strlen(hide_uname) == 0) {
 						d_log("ng-post_unnuke:    Making username = groupname\n");
-						snprintf(g.v.user.name, 18, "%s", g.v.user.group);
+						snprintf(g.v.user.name, sizeof(g.v.user.name), "%s", g.v.user.group);
 					}
 #endif
 				}
