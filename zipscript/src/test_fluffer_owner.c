@@ -1,8 +1,8 @@
 /* Minimal self-check for fluffer_owner() (docs/xattr-ownership.md).
  * Links zsfunctions.o with unresolved symbols ignored; only exercises the
  * xattr path plus get_u_name/get_g_name fallback with a stubbed user table.
- * Build+run (from zipscript/src, after configure; knob must be TRUE, e.g. -D below):
- *   gcc -DUSING_GLFTPD=1 -Dfluffer_xattr_owner=1 -DHAVE_CONFIG_H -D_WITH_NOFORMAT -DGLVERSION=20264 \
+ * Build+run (from zipscript/src, after configure; knob defaults to TRUE on Linux):
+ *   gcc -DUSING_GLFTPD=1 -DHAVE_CONFIG_H -D_WITH_NOFORMAT -DGLVERSION=20264 \
  *       -I../include/ -I../../ -I../../lib/ -c zsfunctions.c -o /tmp/zsf_test.o
  *   gcc test_fluffer_owner.c /tmp/zsf_test.o ../../lib/strl/strlcpy.o \
  *       -Wl,--unresolved-symbols=ignore-all -o /tmp/tfo && /tmp/tfo

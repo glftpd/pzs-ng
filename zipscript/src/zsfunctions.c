@@ -1298,7 +1298,7 @@ get_u_name(int uid)
 	return "Unknown";
 }
 
-#if (fluffer_xattr_owner == TRUE)
+#if (fluffer_xattr_owner == TRUE) && defined(__linux__)
 #include <sys/xattr.h>
 #include <stdint.h>
 
