@@ -267,8 +267,10 @@ main(int argc, char *argv[])
 #ifdef USING_GLFTPD
 				f_uid = fileinfo.st_uid;
 				f_gid = fileinfo.st_gid;
-				strcpy(g.v.user.name, get_u_name(f_uid));
-				strcpy(g.v.user.group, get_g_name(f_gid));
+				if (!fluffer_owner(dp->d_name, g.v.user.name, sizeof(g.v.user.name), g.v.user.group, sizeof(g.v.user.group))) {
+					strlcpy(g.v.user.name, get_u_name(f_uid), sizeof(g.v.user.name));
+					strlcpy(g.v.user.group, get_g_name(f_gid), sizeof(g.v.user.group));
+				}
 #else
                                 strncpy(g.v.user.name, argv[4], sizeof(g.v.user.name));
                                 strncpy(g.v.user.group, argv[5], sizeof(g.v.user.group));
@@ -458,8 +460,10 @@ main(int argc, char *argv[])
 #ifdef USING_GLFTPD
 				f_uid = fileinfo.st_uid;
 				f_gid = fileinfo.st_gid;
-				strcpy(g.v.user.name, get_u_name(f_uid));
-				strcpy(g.v.user.group, get_g_name(f_gid));
+				if (!fluffer_owner(dp->d_name, g.v.user.name, sizeof(g.v.user.name), g.v.user.group, sizeof(g.v.user.group))) {
+					strlcpy(g.v.user.name, get_u_name(f_uid), sizeof(g.v.user.name));
+					strlcpy(g.v.user.group, get_g_name(f_gid), sizeof(g.v.user.group));
+				}
 #else
                                 strncpy(g.v.user.name, argv[4], sizeof(g.v.user.name));
                                 strncpy(g.v.user.group, argv[5], sizeof(g.v.user.group));

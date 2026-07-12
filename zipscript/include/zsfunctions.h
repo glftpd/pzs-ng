@@ -135,6 +135,11 @@ extern char    *get_g_name(int);
 extern char    *get_u_name(int);
 extern int	buffer_groups(char *, int);
 extern int	buffer_users(char *, int);
+#if (fluffer_xattr_owner == TRUE)
+extern int	fluffer_owner(const char *, char *, size_t, char *, size_t);
+#else
+#define fluffer_owner(path, un, us, gn, gs) (0)
+#endif
 #endif
 
 extern off_t	sfv_compare_size(char *, off_t);

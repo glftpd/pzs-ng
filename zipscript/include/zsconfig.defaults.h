@@ -725,6 +725,11 @@
 #define extract_nfo                               TRUE
 #endif
 
+#ifndef fluffer_xattr_owner
+#define fluffer_xattr_owner_is_defaulted
+#define fluffer_xattr_owner                       FALSE
+#endif
+
 #ifndef force_sfv_first
 #define force_sfv_first_is_defaulted
 #define force_sfv_first                           FALSE
