@@ -1297,6 +1297,50 @@ get_u_name(int uid)
 			return user[n]->name;
 	return "Unknown";
 }
+
+#if (fluffer_xattr_owner == TRUE)
+#include <sys/xattr.h>
+#include <stdint.h>
+
+/* fluffer is single-uid: real st_uid is the daemon on every upload, the
+ * uploader lives in the user.ftpd.meta xattr (see docs/xattr-ownership.md).
+ * Fills uname/gname from the stamp and returns 1, or returns 0 when the
+ * file is unstamped so the caller keeps the st_uid/st_gid fallback
+ * (correct for pre-fluffer glftpd archives). */
+int
+fluffer_owner(const char *path, char *uname, size_t usize, char *gname, size_t gsize)
+{
+	struct {
+		uint32_t	uid;
+		uint32_t	gid;
+		char		owner[32];
+	} __attribute__((packed)) m;
+	uint32_t	uid, gid;
+	char		owner[32];
+	ssize_t		n;
+
+	if (getxattr(path, "user.ftpd.meta", &m, sizeof(m)) == (ssize_t)sizeof(m)) {
+		m.owner[31] = '\0';
+		uid = m.uid;
+		gid = m.gid;
+		strlcpy(owner, m.owner, sizeof(owner));
+	} else {
+		/* legacy triple from early fluffer builds - all three must exist */
+		n = getxattr(path, "user.ftpd.owner", owner, sizeof(owner) - 1);
+		if (n <= 0 ||
+		    getxattr(path, "user.ftpd.uid", &uid, sizeof(uid)) != (ssize_t)sizeof(uid) ||
+		    getxattr(path, "user.ftpd.gid", &gid, sizeof(gid)) != (ssize_t)sizeof(gid))
+			return 0;
+		owner[n] = '\0';
+	}
+	if (*owner)
+		strlcpy(uname, owner, usize);
+	else
+		strlcpy(uname, get_u_name(uid), usize);
+	strlcpy(gname, get_g_name(gid), gsize);
+	return 1;
+}
+#endif
 #endif
 
 #ifdef USING_GLFTPD
