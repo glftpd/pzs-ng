@@ -18,6 +18,14 @@
 
 extern int fluffer_owner(const char *, char *, size_t, char *, size_t);
 
+/* group table globals from zsfunctions.c (struct mirrors zsfunctions.h) */
+struct GROUP {
+	char           *name;
+	gid_t		id;
+};
+extern struct GROUP **group;
+extern int	num_groups;
+
 struct ftpd_meta {
 	uint32_t uid;
 	uint32_t gid;
@@ -28,9 +36,16 @@ int
 main(void)
 {
 	char		un[64], gn[64], path[] = "./tfo_XXXXXX";
-	struct ftpd_meta m = { 1001, 200, "raceuser" };
+	struct ftpd_meta m = { 1001, 101, "raceuser" };
 	uint32_t	v;
 	int		fd = mkstemp(path);
+
+	/* two groups in the same hundred-block: exact gid matching must pick
+	 * the right one (get_g_name's id/100 bucket match would return "first") */
+	struct GROUP	ga = { "first", 100 }, gb = { "second", 101 };
+	struct GROUP   *gtab[] = { &ga, &gb };
+	group = gtab;
+	num_groups = 2;
 
 	assert(fd != -1);
 
@@ -42,6 +57,7 @@ main(void)
 	assert(sizeof(m) == 40);
 	assert(fluffer_owner(path, un, sizeof(un), gn, sizeof(gn)) == 1);
 	assert(strcmp(un, "raceuser") == 0);
+	assert(strcmp(gn, "second") == 0);
 
 	/* truncated blob -> treated as unstamped */
 	assert(setxattr(path, "user.ftpd.meta", &m, 20, 0) == 0);

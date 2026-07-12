@@ -1302,6 +1302,19 @@ get_u_name(int uid)
 #include <sys/xattr.h>
 #include <stdint.h>
 
+/* fluffer gids are plain /etc/group values, so match exactly - get_g_name's
+ * id/100 bucket match is a glftpd file-gid quirk and would return whichever
+ * group happens to be first in the same hundred-block. */
+static char *
+get_g_name_exact(gid_t gid)
+{
+	int		n;
+	for (n = 0; n < num_groups; n++)
+		if (group[n]->id == gid)
+			return group[n]->name;
+	return "NoGroup";
+}
+
 /* fluffer is single-uid: real st_uid is the daemon on every upload, the
  * uploader lives in the user.ftpd.meta xattr (see docs/xattr-ownership.md).
  * Fills uname/gname from the stamp and returns 1, or returns 0 when the
@@ -1337,7 +1350,7 @@ fluffer_owner(const char *path, char *uname, size_t usize, char *gname, size_t g
 		strlcpy(uname, owner, usize);
 	else
 		strlcpy(uname, get_u_name(uid), usize);
-	strlcpy(gname, get_g_name(gid), gsize);
+	strlcpy(gname, get_g_name_exact(gid), gsize);
 	return 1;
 }
 #endif
