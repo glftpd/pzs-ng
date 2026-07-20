@@ -232,7 +232,7 @@ GLROOT=$MYGLROOT
    echo "$jqtest"
   fi
   echo -n "Verifying that imdbapi.dev API is reachable ..."
-  apitest="`curl -s -A "psxc-imdb-sanity" --connect-timeout 10 https://api.imdbapi.dev/titles/tt0111161 2>&1 | jq -r '.primaryTitle' 2>&1`"
+  apitest="`curl -s -A "psxc-imdb-sanity" --connect-timeout 10 https://api.tiffara.com/titles/tt0111161 2>&1 | jq -r '.primaryTitle' 2>&1`"
   if [ "$apitest" = "The Shawshank Redemption" ]; then
    echo " looks good."
   else

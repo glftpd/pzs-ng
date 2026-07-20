@@ -144,7 +144,7 @@ IMDBSEARCHTITLB=$(echo $IMDBSEARCHTITLA)
 . $PSXC_IMDB_CONF
 
 if [ -z "$IMDBAPI_BASE" ]; then
-  IMDBAPI_BASE="https://api.imdbapi.dev"
+  IMDBAPI_BASE="https://api.tiffara.com"
 fi
 if [ -z "$IMDBAPI_TIMEOUT" ]; then
   IMDBAPI_TIMEOUT=30
