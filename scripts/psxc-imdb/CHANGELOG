@@ -1,5 +1,32 @@
 PSXC-IMDB CHANGELOG:
 --------------------
+- v3.1 - Jul. 24th, 2026 - Switch psxc-imdb to IMDB GraphQL API (graphql.imdb.com)
+                          - Add Metacritic score (metascore + review count) to
+                            bot output, .imdb file, and external script args
+                          - Add SHOWMETACRITIC config option (default: NO)
+                          - USEORIGTITLE="" now looks up localized title from
+                            IMDB AKAs based on release language
+                          - Extract language from release directory name and look up
+                            localized title from IMDB AKAs by country code
+                          - Supported languages: chinese, dutch, english, finnish,
+                            french, german, greek, hebrew, hungarian, italian,
+                            japanese, korean, norwegian, polish, portuguese,
+                            romanian, russian, spanish, swedish, turkish
+                          - Priority: localized AKA title > original title >
+                            English title
+                          - Fix JSON escaping in psxc-imdb-find search query
+                          - Fix psxc-imdb-find conf path: /mnt/glftpd/etc -> /glftpd/etc
+                          - Fix psxc-imdb-find USERAGENT to match main script
+                          - Sync psxc-imdb.tcl version to v3.1-graphql
+                          - Fix psxc-imdb-nuker.sh: missing space in test, wrong
+                            GLROOT prefix on NUKE_WARN_FILE, unquoted IMDBRELPATH
+                          - Fix psxc-symlink-maker.sh: wrong variable
+                            (MYDATEGRAB_DVD -> MYDATEGRAB_DISC) in disc branch
+- v3.0 - Jan. 23rd, 2026 - Rewrite psxc-imdb to use imdbapi.dev REST API
+                          - Remove AKA fallback to prevent non-English titles
+                          - Handle partial premiere dates
+                          - Simplify certificate output
+                          - Add split lines feature for MYOWN format output
 - v2.9w - Feb. 20th, 2020 - Fix MYOWN format of PLOT when using \\\\n as NEWLINE
                           - Change rescan to not use an nfo as PREF_NFO,
                             remove unneeded IGNORE_WARN and add warn when no nfo is found

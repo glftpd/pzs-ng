@@ -41,16 +41,19 @@
 #        only use if it's the only searchword
 #       Use https
 # v3.0  Rewritten to use imdbapi.dev REST API
+# v3.1  Switch to IMDB GraphQL API (graphql.imdb.com)
+#       Fix JSON escaping in search query using jq
+#       Fix conf path (/mnt/glftpd/etc -> /glftpd/etc)
 ##################################################
 
 ########
 # CONFIG
 
 # Version. No need to change.
-VERSION=3.0
+VERSION="v3.1-graphql"
 
 # (full) path to psxc-imdb.conf
-PSXC_IMDB_CONF=/mnt/glftpd/etc/psxc-imdb.conf
+PSXC_IMDB_CONF=/glftpd/etc/psxc-imdb.conf
 #PSXC_IMDB_CONF=/etc/psxc-imdb.conf
 
 # max hits listed
@@ -143,8 +146,8 @@ IMDBSEARCHTITLB=$(echo $IMDBSEARCHTITLA)
 
 . $PSXC_IMDB_CONF
 
-if [ -z "$IMDBAPI_BASE" ]; then
-  IMDBAPI_BASE="https://api.imdbapi.dev"
+if [ -z "$IMDB_GRAPHQL_URL" ]; then
+  IMDB_GRAPHQL_URL="https://graphql.imdb.com/"
 fi
 if [ -z "$IMDBAPI_TIMEOUT" ]; then
   IMDBAPI_TIMEOUT=30
@@ -153,7 +156,7 @@ if [ -z "$JQ_BIN" ]; then
   JQ_BIN="/bin/jq"
 fi
 if [ -z "$USERAGENT" ]; then
-  USERAGENT="psxc-imdb/3.0"
+  USERAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
 fi
 if [ -z "$CURLFLAGS" ]; then
   CURLFLAGS="-L"
@@ -175,28 +178,32 @@ if [ -z "$IMDBNOURL" ] && [ $(echo "$IMDBSEARCHWORDS" | wc -w) -eq 1 ]; then
 fi
 
 if [ -z "$URLTOUSE" ]; then
+  SEARCH_QUERY="query{mainSearch(first:${IMDBLIST:-$DEFLIST},options:{searchTerm:\"$(echo "$IMDBSEARCHTITLE" | sed 's/+/%20/g')\"}){edges{node{entity{... on Title{id titleText{text}releaseYear{year}titleType{text}}}}}}}"
+  SEARCH_PAYLOAD=$($JQ_BIN -n --arg q "$SEARCH_QUERY" '{query: $q}')
   SEARCH_RESPONSE=$(curl $CURLFLAGS -s -A "$USERAGENT" \
+    -H "Content-Type: application/json" \
     --connect-timeout $IMDBAPI_TIMEOUT \
-    "${IMDBAPI_BASE}/search/titles?query=$(echo "$IMDBSEARCHTITLE" | sed 's/+/%20/g')" 2>/dev/null)
+    -X POST "$IMDB_GRAPHQL_URL" \
+    -d "$SEARCH_PAYLOAD" 2>/dev/null)
 
   if [ $? -gt 0 ] || [ -z "$SEARCH_RESPONSE" ]; then
-    echo "$PREWORD Internal Error. API may be down, or not answering. Try again later."
+    echo "$PREWORD Internal Error. GraphQL API may be down, or not answering. Try again later."
     exit 0
   fi
 
-  if ! echo "$SEARCH_RESPONSE" | $JQ_BIN -e . >/dev/null 2>&1; then
+  if ! echo "$SEARCH_RESPONSE" | $JQ_BIN -e '.data' >/dev/null 2>&1; then
     echo "$PREWORD Internal Error. Invalid API response. Try again later."
     exit 0
   fi
 
-  RESULT_COUNT=$($JQ_BIN -r '(.titles // .results // []) | length' <<< "$SEARCH_RESPONSE" 2>/dev/null)
+  RESULT_COUNT=$($JQ_BIN -r '(.data.mainSearch.edges // []) | length' <<< "$SEARCH_RESPONSE" 2>/dev/null)
   if [ -z "$RESULT_COUNT" ] || [ "$RESULT_COUNT" -eq 0 ]; then
     echo "$PREWORD Sorry, nothing found on '${BOLD}${IMDBSEARCHWORDS}${BOLD}'."
     exit 0
   fi
 
   if [ -z "$IMDBLIST" ]; then
-    FIRST_ID=$($JQ_BIN -r '(.titles // .results // [])[0].id // empty' <<< "$SEARCH_RESPONSE")
+    FIRST_ID=$($JQ_BIN -r '(.data.mainSearch.edges // [])[0].node.entity.id // empty' <<< "$SEARCH_RESPONSE")
     if [ -n "$FIRST_ID" ]; then
       URLTOUSE="https://www.imdb.com/title/$FIRST_ID"
     fi
@@ -204,10 +211,10 @@ if [ -z "$URLTOUSE" ]; then
     echo "$PREWORD Listing up to $IMDBLIST hits..."
     COUNTER=0
     while [ $COUNTER -lt $IMDBLIST ] && [ $COUNTER -lt $RESULT_COUNT ]; do
-      RESULT_ID=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].id // empty" <<< "$SEARCH_RESPONSE")
-      RESULT_TITLE=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].primaryTitle // empty" <<< "$SEARCH_RESPONSE")
-      RESULT_YEAR=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].startYear // empty" <<< "$SEARCH_RESPONSE")
-      RESULT_TYPE=$($JQ_BIN -r "(.titles // .results // [])[$COUNTER].type // (.titles // .results // [])[$COUNTER].titleType // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_ID=$($JQ_BIN -r "(.data.mainSearch.edges // [])[$COUNTER].node.entity.id // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_TITLE=$($JQ_BIN -r "(.data.mainSearch.edges // [])[$COUNTER].node.entity.titleText.text // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_YEAR=$($JQ_BIN -r "(.data.mainSearch.edges // [])[$COUNTER].node.entity.releaseYear.year // empty" <<< "$SEARCH_RESPONSE")
+      RESULT_TYPE=$($JQ_BIN -r "(.data.mainSearch.edges // [])[$COUNTER].node.entity.titleType.text // empty" <<< "$SEARCH_RESPONSE")
 
       if [ -n "$RESULT_ID" ] && [ -n "$RESULT_TITLE" ]; then
         DISPLAY_NUM=$((COUNTER + 1))
@@ -222,7 +229,7 @@ if [ -z "$URLTOUSE" ]; then
     done
 
     if [ $RESULT_COUNT -eq 1 ]; then
-      FIRST_ID=$($JQ_BIN -r '(.titles // .results // [])[0].id // empty' <<< "$SEARCH_RESPONSE")
+      FIRST_ID=$($JQ_BIN -r '(.data.mainSearch.edges // [])[0].node.entity.id // empty' <<< "$SEARCH_RESPONSE")
       URLTOUSE="https://www.imdb.com/title/$FIRST_ID"
     else
       exit 0

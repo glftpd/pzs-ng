@@ -46,7 +46,7 @@ set chanlist(IMDB)      "#mychannel"
 # this line should not be edited. Just use the variables listed here. %pf is
 # the pathfilter, a standard variable in dZSbot.tcl. The others are named so
 # they're easy to understand/grab hold of what does.
-set variables(IMDB)     "%pf %imdbdirname %imdburl %imdbtitle %imdbgenre %imdbrating %imdbcountry %imdblanguage %imdbcertification %imdbruntime %imdbdirector %imdbbusinessdata %imdbpremiereinfo %imdblimitedinfo %imdbvotes %imdbscore %imdbname %imdbyear %imdbnumscreens %imdbislimited %imdbcastleadname %imdbcastleadchar %imdbtagline %imdbplot %imdbbar %imdbcasting %imdbcommentshort %imdbdestination"
+set variables(IMDB)     "%pf %imdbdirname %imdburl %imdbtitle %imdbgenre %imdbrating %imdbcountry %imdblanguage %imdbcertification %imdbruntime %imdbdirector %imdbbusinessdata %imdbpremiereinfo %imdblimitedinfo %imdbvotes %imdbscore %imdbname %imdbyear %imdbnumscreens %imdbislimited %imdbcastleadname %imdbcastleadchar %imdbtagline %imdbplot %imdbbar %imdbcasting %imdbcommentshort %imdbmetacritic %imdbdestination"
 
 # When some variable turn up empty, change to N/A (or whatever)
 set zeroconvert(%imdbdirname)		"N/A"
@@ -75,6 +75,7 @@ set zeroconvert(%imdbplot)              "No info found."
 set zeroconvert(%imdbbar)               "\[..........\]"
 set zeroconvert(%imdbcasting)           "N/A"
 set zeroconvert(%imdbcommentshort)      "N/A"
+set zeroconvert(%imdbmetacritic)        "N/A"
 
 # This is what is announced in your channel. %section is a standard
 # dZSbot.tcl variable. "|" is used as delimeter, to split lines, which also
@@ -88,7 +89,7 @@ set announce(IMDB)      "-%sitename- \[\00304%section\003\] - %boldIMDB:%bold %b
 # Example from the movie "Ken Park"
 
 # %imdbdirname       = "Ken.Park.2002.Limited.DVDRip.XviD-EPiC"
-# %imdburl           = "http://us.imdb.com/Title?0209077"
+# %imdburl           = "https://www.imdb.com/title/tt0209077"
 # %imdbtitle         = "Ken Park (2002)"
 # %imdbname          = "Ken Park"
 # %imdbyear          = "2002"
@@ -116,6 +117,6 @@ set announce(IMDB)      "-%sitename- \[\00304%section\003\] - %boldIMDB:%bold %b
 
 # Using the line above, your bot would announce the following in channel (ignoring sitename, colors and bold settings):
 
-# - IMDB: Ken Park (http://us.imdb.com/Title?0209077), a Larry Clark (I) movie which scored 6.1 of 10 (495 people voted). It premiered in USA 31 August 2002, with 22 screens on the opening weekend.
+# - IMDB: Ken Park (https://www.imdb.com/title/tt0209077), a Larry Clark (I) movie which scored 6.1 of 10 (495 people voted). It premiered in USA 31 August 2002, with 22 screens on the opening weekend.
 # - IMDB: Ken Park plot summary: It's about several Californian skateboarder's life and relationships with and without their parents.
 

@@ -100,7 +100,7 @@ namespace eval ::ngBot::plugin::psxc-IMDb {
         ## process - I strongly suggest you get used to it, but if you
         ## cannot, set this variable to YES - it will force the bot to wait
         ## for the script to finish. FYI - this can lead to a slow
-        ## responding/freezing bot, it may die on occation, it may become
+        ## responding/freezing bot, it may die on occasion, it may become
         ## very unstable in fact. But, you're free to test.
         set psxc(NODEFUNCT) "NO"
         ##
@@ -133,17 +133,18 @@ namespace eval ::ngBot::plugin::psxc-IMDb {
         set ${np}::zeroconvert(%imdbyear)          "N/A"
         set ${np}::zeroconvert(%imdbnumscreens)    "N/A"
         set ${np}::zeroconvert(%imdbislimited)     "No idea."
-        set ${np}::zeroconvert(%imdbcastleadname)  "Uknown"
-        set ${np}::zeroconvert(%imdbcastleadchar)  "Uknown"
+        set ${np}::zeroconvert(%imdbcastleadname)  "Unknown"
+        set ${np}::zeroconvert(%imdbcastleadchar)  "Unknown"
         set ${np}::zeroconvert(%imdbtagline)       "No info found."
         set ${np}::zeroconvert(%imdbplot)          "No info found."
         set ${np}::zeroconvert(%imdbbar)           ".........."
         set ${np}::zeroconvert(%imdbcasting)       "N/A"
         set ${np}::zeroconvert(%imdbcommentshort)  "N/A"
+        set ${np}::zeroconvert(%imdbmetacritic)    "N/A"
         ##
         ##################################################
 
-        set psxc(VERSION) "2.9m"
+        set psxc(VERSION) "v3.1-graphql"
 
         variable events [list "IMDB" "IMDBVAR" "IMDBFIND" "IMDBFINDVAR"]
         variable psxcimdb
@@ -168,8 +169,8 @@ namespace eval ::ngBot::plugin::psxc-IMDb {
                 lappend msgtypes(DEFAULT) "IMDBFIND" "IMDBFINDVAR"
                 set variables(IMDB)        "%pf %msg %imdbdestination"
                 set variables(IMDBFIND)    "%pf %msg %imdbdestination"
-                set variables(IMDBVAR)     "%pf %imdbdirname %imdburl %imdbtitle %imdbgenre %imdbrating %imdbcountry %imdblanguage %imdbcertification %imdbruntime %imdbdirector %imdbbusinessdata %imdbpremiereinfo %imdblimitedinfo %imdbvotes %imdbscore %imdbname %imdbyear %imdbnumscreens %imdbislimited %imdbcastleadname %imdbcastleadchar %imdbtagline %imdbplot %imdbbar %imdbcasting %imdbcommentshort %imdbdestination"
-                set variables(IMDBFINDVAR) "%pf %imdbdirname %imdburl %imdbtitle %imdbgenre %imdbrating %imdbcountry %imdblanguage %imdbcertification %imdbruntime %imdbdirector %imdbbusinessdata %imdbpremiereinfo %imdblimitedinfo %imdbvotes %imdbscore %imdbname %imdbyear %imdbnumscreens %imdbislimited %imdbcastleadname %imdbcastleadchar %imdbtagline %imdbplot %imdbbar %imdbcasting %imdbcommentshort %imdbdestination"
+                set variables(IMDBVAR)     "%pf %imdbdirname %imdburl %imdbtitle %imdbgenre %imdbrating %imdbcountry %imdblanguage %imdbcertification %imdbruntime %imdbdirector %imdbbusinessdata %imdbpremiereinfo %imdblimitedinfo %imdbvotes %imdbscore %imdbname %imdbyear %imdbnumscreens %imdbislimited %imdbcastleadname %imdbcastleadchar %imdbtagline %imdbplot %imdbbar %imdbcasting %imdbcommentshort %imdbmetacritic %imdbdestination"
+                set variables(IMDBFINDVAR) "%pf %imdbdirname %imdburl %imdbtitle %imdbgenre %imdbrating %imdbcountry %imdblanguage %imdbcertification %imdbruntime %imdbdirector %imdbbusinessdata %imdbpremiereinfo %imdblimitedinfo %imdbvotes %imdbscore %imdbname %imdbyear %imdbnumscreens %imdbislimited %imdbcastleadname %imdbcastleadchar %imdbtagline %imdbplot %imdbbar %imdbcasting %imdbcommentshort %imdbmetacritic %imdbdestination"
 
                 set theme_file [file normalize "[pwd]/[file rootname $scriptFile].zpt"]
                 if {[file isfile $theme_file]} {

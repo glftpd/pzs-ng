@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=2.7c
+VERSION=3.1
 
 ############################################################################
 # some variables.                                                          #
@@ -15,7 +15,7 @@ installdir=.install
 installvars=.install.vars
 backupdir=.backup_`date +%Y%m%d-%H%M.%S`
 
-scrlist="psxc-imdb.conf|c psxc-imdb-nuker.sh|g psxc-symlink-maker.sh|g psxc-imdb-dotimdb.pl|g psxc-imdb-rescan.sh|g psxc-imdb-find.sh|g psxc-imdb-sanity.sh|g psxc-imdb.tcl|s psxc-imdb.sh|g"
+scrlist="psxc-imdb.conf|c psxc-imdb-nuker.sh|g psxc-symlink-maker.sh|g psxc-imdb-dotimdb.pl|g psxc-imdb-rescan.sh|g psxc-imdb-find.sh|g psxc-imdb-sanity.sh|g psxc-imdb.tcl|s psxc-imdb.zpt|s psxc-imdb.sh|g"
 
 #                                                                          #
 ############################################################################
@@ -316,7 +316,7 @@ readyfiles()
      chmod 755 $installdir/$file
     elif [ ! -z "`echo $file | grep -e "\.pl$"`" ]; then
      chmod 755 $installdir/$file
-    elif [ ! -z "`echo $file | grep -e "\.tcl$"`" ]; then
+    elif [ ! -z "`echo $file | grep -e "\.tcl$"`" ] || [ ! -z "`echo $file | grep -e "\.zpt$"`" ]; then
      chmod 600 $installdir/$file
      chown `ls -1ld $GLBOT | awk '{print $3":"$4}'` $installdir/$file
     elif [ ! -z "`echo $file | grep -e "conf"`" ]; then

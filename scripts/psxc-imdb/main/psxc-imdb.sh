@@ -15,7 +15,7 @@ CONFFILE=/etc/psxc-imdb.conf
 ###################
 
 # version number. do not change.
-VERSION="v3.0-api"
+VERSION="v3.1-graphql"
 
 ######################################################################################################
 
@@ -59,11 +59,11 @@ export LC_ALL=""
 export LANG=""
 
 if [ -z "$USERAGENT" ]; then
-  USERAGENT="psxc-imdb/3.0"
+  USERAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
 fi
 
-if [ -z "$IMDBAPI_BASE" ]; then
-  IMDBAPI_BASE="https://api.imdbapi.dev"
+if [ -z "$IMDB_GRAPHQL_URL" ]; then
+  IMDB_GRAPHQL_URL="https://graphql.imdb.com/"
 fi
 if [ -z "$IMDBAPI_TIMEOUT" ]; then
   IMDBAPI_TIMEOUT=30
@@ -84,17 +84,25 @@ if [ -z "$PREMIERECOUNTRY" ]; then
   PREMIERECOUNTRY="US"
 fi
 
-api_request() {
-  local endpoint="$1"
+COUNTRY_MAP='{"US":"United States","GB":"United Kingdom","AU":"Australia","CA":"Canada","FR":"France","DE":"Germany","IT":"Italy","ES":"Spain","JP":"Japan","KR":"South Korea","CN":"China","IN":"India","RU":"Russia","BR":"Brazil","MX":"Mexico","NL":"Netherlands","SE":"Sweden","NO":"Norway","DK":"Denmark","FI":"Finland","PL":"Poland","CZ":"Czech Republic","AT":"Austria","CH":"Switzerland","BE":"Belgium","PT":"Portugal","IE":"Ireland","NZ":"New Zealand","AR":"Argentina","CL":"Chile","CO":"Colombia","PH":"Philippines","TH":"Thailand","HK":"Hong Kong","SG":"Singapore","TW":"Taiwan","IL":"Israel","TR":"Turkey","ZA":"South Africa","EG":"Egypt","ID":"Indonesia","MY":"Malaysia","VN":"Vietnam","GR":"Greece","HU":"Hungary","RO":"Romania","UA":"Ukraine","HR":"Croatia","RS":"Serbia","IS":"Iceland","LU":"Luxembourg"}'
+
+LANGUAGE_MAP='{"en":"English","fr":"French","de":"German","es":"Spanish","it":"Italian","pt":"Portuguese","ja":"Japanese","ko":"Korean","zh":"Chinese","ru":"Russian","hi":"Hindi","ar":"Arabic","nl":"Dutch","sv":"Swedish","no":"Norwegian","da":"Danish","fi":"Finnish","pl":"Polish","cs":"Czech","hu":"Hungarian","ro":"Romanian","bg":"Bulgarian","uk":"Ukrainian","el":"Greek","tr":"Turkish","th":"Thai","vi":"Vietnamese","id":"Indonesian","ms":"Malay","tl":"Tagalog","he":"Hebrew"}'
+
+graphql_request() {
+  local query="$1"
   local retries=0
   local response=""
+  local json_payload
+  json_payload=$($JQ_BIN -n --arg q "$query" '{query: $q}')
 
   while [ $retries -lt $API_RETRY_COUNT ]; do
     response=$(curl $CURLFLAGS -s -A "$USERAGENT" \
+      -H "Content-Type: application/json" \
       --connect-timeout $IMDBAPI_TIMEOUT \
-      "${IMDBAPI_BASE}${endpoint}" 2>/dev/null)
+      -X POST "$IMDB_GRAPHQL_URL" \
+      -d "$json_payload" 2>/dev/null)
     if [ $? -eq 0 ] && [ -n "$response" ]; then
-      if echo "$response" | $JQ_BIN -e . >/dev/null 2>&1; then
+      if echo "$response" | $JQ_BIN -e '.data' >/dev/null 2>&1; then
         echo "$response"
         return 0
       fi
@@ -416,6 +424,11 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   DIRECTORNUM=99
  fi
 
+ # Defaults for new config options (not present in older conf files)
+ if [ -z "$SHOWMETACRITIC" ]; then
+  SHOWMETACRITIC="NO"
+ fi
+
  while [ ! -z "$(cat $IMDBLOG)" ]; do
   IMDBLINE="$(grep -a -e "/" "$IMDBLOG" | head -n 1)"
   grep -a -F -v "$IMDBLINE" "$IMDBLOG" > $TMPFILE
@@ -497,8 +510,8 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
    echo "$DEBUGCOUNT : USEBOT = '$USEBOT'"
   fi
 
-# grab info from API
-####################
+# grab info from GraphQL API
+#############################
   IMDB_ID=$(extract_imdb_id "$IMDBURL")
   OUTPUTOK=""
 
@@ -507,13 +520,14 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       echo "DEBUG: Could not extract IMDb ID from $IMDBURL"
     fi
   else
-    API_RESPONSE=$(api_request "/titles/${IMDB_ID}")
+    TITLE_QUERY="query{title(id:\"${IMDB_ID}\"){titleText{text}originalTitleText{text}releaseYear{year}titleType{text}genres{genres{text}}ratingsSummary{aggregateRating voteCount}plot{plotText{plainText}}runtime{seconds}directors:credits(first:${DIRECTORNUM},filter:{categories:[\"director\"]}){edges{node{name{nameText{text}}}}}stars:credits(first:${CASTNUM},filter:{categories:[\"actor\",\"actress\"]}){edges{node{name{nameText{text}}}}}countriesOfOrigin{countries{id}}spokenLanguages{spokenLanguages{id}}akas(first:50){edges{node{text country{id}}}}taglines(first:1){edges{node{text}}}certificates(first:50){edges{node{rating country{id}}}}releaseDates(first:100){edges{node{day month year country{id}attributes{text}}}}productionBudget{budget{amount currency}}worldwide:lifetimeGross(boxOfficeArea:WORLDWIDE){total{amount currency}}openingWeekendGross(boxOfficeArea:DOMESTIC){gross{total{amount currency}}}metacritic{metascore{score reviewCount}}}}"
+    API_RESPONSE=$(graphql_request "$TITLE_QUERY")
 
     if [ $? -eq 0 ] && [ -n "$API_RESPONSE" ]; then
-      TITLE=$($JQ_BIN -r '.primaryTitle // empty' <<< "$API_RESPONSE")
-      ORIGTITLE=$($JQ_BIN -r '.originalTitle // .primaryTitle // empty' <<< "$API_RESPONSE")
-      TITLEYEAR=$($JQ_BIN -r '.startYear // empty' <<< "$API_RESPONSE")
-      TITLETYPE=$($JQ_BIN -r '.titleType // .type // empty' <<< "$API_RESPONSE")
+      TITLE=$($JQ_BIN -r '.data.title.titleText.text // empty' <<< "$API_RESPONSE")
+      ORIGTITLE=$($JQ_BIN -r '.data.title.originalTitleText.text // empty' <<< "$API_RESPONSE")
+      TITLEYEAR=$($JQ_BIN -r '.data.title.releaseYear.year // empty' <<< "$API_RESPONSE")
+      TITLETYPE=$($JQ_BIN -r '.data.title.titleType.text // empty' <<< "$API_RESPONSE")
 
       UNSUPPORTED_TYPE=""
       case "$TITLETYPE" in
@@ -524,29 +538,75 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 
       if [ -n "$UNSUPPORTED_TYPE" ]; then
         if [ ! -z $DEBUG ]; then
-          echo "DEBUG: Title type '$TITLETYPE' not fully supported by API for $IMDB_ID"
+          echo "DEBUG: Title type '$TITLETYPE' not fully supported for $IMDB_ID"
         fi
       elif [ -n "$TITLE" ] && [ -n "$TITLEYEAR" ]; then
         OUTPUTOK="OK"
 
+        # Extract language from release name and look up localized AKA title
+        LOCALETITLE=""
+        if [ -z "$USEORIGTITLE" ]; then
+          RELLANG=$(echo "$IMDBDIR" | tr '.\-_' '\n' | tr 'A-Z' 'a-z' | grep -axF -e chinese -e dutch -e english -e finnish -e french -e german -e greek -e hebrew -e hungarian -e italian -e japanese -e korean -e norwegian -e polish -e portuguese -e romanian -e russian -e spanish -e swedish -e turkish -e nl -e fr -e de -e it -e es -e en -e danish -e icelandic -e czech | head -n 1)
+          if [ ! -z "$RELLANG" ]; then
+            case "$RELLANG" in
+              chinese)    AKA_CC="CN" ;;
+              dutch)      AKA_CC="NL" ;;
+              english)    AKA_CC="GB" ;;
+              finnish)    AKA_CC="FI" ;;
+              french)     AKA_CC="FR" ;;
+              german)     AKA_CC="DE" ;;
+              greek)      AKA_CC="GR" ;;
+              hebrew)     AKA_CC="IL" ;;
+              hungarian)  AKA_CC="HU" ;;
+              italian)    AKA_CC="IT" ;;
+              japanese)   AKA_CC="JP" ;;
+              korean)     AKA_CC="KR" ;;
+              norwegian)  AKA_CC="NO" ;;
+              polish)     AKA_CC="PL" ;;
+              portuguese) AKA_CC="PT" ;;
+              romanian)   AKA_CC="RO" ;;
+              russian)    AKA_CC="RU" ;;
+              spanish)    AKA_CC="ES" ;;
+              swedish)    AKA_CC="SE" ;;
+              turkish)    AKA_CC="TR" ;;
+              nl)         AKA_CC="NL" ;;
+              fr)         AKA_CC="FR" ;;
+              de)         AKA_CC="DE" ;;
+              it)         AKA_CC="IT" ;;
+              es)         AKA_CC="ES" ;;
+              en)         AKA_CC="GB" ;;
+              danish)     AKA_CC="DK" ;;
+              icelandic)  AKA_CC="IS" ;;
+              czech)      AKA_CC="CZ" ;;
+              *)          AKA_CC="" ;;
+            esac
+            if [ ! -z "$AKA_CC" ]; then
+              LOCALETITLE=$($JQ_BIN -r --arg cc "$AKA_CC" '(.data.title.akas.edges // []) | map(select(.node.country.id == $cc)) | .[0].node.text // empty' <<< "$API_RESPONSE")
+              if [ -z "$LOCALETITLE" ] && [ ! -z $DEBUG ]; then
+                echo "DEBUG: No AKA found for $IMDB_ID in country $AKA_CC"
+              fi
+            fi
+          fi
+        fi
+
         TITLENAME=$TITLE
-        if [ ! -z "$USEORIGTITLE" ] && [ ! -z "$ORIGTITLE" ] && [ "$ORIGTITLE" != "null" ]; then
+        if [ ! -z "$LOCALETITLE" ]; then
+          TITLENAME="$LOCALETITLE"
+        elif [ ! -z "$USEORIGTITLE" ] && [ ! -z "$ORIGTITLE" ] && [ "$ORIGTITLE" != "null" ]; then
           TITLENAME="$ORIGTITLE"
         fi
 
-        # If originalTitle is null/empty, leave it empty
-        # The API's primaryTitle is always in English, no need for AKA fallback
         if [ "$ORIGTITLE" = "null" ]; then
           ORIGTITLE=""
         fi
 
         TITLE="$TITLENAME ($TITLEYEAR)"
 
-        GENRECLEAN=$($JQ_BIN -r '(.genres // []) | .[0:'"$GENRENUM"'] | join("/")' <<< "$API_RESPONSE")
+        GENRECLEAN=$($JQ_BIN -r '(.data.title.genres.genres // []) | .[0:'"$GENRENUM"'] | map(.text) | join("/")' <<< "$API_RESPONSE")
         GENRE="Genre........: $GENRECLEAN"
 
-        RATINGSCORE=$($JQ_BIN -r '.rating.aggregateRating // empty' <<< "$API_RESPONSE")
-        VOTECOUNT=$($JQ_BIN -r '.rating.voteCount // empty' <<< "$API_RESPONSE")
+        RATINGSCORE=$($JQ_BIN -r '.data.title.ratingsSummary.aggregateRating // empty' <<< "$API_RESPONSE")
+        VOTECOUNT=$($JQ_BIN -r '.data.title.ratingsSummary.voteCount // empty' <<< "$API_RESPONSE")
         if [ -n "$VOTECOUNT" ]; then
           RATINGVOTES=$(printf "%'d" "$VOTECOUNT" 2>/dev/null || echo "$VOTECOUNT")
         else
@@ -575,19 +635,18 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
           RATINGBAR=""
         fi
 
-        COUNTRYCLEAN=$($JQ_BIN -r '(.originCountries // []) | map(.name // .code // empty) | .[0:'"$COUNTRYNUM"'] | join("/")' <<< "$API_RESPONSE")
-        if [ -z "$COUNTRYCLEAN" ] || [ "$COUNTRYCLEAN" = "null" ]; then
-          COUNTRYCLEAN=$($JQ_BIN -r '(.countries // []) | map(.name // .code // empty) | .[0:'"$COUNTRYNUM"'] | join("/")' <<< "$API_RESPONSE")
-        fi
+        COUNTRYCLEAN=$($JQ_BIN -r --argjson cmap "$COUNTRY_MAP" --arg n "$COUNTRYNUM" \
+          '(.data.title.countriesOfOrigin.countries // []) | .[0:($n|tonumber)] | map(.id) | map($cmap[.] // .) | join("/")' <<< "$API_RESPONSE")
         COUNTRY="Country......: $COUNTRYCLEAN"
 
-        LANGUAGECLEAN=$($JQ_BIN -r '(.spokenLanguages // []) | map(.name // .code // empty) | .[0:'"$LANGUAGENUM"'] | join("/")' <<< "$API_RESPONSE")
+        LANGUAGECLEAN=$($JQ_BIN -r --argjson lmap "$LANGUAGE_MAP" --arg n "$LANGUAGENUM" \
+          '(.data.title.spokenLanguages.spokenLanguages // []) | .[0:($n|tonumber)] | map(.id) | map($lmap[.] // .) | join("/")' <<< "$API_RESPONSE")
         LANGUAGE="Language.....: $LANGUAGECLEAN"
 
-        PLOTCLEAN=$($JQ_BIN -r '.plot // empty' <<< "$API_RESPONSE" | sed "s/\"/$QUOTECHAR/g" | head -c "$PLOTWIDTH")
+        PLOTCLEAN=$($JQ_BIN -r '.data.title.plot.plotText.plainText // empty' <<< "$API_RESPONSE" | sed "s/\"/$QUOTECHAR/g" | head -c "$PLOTWIDTH")
         PLOT="Plot: $PLOTCLEAN"
 
-        runtime_sec=$($JQ_BIN -r '.runtimeSeconds // empty' <<< "$API_RESPONSE")
+        runtime_sec=$($JQ_BIN -r '.data.title.runtime.seconds // empty' <<< "$API_RESPONSE")
         if [ -n "$runtime_sec" ] && [ "$runtime_sec" != "null" ]; then
           hours=$((runtime_sec / 3600))
           mins=$(((runtime_sec % 3600) / 60))
@@ -597,45 +656,65 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
             RUNTIME="${mins}min"
           fi
         else
-          runtime_min=$($JQ_BIN -r '.runtime // empty' <<< "$API_RESPONSE")
-          if [ -n "$runtime_min" ] && [ "$runtime_min" != "null" ]; then
-            hours=$((runtime_min / 60))
-            mins=$((runtime_min % 60))
-            if [ $hours -gt 0 ]; then
-              RUNTIME="${hours}h ${mins}min"
-            else
-              RUNTIME="${mins}min"
-            fi
-          else
-            RUNTIME=""
-          fi
+          RUNTIME=""
         fi
         RUNTIMECLEAN="$RUNTIME"
 
-        DIRECTORCLEAN=$($JQ_BIN -r '(.directors // []) | .[0:'"$DIRECTORNUM"'] | map(.displayName // .name // empty) | join("/")' <<< "$API_RESPONSE")
+        DIRECTORCLEAN=$($JQ_BIN -r '(.data.title.directors.edges // []) | .[0:'"$DIRECTORNUM"'] | map(.node.name.nameText.text) | join("/")' <<< "$API_RESPONSE")
         DIRECTOR="Directed by..: $DIRECTORCLEAN"
 
-        CASTCLEAN=$($JQ_BIN -r '(.stars // []) | .[0:'"$CASTNUM"'] | map(.displayName // .name // empty) | join(", ")' <<< "$API_RESPONSE")
-        CASTLEADNAME=$($JQ_BIN -r '(.stars // [])[0].displayName // (.stars // [])[0].name // empty' <<< "$API_RESPONSE")
+        CASTCLEAN=$($JQ_BIN -r '(.data.title.stars.edges // []) | .[0:'"$CASTNUM"'] | map(.node.name.nameText.text) | join(", ")' <<< "$API_RESPONSE")
+        CAST="$CASTCLEAN"
+        CASTLEADNAME=$($JQ_BIN -r '(.data.title.stars.edges // [])[0].node.name.nameText.text // empty' <<< "$API_RESPONSE")
         CASTLEADCHAR=""
 
-        TAGLINECLEAN=""
+        TAGLINECLEAN=$($JQ_BIN -r '.data.title.taglines.edges[0].node.text // empty' <<< "$API_RESPONSE")
+        TAGLINE="$TAGLINECLEAN"
 
         CERTCLEAN=""
         if [ ! -z "$USECERT" ]; then
-          CERT_RESPONSE=$(api_request "/titles/${IMDB_ID}/certificates")
-          if [ $? -eq 0 ] && [ -n "$CERT_RESPONSE" ]; then
-            CERTCLEAN=$($JQ_BIN -r '(.certificates // []) | map(select(.country.code == "'"$CERTCOUNTRY"'")) | map(.rating) | .[0] // empty' <<< "$CERT_RESPONSE")
-          fi
+          CERTCLEAN=$($JQ_BIN -r '(.data.title.certificates.edges // []) | map(select(.node.country.id == "'"$CERTCOUNTRY"'")) | .[0].node.rating // empty' <<< "$API_RESPONSE")
         fi
         CERT="$CERTCLEAN"
 
-        COMMENTSHORT="User Reviews: N/A (API)"
-        COMMENTSHORTCLEAN="N/A (API)"
+        PREMIERE=""
+        LIMITED=""
+        if [ ! -z "$USEPREMIERE" ]; then
+          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.year|tostring) + (if .month then "-" + (.month|pad2) else "" end) + (if .day then "-" + (.day|pad2) else "" end); (.data.title.releaseDates.edges // []) | map(select(.node.country.id == "'"$PREMIERECOUNTRY"'" and ((.node.attributes // []) | map(.text) | any(test("premiere"; "i"))))) | .[0]?.node | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + ([.attributes[].text] | join(", ")) + ")" else "" end)) end' <<< "$API_RESPONSE" 2>/dev/null | head -1)
+        fi
+        if [ ! -z "$USELIMITED" ]; then
+          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.year|tostring) + (if .month then "-" + (.month|pad2) else "" end) + (if .day then "-" + (.day|pad2) else "" end); (.data.title.releaseDates.edges // []) | map(select(.node.country.id == "'"$PREMIERECOUNTRY"'" and ((.node.attributes // []) | map(.text) | any(test("limited"; "i"))))) | .[0]?.node | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + ([.attributes[].text] | join(", ")) + ")" else "" end)) end' <<< "$API_RESPONSE" 2>/dev/null | head -1)
+        fi
+
+        METASCORE=$($JQ_BIN -r '.data.title.metacritic.metascore.score // empty' <<< "$API_RESPONSE")
+        METAREVIEWS=$($JQ_BIN -r '.data.title.metacritic.metascore.reviewCount // empty' <<< "$API_RESPONSE")
+        METACLEAN="$METASCORE"
+
+        COMMENTSHORT="User Reviews: N/A"
+        COMMENTSHORTCLEAN="N/A"
         COMMENT=""
         COMMENTCLEAN=""
 
         ONELINE="$BOLD$TITLE$BOLD [$COUNTRYCLEAN]: $GENRECLEAN - $BOLD$RATINGCLEAN$BOLD - $IMDBURL"
+
+        if [ ! -z "$USEBUSINESS" ]; then
+          BUDGET=$($JQ_BIN -r '.data.title.productionBudget.budget.amount // empty' <<< "$API_RESPONSE")
+          BUDGET_CUR=$($JQ_BIN -r '.data.title.productionBudget.budget.currency // "USD"' <<< "$API_RESPONSE")
+          OPENING=$($JQ_BIN -r '.data.title.openingWeekendGross.gross.total.amount // empty' <<< "$API_RESPONSE")
+          OPENING_CUR=$($JQ_BIN -r '.data.title.openingWeekendGross.gross.total.currency // "USD"' <<< "$API_RESPONSE")
+          GROSS=$($JQ_BIN -r '.data.title.worldwide.total.amount // empty' <<< "$API_RESPONSE")
+          GROSS_CUR=$($JQ_BIN -r '.data.title.worldwide.total.currency // "USD"' <<< "$API_RESPONSE")
+
+          if [ -n "$OPENING" ]; then
+            BUSINESSSHORT="$OPENING_CUR $(printf "%'d" "$OPENING" 2>/dev/null || echo "$OPENING")"
+          fi
+          if [ -n "$BUDGET" ]; then
+            BUSINESS="Budget: $BUDGET_CUR $(printf "%'d" "$BUDGET" 2>/dev/null || echo "$BUDGET")"
+          fi
+          if [ -n "$GROSS" ]; then
+            BUSINESS="$BUSINESS"$'\n'"Worldwide Gross: $GROSS_CUR $(printf "%'d" "$GROSS" 2>/dev/null || echo "$GROSS")"
+          fi
+        fi
       fi
     fi
   fi
@@ -645,7 +724,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     USEBOT=""
     ERROR_MSG="Failed to fetch iMDB details. Please try again."
     if [ -n "$UNSUPPORTED_TYPE" ]; then
-      ERROR_MSG="iMDB type '$TITLETYPE' not fully supported by API (limited data available)"
+      ERROR_MSG="iMDB type '$TITLETYPE' not fully supported (limited data available)"
     fi
     if [ ! -z "$(echo $IMDBLKL | grep -a -e "/dev/null")" ]; then
       if [ -z "$LOGFORMAT" ]; then
@@ -663,39 +742,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     BUSINESS=""
     BUSINESSSHORT=""
     BUSINESSSCREENS=""
-    PREMIERE=""
-    LIMITED=""
     ISLIMITED=""
-
-    if [ ! -z "$USEBUSINESS" ]; then
-      BOX_RESPONSE=$(api_request "/titles/${IMDB_ID}/boxOffice")
-      if [ $? -eq 0 ] && [ -n "$BOX_RESPONSE" ]; then
-        BUDGET=$($JQ_BIN -r '.budget.amount // empty' <<< "$BOX_RESPONSE")
-        BUDGET_CUR=$($JQ_BIN -r '.budget.currency // "USD"' <<< "$BOX_RESPONSE")
-        OPENING=$($JQ_BIN -r '.openingWeekendGross.amount // empty' <<< "$BOX_RESPONSE")
-        OPENING_CUR=$($JQ_BIN -r '.openingWeekendGross.currency // "USD"' <<< "$BOX_RESPONSE")
-        GROSS=$($JQ_BIN -r '.worldwideGross.amount // empty' <<< "$BOX_RESPONSE")
-
-        if [ -n "$OPENING" ]; then
-          BUSINESSSHORT="$OPENING_CUR $(printf "%'d" "$OPENING" 2>/dev/null || echo "$OPENING")"
-        fi
-        if [ -n "$BUDGET" ]; then
-          BUSINESS="Budget: $BUDGET_CUR $(printf "%'d" "$BUDGET" 2>/dev/null || echo "$BUDGET")"
-        fi
-      fi
-    fi
-
-    if [ ! -z "$USEPREMIERE" ] || [ ! -z "$USELIMITED" ]; then
-      RELEASE_RESPONSE=$(api_request "/titles/${IMDB_ID}/releaseDates")
-      if [ $? -eq 0 ] && [ -n "$RELEASE_RESPONSE" ]; then
-        if [ ! -z "$USEPREMIERE" ]; then
-          PREMIERE=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + (if .releaseDate.month then "-" + (.releaseDate.month|pad2) else "" end) + (if .releaseDate.day then "-" + (.releaseDate.day|pad2) else "" end); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'")) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
-        fi
-        if [ ! -z "$USELIMITED" ]; then
-          LIMITED=$($JQ_BIN -r 'def pad2: tostring | if length == 1 then "0" + . else . end; def fmtdate: (.releaseDate.year|tostring) + (if .releaseDate.month then "-" + (.releaseDate.month|pad2) else "" end) + (if .releaseDate.day then "-" + (.releaseDate.day|pad2) else "" end); (.releaseDates // []) | map(select(.country.code == "'"$PREMIERECOUNTRY"'" and ((.attributes // []) | join(" ") | test("limited"; "i")))) | .[0]? | if . == null then empty else (fmtdate + (if (.attributes // []) | length > 0 then " (" + (.attributes | join(", ")) + ")" else "" end)) end' <<< "$RELEASE_RESPONSE" 2>/dev/null | head -1)
-        fi
-      fi
-    fi
 
     if [ ! -z "$USEBOM" ]; then
       BOMURL="https://www.boxofficemojo.com/title/${IMDB_ID}/"
@@ -777,6 +824,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     if [ ! -z "$RATING" ] && [ -z "$BOTONELINE" ]; then
      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$RATING\" \"$IMDBDST\"" >> $GLLOG
     fi
+    if [ ! -z "$SHOWMETACRITIC" ] && [ ! -z "$METASCORE" ] && [ -z "$BOTONELINE" ]; then
+     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Metacritic..: $METASCORE/100 ($METAREVIEWS reviews)\" \"$IMDBDST\"" >> $GLLOG
+    fi
     if [ ! -z "$SHOWSTAR" ] && [ -z "$BOTONELINE" ] && [ ! -z "$CASTLEADNAME" ]; then
      echo "$DATE $TRIGGER \"$IMDBLKL\" \"Starring.....: $CASTLEADNAME as $CASTLEADCHAR\" \"$IMDBDST\"" >> $GLLOG
     fi
@@ -812,7 +862,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ONELINE\" \"$IMDBDST\"" >> $GLLOG
      elif [ "$LOGFORMAT" = "MYOWN" ]; then
 #      NEWLINE="|"
-      MYOWNPAIRS="%imdbdirname|IMDBDIR %imdburl|IMDBURL %imdbtitle|TITLE %imdbgenre|GENRECLEAN %imdbrating|RATINGCLEAN %imdbcountry|COUNTRYCLEAN %imdblanguage|LANGUAGECLEAN %imdbcertification|CERTCLEAN %imdbruntime|RUNTIMECLEAN %imdbdirector|DIRECTORCLEAN %imdbbusinessdata|BUSINESSSHORT %imdbpremiereinfo|PREMIERE %imdblimitedinfo|LIMITED %imdbvotes|RATINGVOTES %imdbscore|RATINGSCORE %imdbname|TITLENAME %imdbyear|TITLEYEAR %imdbnumscreens|BUSINESSSCREENS %imdbislimited|ISLIMITED %imdbcastleadname|CASTLEADNAME %imdbcastleadchar|CASTLEADCHAR %imdbtagline|TAGLINECLEAN %imdbplot|PLOTCLEAN %imdbbar|RATINGBAR %imdbcasting|CASTCLEAN %imdbcommentshort|COMMENTSHORTCLEAN %newline|NEWLINE %bold|BOLD"
+      MYOWNPAIRS="%imdbdirname|IMDBDIR %imdburl|IMDBURL %imdbtitle|TITLE %imdbgenre|GENRECLEAN %imdbrating|RATINGCLEAN %imdbcountry|COUNTRYCLEAN %imdblanguage|LANGUAGECLEAN %imdbcertification|CERTCLEAN %imdbruntime|RUNTIMECLEAN %imdbdirector|DIRECTORCLEAN %imdbbusinessdata|BUSINESSSHORT %imdbpremiereinfo|PREMIERE %imdblimitedinfo|LIMITED %imdbvotes|RATINGVOTES %imdbscore|RATINGSCORE %imdbname|TITLENAME %imdbyear|TITLEYEAR %imdbnumscreens|BUSINESSSCREENS %imdbislimited|ISLIMITED %imdbcastleadname|CASTLEADNAME %imdbcastleadchar|CASTLEADCHAR %imdbtagline|TAGLINECLEAN %imdbplot|PLOTCLEAN %imdbbar|RATINGBAR %imdbcasting|CASTCLEAN %imdbcommentshort|COMMENTSHORTCLEAN %imdbmetacritic|METACLEAN %newline|NEWLINE %bold|BOLD"
       MYOWNFORMAT1="$MYOWNFORMAT"
       for OWNPAIR in $MYOWNPAIRS; do
        MYOWNSTRING="$(echo "$OWNPAIR" | cut -d '|' -f 1)"
@@ -839,7 +889,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
        echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
       fi
      else
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$METACLEAN\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
      fi
     fi
    fi
@@ -861,6 +911,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     fi
     if [ ! -z "$RATING" ]; then
      echo "$RATING" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+    fi
+    if [ ! -z "$SHOWMETACRITIC" ] && [ ! -z "$METASCORE" ]; then
+     echo "Metacritic..: $METASCORE/100 ($METAREVIEWS reviews)" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$TAGLINE" ]; then
      echo "$TAGLINE" | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
@@ -968,9 +1021,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     fi
     for EXTERNALNAME in $EXTERNALSCRIPTNAME; do
      if [ "$DEBUG" = "4" ] && [ ! -z "$(head -n 1 $EXTERNALNAME | grep -a -e "/bin/bash")" ]; then
-      bash -x -v $EXTERNALNAME "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\""
+      bash -x -v $EXTERNALNAME "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\" \"$METACLEAN\""
      else
-      $EXTERNALNAME "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\""
+      $EXTERNALNAME "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\" \"$METACLEAN\""
      fi
     done
 

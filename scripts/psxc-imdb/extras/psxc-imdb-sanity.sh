@@ -9,7 +9,7 @@
 # and chmod'ed world read-writable.
 
 # version number. do not change.
-VERSION="v3.0-api"
+VERSION="v3.1-graphql"
 
 # needed binaries. do not change.
 BINARIES="date cat echo cut curl jq grep head sed awk fold rm bash ls basename dirname chmod ps wc"
@@ -231,12 +231,12 @@ GLROOT=$MYGLROOT
    echo " jq returned an error. Please check and correct."
    echo "$jqtest"
   fi
-  echo -n "Verifying that imdbapi.dev API is reachable ..."
-  apitest="`curl -s -A "psxc-imdb-sanity" --connect-timeout 10 https://api.imdbapi.dev/titles/tt0111161 2>&1 | jq -r '.primaryTitle' 2>&1`"
+  echo -n "Verifying that IMDB GraphQL API is reachable ..."
+  apitest=$(curl -s -A "psxc-imdb-sanity" --connect-timeout 10 -X POST -H "Content-Type: application/json" -d '{"query":"query{title(id:\"tt0111161\"){titleText{text}}}"}' https://graphql.imdb.com/ 2>&1 | jq -r '.data.title.titleText.text' 2>&1)
   if [ "$apitest" = "The Shawshank Redemption" ]; then
    echo " looks good."
   else
-   echo " API test failed. Please check your connection."
+   echo " GraphQL API test failed. Please check your connection."
    echo "    Response: $apitest"
   fi
   echo -n "Checking for locale settings ..."
@@ -272,5 +272,4 @@ GLROOT=$MYGLROOT
   echo ""
   echo "Done testing."
   exit 0
- fi
 

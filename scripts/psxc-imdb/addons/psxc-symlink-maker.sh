@@ -1,4 +1,5 @@
 #!/bin/bash
+LANG="C.utf8"
 
 # psxc-symlink-maker
 # an example addon for psxc-imdb
@@ -17,7 +18,7 @@
 ############################################################################
 
 # version number. no need to change
-VERSION=2.9s
+VERSION=3.1
 
 # The location of psxc-imdb.conf. This is the full path.
 IMDB_CONF=/glftpd/etc/psxc-imdb.conf
@@ -122,10 +123,10 @@ BAD_CHAR_REPLACER="-"
 
 # List of the special chars which will be replaced by the corresponding char
 # in SPECIAL_CHAR_SUBS_LIST, non-listed chars will be replaced by SPECIAL_CHAR_REPLACER
-SPECIAL_CHAR_LIST="¿¡¬√ƒ≈∆«»… ÀÃÕŒœ–—“”‘’÷ÿŸ⁄€‹›ﬂ$‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔÒÚÛÙıˆ¯˘˙˚˝˝˛ˇ"
+SPECIAL_CHAR_LIST="√Ä√Å√Ç√É√Ñ√Ö√Ü√á√à√â√ä√ã√å√ç√é√è√ê√ë√í√ì√î√ï√ñ√ò√ô√ö√õ√ú√ù√û√ü√†√°√¢√£√§√•√¶√ß√®√©√™√´√¨√≠√Æ√Ø√∞√±√≤√≥√¥√µ√∂√∏√π√∫√ª√º√Ω√æ√ø"
 
 # List of chars to replace the corresponding char in SPECIAL_CHAR_LIST with.
-SPECIAL_CHAR_SUBS_LIST="AAAAAAACEEEEIIIIDNOOOOOOUUUUYSSaaaaaaaceeeeiiiidnoooooouuuyyby"
+SPECIAL_CHAR_SUBS_LIST="AAAAAAACEEEEIIIIDNOOOOOOUUUUYSSaaaaaaaceeeeiiiidnoooooouuuuyby"
 
 # Clean up dead symlinks after each run? Usually, this is done pretty quick,
 # but can take time, so use the trial and error method on this ;)
@@ -330,7 +331,7 @@ if [ $SORT_BY_LANGUAGE -eq 1 ]; then
    LANGUAGE="$(echo "$LANGUAGE" | tr -s '_' "$SPACE_REPLACER" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")"
    if [[ ! -z "$SPECIAL_CHAR_REPLACER" ]]; then
     [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-     LANGUAGE=$(echo "$LANGUAGE" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+     LANGUAGE=$(echo "$LANGUAGE" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
     LANGUAGE=$(echo "$LANGUAGE" | tr -c 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
    fi
    [[ ! -d  "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME/$LANGUAGE" ]] &&
@@ -364,12 +365,12 @@ if [ $SORT_BY_DIRECTOR -eq 1 ]; then
     DIRECTORCHAR="$SORT_BY_CHAR_OTHER"
    else
     [[ ! -z "$SPECIAL_CHAR_REPLACER" ]] && [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-     DIRECTORCHAR=$(echo "$DIRECTORCHAR" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+     DIRECTORCHAR=$(echo "$DIRECTORCHAR" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
    fi
    DIRECTOR="$(echo "$DIRECTOR" | tr -s '_' "$SPACE_REPLACER" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")"
    if [[ ! -z "$SPECIAL_CHAR_REPLACER" ]]; then
     [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-     DIRECTOR=$(echo "$DIRECTOR" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+     DIRECTOR=$(echo "$DIRECTOR" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
     DIRECTOR=$(echo "$DIRECTOR" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
    fi
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR" ]] &&
@@ -403,12 +404,12 @@ if [ $SORT_BY_CASTLEADNAME -eq 1 ]; then
    CASTLEADNAMECHAR="$SORT_BY_CHAR_OTHER"
   else
    [[ ! -z "$SPECIAL_CHAR_REPLACER" ]] && [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-    CASTLEADNAMECHAR=$(echo "$CASTLEADNAMECHAR" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+    CASTLEADNAMECHAR=$(echo "$CASTLEADNAMECHAR" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
   fi
   CASTLEADNAME="$(echo "$IMDBCASTLEADNAME" | tr -s ' ' "$SPACE_REPLACER" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")"
   if [[ ! -z "$SPECIAL_CHAR_REPLACER" ]]; then
    [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-    CASTLEADNAME=$(echo "$CASTLEADNAME" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+    CASTLEADNAME=$(echo "$CASTLEADNAME" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
    CASTLEADNAME=$(echo "$CASTLEADNAME" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
   fi
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR" ]] &&
@@ -443,12 +444,12 @@ if [ $SORT_BY_CASTING -eq 1 ]; then
     CASTINGCHAR="$SORT_BY_CHAR_OTHER"
    else
     [[ ! -z "$SPECIAL_CHAR_REPLACER" ]] && [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-     CASTINGCHAR=$(echo "$CASTINGCHAR" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+     CASTINGCHAR=$(echo "$CASTINGCHAR" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
    fi
    CASTING="$(echo "$CASTING" | tr -s '_' "$SPACE_REPLACER" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")"
    if [[ ! -z "$SPECIAL_CHAR_REPLACER" ]]; then
     [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-     CASTING=$(echo "$CASTING" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+     CASTING=$(echo "$CASTING" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
     CASTING=$(echo "$CASTING" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
    fi
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR" ]] &&
@@ -533,7 +534,7 @@ if [ $SORT_BY_TITLE -eq 1 ]; then
     TITLECHAR="$SORT_BY_CHAR_OTHER"
    else
     [[ ! -z "$SPECIAL_CHAR_REPLACER" ]] && [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-     TITLECHAR=$(echo "$TITLECHAR" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+     TITLECHAR=$(echo "$TITLECHAR" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
    fi
   elif [ "$TITLECHAR" == "." ]; then
    TITLECHAR="$SORT_BY_CHAR_DOT"
@@ -541,12 +542,12 @@ if [ $SORT_BY_TITLE -eq 1 ]; then
    TITLECHAR="$SORT_BY_CHAR_OTHER"
   else
    [[ ! -z "$SPECIAL_CHAR_REPLACER" ]] && [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-    TITLECHAR=$(echo "$TITLECHAR" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+    TITLECHAR=$(echo "$TITLECHAR" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
   fi
   TITLE="$(echo "$IMDBNAME.$MYYEAR-$SECTIONNAME" | tr -s ' ' "$SPACE_REPLACER" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")"
   if [[ ! -z "$SPECIAL_CHAR_REPLACER" ]]; then
    [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-    TITLE=$(echo "$TITLE" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+    TITLE=$(echo "$TITLE" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
    TITLE=$(echo "$TITLE" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
   fi
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME/$TITLECHAR" ]] &&
@@ -616,7 +617,7 @@ if [ $SORT_BY_DATE -eq 1 ]; then
    elif  [ ! -z "$MYDATEGRAB_DVD" ] && [ -e "$GLROOT$IMDBRELPATH/$MYDATEGRAB_DVD/.message" ]; then
     MYDATEGRAB_PATH="$GLROOT$IMDBRELPATH/$MYDATEGRAB_DVD/.message"
    elif  [ ! -z "$MYDATEGRAB_DISC" ] && [ -e "$GLROOT$IMDBRELPATH/$MYDATEGRAB_DISC/.message" ]; then
-    MYDATEGRAB_PATH="$GLROOT$IMDBRELPATH/$MYDATEGRAB_DVD/.message"
+    MYDATEGRAB_PATH="$GLROOT$IMDBRELPATH/$MYDATEGRAB_DISC/.message"
    elif  [ ! -z "$MYDATEGRAB_NFO" ] && [ -e "$GLROOT$IMDBRELPATH/$MYDATEGRAB_NFO" ]; then
     MYDATEGRAB_PATH="$GLROOT$IMDBRELPATH/$MYDATEGRAB_NFO"
    else
@@ -693,7 +694,7 @@ if [ $SORT_BY_TOP250 -eq 1 ]; then
   IMDBNAMENEW="$(echo $IMDBNAME | tr -s ' ' "$SPACE_REPLACER" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")"
   if [[ ! -z "$SPECIAL_CHAR_REPLACER" ]]; then
    [[ ! -z "$SPECIAL_CHAR_LIST" ]] && [[ ! -z "$SPECIAL_CHAR_SUBS_LIST" ]] &&
-    IMDBNAMENEW=$(echo "$IMDBNAMENEW" | tr "$SPECIAL_CHAR_LIST" "$SPECIAL_CHAR_SUBS_LIST")
+    IMDBNAMENEW=$(echo "$IMDBNAMENEW" | sed "y/$SPECIAL_CHAR_LIST/$SPECIAL_CHAR_SUBS_LIST/")
    IMDBNAMENEW=$(echo "$IMDBNAMENEW" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
   fi
   TOP250="$TOP250R.-.$IMDBNAMENEW.($IMDBYEAR)"

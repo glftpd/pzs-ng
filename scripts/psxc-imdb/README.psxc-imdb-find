@@ -2,6 +2,9 @@ psxc-imdb-find is a addon to psxc-imdb, which will give your bot !imdb
 capability. It means that the users in your channel can look up imdb info
 just by writing !imdb <search string here>.
 
+Requirements: jq must be installed and available in PATH. It is used to
+safely construct the JSON search payload.
+
 To set this up you need a working bot, and psxc-imdb should be installed.
 You then have two choices - use dZSbot.tcl to handle the output (default)
 or have the bot-addon handle it (the "full" mode).

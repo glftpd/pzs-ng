@@ -16,7 +16,7 @@
 #############################################################################
 
 # Version number. No need to change
-VERSION=2.9i
+VERSION=3.1
 
 # glftpd's root dir
 GLROOT=/glftpd
@@ -61,7 +61,7 @@ NUKE_SCREENS_MSG="Limited movies not allowed."
 # You may have banned some genres. Enter here the genres wish to nuke. Please
 # use care when entering the names of the genres - they are not case sensitive,
 # but they have to match what iMDB uses.
-# For a list of genres, look here: http://us.imdb.com/Sections/Genres/
+# For a list of genres, look here: https://www.imdb.com/genre/
 # The following will nuke movies having one of the listed genres, even if it
 # has more genres listed.
 
@@ -279,8 +279,8 @@ if [ ! -z "$NUKE_LOGFILE" ]; then
   echo "config error. unable to write to $NUKE_LOGFILE."; exit 0;
  fi
 fi
-if [ ! -z "$NUKE_WARN_FILE" ] && [ ! -z"$NUKE_WARN_MSG" ]; then
- if [ ! -w $GLROOT/$NUKE_WARN_FILE ]; then
+if [ ! -z "$NUKE_WARN_FILE" ] && [ ! -z "$NUKE_WARN_MSG" ]; then
+ if [ ! -w $NUKE_WARN_FILE ]; then
   echo "config error. unable to write to $NUKE_WARN_FILE."; exit 0
  fi
 fi
@@ -540,7 +540,7 @@ fi
 # nuke it, or log it.
 
 if [ -z "$NUKE_WARN_FILE" ] && [ -z "$NUKE_LOGFILE" ]; then
- $GLROOT/bin/nuker -r $GLFTPD_CONF -N $NUKER_PERSON -n {$IMDBRELPATH}/ $MULTIPLIER $NUKE_REASON >/dev/null 2>&1
+ $GLROOT/bin/nuker -r $GLFTPD_CONF -N $NUKER_PERSON -n "$IMDBRELPATH/" $MULTIPLIER $NUKE_REASON >/dev/null 2>&1
 else
  if [ ! -z "$NUKE_LOGFILE" ]; then
   echo "`date +%s`""%""$IMDBRELPATH""%""$MULTIPLIER""%""$NUKE_REASON" >> $NUKE_LOGFILE
