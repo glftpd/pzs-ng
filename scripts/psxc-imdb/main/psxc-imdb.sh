@@ -98,6 +98,8 @@ graphql_request() {
   while [ $retries -lt $API_RETRY_COUNT ]; do
     response=$(curl $CURLFLAGS -s -A "$USERAGENT" \
       -H "Content-Type: application/json" \
+      -H "Origin: https://www.imdb.com" \
+      -H "Referer: https://www.imdb.com/" \
       --connect-timeout $IMDBAPI_TIMEOUT \
       -X POST "$IMDB_GRAPHQL_URL" \
       -d "$json_payload" 2>/dev/null)
