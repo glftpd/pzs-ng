@@ -654,6 +654,8 @@ SHOWLOG_INSTALL
 SHOWLOG
 SITEWHO
 USING_GLFTPD
+USING_FLUFFER
+NGSUID_BINS
 GLVERSION
 FLAC_HEADERS
 SSL_INCLUDE
@@ -732,6 +734,7 @@ with_zlib_ng_include
 with_ssl
 enable_ss5
 enable_glftpd_specific
+enable_fluffer
 enable_format
 enable_expert
 enable_altwho
@@ -1378,6 +1381,10 @@ Optional Features:
   --disable-glftpd-specific
                           Disable glftpd-specific features, so that it works
                           under wzdftpd/cuftpd
+  --enable-fluffer        Build for the fluffer ftpd (single-uid):
+                          glftpd-compatible hooks, but no suid helpers and no
+                          binary-log tools. Point --with-glpath at the fluffer
+                          chroot.
   --enable-format         compiles the zipscript to format the output
   --enable-expert         expert mode - uses full config
   --disable-altwho        compiles the sitewho to not use an alternative
@@ -5005,6 +5012,17 @@ esac
 fi
 
 
+# Check whether --enable-fluffer was given.
+if test ${enable_fluffer+y}
+then :
+  enableval=$enable_fluffer; FLUFFER="$enableval"
+else case e in #(
+  e) FLUFFER="no"
+ ;;
+esac
+fi
+
+
 NOFORMAT="-D_WITH_NOFORMAT"
 # Check whether --enable-format was given.
 if test ${enable_format+y}
@@ -5103,6 +5121,8 @@ fi
 
 fi
 
+NGSUID_BINS="ng-undupe ng-deldir ng-chown"
+
 if [ "x$GLFTPD_SPECIFIC" = "xyes" ]; then
     # Check whether --enable-gl132 was given.
 if test ${enable_gl132+y}
@@ -5182,6 +5202,11 @@ fi
       fi
     fi
 
+    if [ "x$FLUFFER" = "xyes" ] && [ "$GLVERSION" = "detect" ]; then
+      GLVERSION="-DGLVERSION=20264"
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: fluffer mode (--enable-fluffer): treating as glftpd 2.02-compatible (64bit)." >&5
+printf "%s\n" "NOTICE: fluffer mode (--enable-fluffer): treating as glftpd 2.02-compatible (64bit)." >&6; }
+    fi
     if [ "$GLVERSION" = "detect" ]; then
       GLBIN="${INSTALLPATH}/bin/glftpd"
       if [ ! -x "$GLBIN" ] && [ -x "${INSTALLPATH}/bin/fluffer" ]; then
@@ -5200,6 +5225,7 @@ fi
         if [ -n "`$STRINGS $GLBIN | $GREP -i fluffer`" ]; then
           { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: detected fluffer at $GLBIN, treating as glftpd 2.02-compatible." >&5
 printf "%s\n" "NOTICE: detected fluffer at $GLBIN, treating as glftpd 2.02-compatible." >&6; }
+          FLUFFER="yes"
           glversion="202`$FILE $GLBIN | $CUT -d':' -f2 | $CUT -c6,7`"
         else
           glversion=""
@@ -5228,6 +5254,15 @@ printf "%s\n" "NOTICE: detected glversion, compiling bot binaries for glftpd $gl
     SITEWHO="swho"
     SHOWLOG="showlog"
     SHOWLOG_INSTALL="showlog-install"
+    if [ "x$FLUFFER" = "xyes" ]; then
+      USING_FLUFFER="-DUSING_FLUFFER=1"
+      NGSUID_BINS=""
+      SITEWHO=""
+      SHOWLOG=""
+      SHOWLOG_INSTALL=""
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: fluffer mode: skipping suid helpers (ng-undupe/ng-deldir/ng-chown), sitewho and showlog." >&5
+printf "%s\n" "NOTICE: fluffer mode: skipping suid helpers (ng-undupe/ng-deldir/ng-chown), sitewho and showlog." >&6; }
+    fi
 fi
 
 

@@ -687,7 +687,12 @@
 
 #ifndef enable_delbanned_script
 #define enable_delbanned_script_is_defaulted
+#ifdef USING_FLUFFER
+/* fluffer keeps dirlog in ftpd.db (sqlite) - ng-deldir has nothing to write */
+#define enable_delbanned_script                   FALSE
+#else
 #define enable_delbanned_script                   TRUE
+#endif
 #endif
 
 #ifndef enable_files_ahead
@@ -712,7 +717,12 @@
 
 #ifndef enable_unduper_script
 #define enable_unduper_script_is_defaulted
+#ifdef USING_FLUFFER
+/* fluffer keeps the dupe db in ftpd.db (sqlite) - ng-undupe has nothing to read */
+#define enable_unduper_script                     FALSE
+#else
 #define enable_unduper_script                     TRUE
+#endif
 #endif
 
 #ifndef exclude_non_sfv_dirs
