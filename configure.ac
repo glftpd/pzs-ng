@@ -157,6 +157,13 @@ AC_ARG_ENABLE(glftpd-specific,
         [GLFTPD_SPECIFIC="yes"]
 )
 
+dnl fluffer
+AC_ARG_ENABLE(fluffer,
+        AS_HELP_STRING([--enable-fluffer], [Build for the fluffer ftpd (single-uid): glftpd-compatible hooks, but no suid helpers and no binary-log tools. Point --with-glpath at the fluffer chroot.]),
+        [FLUFFER="$enableval"],
+        [FLUFFER="no"]
+)
+
 dnl noformat
 NOFORMAT="-D_WITH_NOFORMAT"
 AC_ARG_ENABLE(format, AS_HELP_STRING([--enable-format], [compiles the zipscript to format the output]), NOFORMAT="")
@@ -204,6 +211,8 @@ if [[ "x$INSTALLPATH" = "x" ]]; then
                 INSTALLPATH="$withval", INSTALLPATH="/glftpd")
 fi
 
+NGSUID_BINS="ng-undupe ng-deldir ng-chown"
+
 dnl GL version =)
 if [[ "x$GLFTPD_SPECIFIC" = "xyes" ]]; then
     AC_ARG_ENABLE(gl132, AS_HELP_STRING([--enable-gl132], [disable autodetect of glversion, and compile bot binaries for glftpd 1.32]),
@@ -242,6 +251,10 @@ if [[ "x$GLFTPD_SPECIFIC" = "xyes" ]]; then
       fi
     fi
 
+    if [[ "x$FLUFFER" = "xyes" ] && [ "$GLVERSION" = "detect" ]]; then
+      GLVERSION="-DGLVERSION=20264"
+      AC_MSG_RESULT([NOTICE: fluffer mode (--enable-fluffer): treating as glftpd 2.02-compatible (64bit).])
+    fi
     if [[ "$GLVERSION" = "detect" ]]; then
       GLBIN="${INSTALLPATH}/bin/glftpd"
       if [[ ! -x "$GLBIN" ] && [ -x "${INSTALLPATH}/bin/fluffer" ]]; then
@@ -259,6 +272,7 @@ if [[ "x$GLFTPD_SPECIFIC" = "xyes" ]]; then
       else
         if [[ -n "`$STRINGS $GLBIN | $GREP -i fluffer`" ]]; then
           AC_MSG_RESULT([NOTICE: detected fluffer at $GLBIN, treating as glftpd 2.02-compatible.])
+          FLUFFER="yes"
           glversion="202`$FILE $GLBIN | $CUT -d':' -f2 | $CUT -c6,7`"
         else
           glversion=""
@@ -286,9 +300,19 @@ if [[ "x$GLFTPD_SPECIFIC" = "xyes" ]]; then
     SITEWHO="swho"
     SHOWLOG="showlog"
     SHOWLOG_INSTALL="showlog-install"
+    if [[ "x$FLUFFER" = "xyes" ]]; then
+      USING_FLUFFER="-DUSING_FLUFFER=1"
+      NGSUID_BINS=""
+      SITEWHO=""
+      SHOWLOG=""
+      SHOWLOG_INSTALL=""
+      AC_MSG_RESULT([NOTICE: fluffer mode: skipping suid helpers (ng-undupe/ng-deldir/ng-chown), sitewho and showlog.])
+    fi
 fi
 
 AC_SUBST(USING_GLFTPD)
+AC_SUBST(USING_FLUFFER)
+AC_SUBST(NGSUID_BINS)
 AC_SUBST(SITEWHO)
 AC_SUBST(SHOWLOG)
 AC_SUBST(SHOWLOG_INSTALL)
