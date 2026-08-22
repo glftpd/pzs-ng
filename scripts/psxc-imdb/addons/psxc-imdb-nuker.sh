@@ -16,14 +16,7 @@
 #############################################################################
 
 # Version number. No need to change
-VERSION=3.1
-
-# glftpd's root dir
-GLROOT=/glftpd
-
-# The location of psxc-imdb.conf. This is the full path.
-IMDB_CONF=$GLROOT/etc/psxc-imdb.conf
-#IMDB_CONF=$GLROOT/bin/psxc-imdb.conf
+VERSION=3.2
 
 # What imdb score should be the minimum *allowed* on site? For now no decimals
 # is allowed.
@@ -114,9 +107,18 @@ NO_NUKE_RELGROUP="CPY QSP"
 NO_NUKE_DIR="/site/ARCHIVE /site/PRIVATE"
 #NO_NUKE_DIR=""
 
-# The location of glftpd.conf. This is the full path.
-GLFTPD_CONF=/glftpd/etc/glftpd.conf
-#GLFTPD_CONF=/etc/glftpd.conf
+# Source shared library and load psxc-imdb.conf (GLROOT's single source
+# of truth, provided before the GLROOT-dependent defaults below).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/psxc-imdb-lib.sh"
+imdb_set_defaults
+imdb_load_config || exit 1
+
+# The location of glftpd.conf. Auto-detected (works chrooted and on the host).
+for c in "$GLROOT/etc/glftpd.conf" "/etc/glftpd.conf"; do
+ [ -r "$c" ] && GLFTPD_CONF="$c" && break
+done
+: ${GLFTPD_CONF:=$GLROOT/etc/glftpd.conf}
 
 # Since nuking require root privileges, or that the nuker binary has the set-UID-bit
 # set (chmod +s /glftpd/bin/nuker), You can instead of performing the nuke in this
@@ -188,56 +190,10 @@ CRON_GRACE=600
 # End of config
 ####################################################################################
 
-# Let's load some variables from psxc-imdb.conf
-. $IMDB_CONF
+# The following grabs exported variables using the shared parse_imdb_args function
+# from psxc-imdb-lib.sh.
 
-####################################################################################
-# The following grabs exported variables. The code is taken from psxc-imdb-parser.sh
-# found in the extras/ dir.
-
-IFSORIG=$IFS
-IFS="^"
-
-# Initialize variables. bash is a bit limited, so we gotta do a "hack"
-c=1
-for a in `echo $@ | sed "s/^\"//;s/\"$//;s|\" \"|^|g"`; do
-b[c]=$a
-let c=c+1
-done
-
-IFS=$IFSORIG
-
-# Give the variables some sensible names
-IMDBDATE=${b[1]}
-IMDBDOTFILE=${b[2]}
-IMDBRELPATH=${b[3]}
-IMDBDIRNAME=${b[4]}
-IMDBURL=${b[5]}
-IMDBTITLE=${b[6]}
-IMDBGENRE=${b[7]}
-IMDBRATING=${b[8]}
-IMDBCOUNTRY=${b[9]}
-IMDBLANGUAGE=${b[10]}
-IMDBCERTIFICATION=${b[11]}
-IMDBRUNTIME=${b[12]}
-IMDBDIRECTOR=${b[13]}
-IMDBBUSINESSDATA=${b[14]}
-IMDBPREMIERE=${b[15]}
-IMDBLIMITED=${b[16]}
-IMDBVOTES=${b[17]}
-IMDBSCORE=${b[18]}
-IMDBNAME=${b[19]}
-IMDBYEAR=${b[20]}
-IMDBNUMSCREENS=${b[21]}
-IMDBISLIMITED=${b[22]}
-IMDBCASTLEADNAME=${b[23]}
-IMDBCASTLEADCHAR=${b[24]}
-IMDBTAGLINE=${b[25]}
-IMDBPLOT=${b[26]}
-IMDBBAR=${b[27]}
-IMDBCASTING=${b[28]}
-IMDBCOMMENTSHORT=${b[29]}
-IMDBCOMMENTFULL=${b[30]}
+parse_imdb_args "$@"
 
 ############################################################
 
@@ -249,25 +205,25 @@ if [ -z "$GLFTPD_CONF" ]; then
  exit 0
 fi
 if [ -z "$NUKE_LOGFILE" ] && [ -z "$NUKE_WARN_MSG" ]; then
- if [ -z "`ls -la $GLROOT/bin/nuker | grep "-" | awk '{print $1}' | tr -d 'rwx-'`" ]; then
+ if [ -z "`ls -la "$GLROOT/bin/nuker" | grep "-" | awk '{print $1}' | tr -d 'rwx-'`" ]; then
   echo "config error. check variables. the 'nuker' binary is not +s."
   exit 0
  fi
- if [ ! `ls -lan $GLROOT/bin/nuker | awk '{print $3}'` -eq 0 ]; then
+ if [ ! "`ls -lan "$GLROOT/bin/nuker" | awk '{print $3}'`" -eq 0 ]; then
   echo "config error. the 'nuker' binary is not owned by root."
   exit 0
  fi
- GL_DATAPATH="`cat $GLFTPD_CONF | grep -e "^datapath" | awk '{print $2}'`"
+ GL_DATAPATH="`cat "$GLFTPD_CONF" | grep -e "^datapath" | awk '{print $2}'`"
  if [ -z "$GL_DATAPATH" ]; then
   GL_DATAPATH="/ftp-data"
  fi
- if [ ! -e $GLROOT$GL_DATAPATH/users/$NUKER_PERSON ]; then
+ if [ ! -e "$GLROOT$GL_DATAPATH/users/$NUKER_PERSON" ]; then
   echo "config error. check variables. could not find $NUKER_PERSON in list of users."
   exit 0
  fi
 fi
 if [ ! -z "$NUKE_LOGFILE" ]; then
- if [ ! -e $NUKE_LOGFILE ]; then
+ if [ ! -e "$NUKE_LOGFILE" ]; then
   touch $NUKE_LOGFILE || { 
    echo "config error. could not create $NUKE_LOGFILE."; exit 0;
   };
@@ -295,7 +251,7 @@ if [ -z "$IMDBRELPATH" ]; then
  echo "FYI, the script's setup looks okay."
  echo "To use a delayed nuke, see NUKE_GRACE and add the"
  echo "following to crontab:"
- echo "* * * * * /glftpd/bin/psxc-imdb-nuker.sh >/dev/null 2>&1"
+ echo "* * * * * $GLROOT/bin/psxc-imdb-nuker.sh >/dev/null 2>&1"
  let COMBO=NUKE_COMBO+1
 else
 
@@ -340,23 +296,23 @@ else
 # Let's do a quick test to see if the release should be nuked
  NUKE_REASON=""
  if [ "`echo "$IMDBSCORE" | tr -cd '0-9'`" != "" ]; then
-  if [ `echo "$IMDBSCORE" | tr '. ' '\n' | grep -v "^$" | head -n 1` -lt $MIN_SCORE ]; then
+  if [ "`echo "$IMDBSCORE" | tr '. ' '\n' | grep -v "^$" | head -n 1`" -lt "$MIN_SCORE" ]; then
    NUKE_REASON="$MIN_SCORE_MSG"
    let COMBO=COMBO+1
   fi
  fi
  if [ "`echo "$IMDBVOTES" | tr -cd '0-9'`" != "" ]; then
-  if [ `echo "$IMDBVOTES" | tr -cd '0-9'` -lt $NUKE_VOTES ]; then
+  if [ "`echo "$IMDBVOTES" | tr -cd '0-9'`" -lt "$NUKE_VOTES" ]; then
    NUKE_REASON="$NUKE_VOTES_MSG"
    let COMBO=COMBO+1
   fi
  fi
- if [ `echo "$IMDBYEAR" | tr -cd '0-9'` -lt $NUKE_YEAR ]; then
+ if [ "`echo "$IMDBYEAR" | tr -cd '0-9'`" -lt "$NUKE_YEAR" ]; then
   NUKE_REASON="$NUKE_YEAR_MSG"
   let COMBO=COMBO+1
  fi
  if [ "`echo "$IMDBNUMSCREENS" | tr -cd '0-9'`" != "" ]; then
-  if [ `echo "$IMDBNUMSCREENS" | tr -cd '0-9'` -lt $NUKE_SCREENS ]; then
+  if [ "`echo "$IMDBNUMSCREENS" | tr -cd '0-9'`" -lt "$NUKE_SCREENS" ]; then
    NUKE_REASON="$NUKE_SCREENS_MSG"
    let COMBO=COMBO+1
   fi
@@ -412,8 +368,8 @@ else
 
  if [ ! -z "$NO_NUKE_USER" ]; then
   USER_ID=`ls -lan "$GLROOT/$IMDBRELPATH" | grep -e "\ \.$" | awk '{print $3}'`
-  USER_NAME="`cat $GLROOT/etc/passwd | tr -d ' ' | tr ':' ' ' | awk '{print $1,$3}' | grep -e "\ $USER_ID$" | awk '{print $1}'`"
-  if [ ! -z "`echo "$NO_NUKE_USER" | grep $USER_NAME`" ]; then
+  USER_NAME="`cat "$GLROOT/etc/passwd" | tr -d ' ' | tr ':' ' ' | awk '{print $1,$3}' | grep -e "\ $USER_ID$" | awk '{print $1}'`"
+  if [ ! -z "`echo "$NO_NUKE_USER" | grep "$USER_NAME"`" ]; then
    exit 0
   fi
  fi
@@ -422,8 +378,8 @@ else
 
  if [ ! -z "$NO_NUKE_GROUP" ]; then
   GROUP_ID=`ls -lan "$GLROOT/$IMDBRELPATH" | grep -e "\ \.$" | awk '{print $4}'`
-  GROUP_NAME="`cat $GLROOT/etc/group | tr -d ' ' | sed "s|::|:vomit:|g" | tr ':' ' ' | awk '{print $1,$3}' | grep -e "\ $GROUP_ID$" | awk '{print $1}'`"
-  if [ ! -z "`echo "$NO_NUKE_GROUP" | grep $GROUP_NAME`" ]; then
+  GROUP_NAME="`cat "$GLROOT/etc/group" | tr -d ' ' | sed "s|::|:vomit:|g" | tr ':' ' ' | awk '{print $1,$3}' | grep -e "\ $GROUP_ID$" | awk '{print $1}'`"
+  if [ ! -z "`echo "$NO_NUKE_GROUP" | grep "$GROUP_NAME"`" ]; then
    exit 0
   fi
  fi
@@ -432,10 +388,10 @@ else
 
  if [ ! -z "$NO_NUKE_AFFIL_DIR" ]; then
   AFFIL_ID=`ls -lan "$GLROOT/$IMDBRELPATH" | grep -e "\ \.$" | awk '{print $4}'`
-  AFFIL_NAME="`cat $GLROOT/etc/group | tr -d ' ' | sed "s|::|:vomit:|g" | tr ':' ' ' | awk '{print $1,$3}' | grep -e "\ $AFFIL_ID$" | awk '{print $1}'`"
+  AFFIL_NAME="`cat "$GLROOT/etc/group" | tr -d ' ' | sed "s|::|:vomit:|g" | tr ':' ' ' | awk '{print $1,$3}' | grep -e "\ $AFFIL_ID$" | awk '{print $1}'`"
   for AFFIL_DIR in $NO_NUKE_AFFIL_DIR; do
-   if [ -d $GLROOT/$AFFIL_DIR ]; then
-    if [ ! -z "`ls -lF $GLROOT/$AFFIL_DIR | grep -e "/" | grep -e "\ $AFFIL_NAME/"`" ]; then
+   if [ -d "$GLROOT/$AFFIL_DIR" ]; then
+    if [ ! -z "`ls -lF "$GLROOT/$AFFIL_DIR" | grep -e "/" | grep -e "\ $AFFIL_NAME/"`" ]; then
      exit 0
     fi
    fi
@@ -524,7 +480,7 @@ fi
 
 # last, let's check the dir for any approved info
 if [ ! -z "$REL_ACCEPT_WORD" ]; then
- MYPATH="`ls -1 $GLROOT$IMDBRELPATH | tr 'A-Z' 'a-z'`"
+ MYPATH="`ls -1 "$GLROOT$IMDBRELPATH" | tr 'A-Z' 'a-z'`"
  MYWORD="`echo "$REL_ACCEPT_WORD" | tr 'A-Z' 'a-z'`"
  if [ ! -z "`echo "$MYPATH" | grep -e "$MYWORD"`" ]; then
   exit 0
@@ -532,7 +488,7 @@ if [ ! -z "$REL_ACCEPT_WORD" ]; then
 fi
 
 # Check combo-points
-if [ $NUKE_COMBO -gt $COMBO ]; then
+if [ "$NUKE_COMBO" -gt "$COMBO" ]; then
  exit 0
 fi
 
@@ -540,10 +496,10 @@ fi
 # nuke it, or log it.
 
 if [ -z "$NUKE_WARN_FILE" ] && [ -z "$NUKE_LOGFILE" ]; then
- $GLROOT/bin/nuker -r $GLFTPD_CONF -N $NUKER_PERSON -n "$IMDBRELPATH/" $MULTIPLIER $NUKE_REASON >/dev/null 2>&1
+ "$GLROOT/bin/nuker" -r "$GLFTPD_CONF" -N "$NUKER_PERSON" -n "$IMDBRELPATH/" "$MULTIPLIER" "$NUKE_REASON" >/dev/null 2>&1
 else
  if [ ! -z "$NUKE_LOGFILE" ]; then
-  echo "`date +%s`""%""$IMDBRELPATH""%""$MULTIPLIER""%""$NUKE_REASON" >> $NUKE_LOGFILE
+  echo "`date +%s`""%""$IMDBRELPATH""%""$MULTIPLIER""%""$NUKE_REASON" >> "$NUKE_LOGFILE"
  fi
  if [ ! -z "$NUKE_WARN_FILE" ]; then
   NUKE_WARN_MSG="`echo "$NUKE_WARN_MSG" | sed "s%RELNAME%$IMDBDIRNAME%g" | sed "s%REASON%$NUKE_REASON%g" | sed "s%MOVIENAME%$IMDBNAME%g" | sed "s%BOLD%$BOLD%g"`" 

@@ -71,8 +71,11 @@ channel output. In it's basic form, it's a single, small(?) file.
 - It supports output of imdb info into a file inside the releasedir, making it
   possible to auto-view on entering the dir.
 - It can generate an Internet Explorer .url or .html, for easy click-n-view.
-- Supports links to international ( German, Italian, French and others)
-  versions of imdb.com - will show the US data however.
+- Supports localized IMDB links via LOCALURL. Set LOCALURL in psxc-imdb.conf
+  to a language code to display IMDB URLs with a localized path segment
+  (e.g. LOCALURL="de" -> www.imdb.com/de/title/tt...).
+  Supported languages: de (German), fr (French), es (Spanish),
+  it (Italian), pt (Portuguese/Brazil), hi (Hindi).
 - Very stable - will extract a valid imdb link from almost any .nfo (unlike
   others I've seen)
 - Support for addons - three example addons is currently included. One which create
@@ -423,6 +426,24 @@ ADDING YOUR OWN FORMATTED BOT-OUTPUT (OPTIONAL):
    set up the internal formatting, and the external formatting can be explored
    in the file "README.use.of.special.format".
 
+USING LOCALIZED IMDB URLS (OPTIONAL):
+.....................................
+   To display IMDB links in a localized format, set LOCALURL in psxc-imdb.conf
+   to one of the supported language codes. This changes the displayed URL from
+   https://www.imdb.com/title/tt0111161 to https://www.imdb.com/<code>/title/tt0111161.
+
+   Supported language codes:
+     de - German
+     fr - French
+     es - Spanish
+     it - Italian
+     pt - Portuguese (Brazil)
+     hi - Hindi
+
+   This affects bot output, .imdb files, .url/.html redirects, and
+   psxc-imdb-find.sh results. Leave LOCALURL="" (default) for standard
+   English URLs.
+
 USING THE "FULL" FEATURE (OPTIONAL):
 ....................................
    At times your default botscript cannot handle the imdb output. Or you might decide
@@ -465,6 +486,11 @@ EXTRAS:
 In the extras folder you'll find a few goodies you probably would like to use.
 psxc-imdb-rescan.sh - this is a site script used to rescan a dir, or a whole
                       section.
+                      By default the script does not touch directory timestamps
+                      (FIXDIRTIME=""). Set FIXDIRTIME="YES" in psxc-imdb.conf
+                      to restore the release dir's original mtime after the imdb
+                      info is written (snapshot taken before the run), keeping
+                      upload-order dirlists intact.
 psxc-imdb-sanity.sh - you have probably used this already - it sets up and
                       verifies your environment and settings.
 psxc-imdb-parser.sh - not a real script - it just shows how you can grab the

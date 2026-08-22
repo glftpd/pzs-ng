@@ -144,7 +144,7 @@ namespace eval ::ngBot::plugin::psxc-IMDb {
         ##
         ##################################################
 
-        set psxc(VERSION) "v3.1-graphql"
+        set psxc(VERSION) "3.2"
 
         variable events [list "IMDB" "IMDBVAR" "IMDBFIND" "IMDBFINDVAR"]
         variable psxcimdb

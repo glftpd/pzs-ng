@@ -1,5 +1,55 @@
 PSXC-IMDB CHANGELOG:
 --------------------
+- v3.2 - Aug. 21st, 2026 - Create psxc-imdb-lib.sh shared library to eliminate
+                           code duplication across the suite
+                           - Functions: imdb_set_defaults(), imdb_load_config(),
+                              imdb_write_log(), imdb_queue_lookup(),
+                              imdb_request(), imdb_extract_id()
+                           - Move COUNTRY_MAP and LANGUAGE_MAP to lib
+                           - Replace inline config loading, logging, and queue
+                             writes with lib function calls
+                           - Fix lib sourcing path for glftpd chroot: use
+                             $(dirname $0) instead of $GLROOT/bin
+                           - Unify VERSION to 3.2 across all scripts
+                           - Move infra defaults into imdb_set_defaults()
+                           - Remove obsolete LOCALURL/IMDBLOCAL (IMDB retired
+                             country-specific subdomains like german.imdb.com)
+                           - Re-introduce LOCALURL option with path-based
+                             localized URLs (e.g. LOCALURL="de" ->
+                             www.imdb.com/de/title/tt...). IMDB now serves
+                             localized content via URL path segments instead.
+                             Supported: de, fr, es, it, pt, hi
+                           - Add FIXDIRTIME option (default: empty ""). When set
+                              to "YES", the release dir's original mtime is
+                              snapshotted before the info files are written and
+                              restored afterwards via touch -r (POSIX) to a temp
+                              carrier in the logs dir, keeping the dir date
+                              unchanged (upload-order dirlists stay intact) and
+                              covering both the success and the API-error paths.
+                              With the default "", the script never actively
+                              touches directory timestamps
+                           - Installer detects required binaries (bash 4+, jq,
+                              curl) across /usr/local/bin and standard paths, with
+                              per-OS install hints and portable sed/tr config
+                              generation (Linux + FreeBSD)
+                           - POSIX-compatible tools throughout (no GNU-only
+                              grep -oP/-a, echo -e, rmdir flags, ls date sorting);
+                              BSD stat -f date handling via get_file_date()
+                           - Addons (nuker, symlink-maker) auto-detect their
+                              config paths in direct and rescan-context
+                              invocations; only files needing edits are prompted
+                              for during install
+                           - psxc-symlink-maker.sh creates relative symlink
+                              targets
+                           - Missing rescan flag file handled gracefully instead
+                              of erroring
+                           - Queue processing: per-release flags (DOTIMDB, USEBOT,
+                              EXTERNALSCRIPTNAME, INFOTEMPNAME, bot and log-format
+                              vars) are snapshotted after run-level flag handling
+                              and restored at the top of each queue iteration, so
+                              an API error, a removed release dir, or a find
+                              /dev/null entry no longer leaks cleared state into
+                              the next release processed in the same run
 - v3.1 - Jul. 24th, 2026 - Switch psxc-imdb to IMDB GraphQL API (graphql.imdb.com)
                           - Add Metacritic score (metascore + review count) to
                             bot output, .imdb file, and external script args

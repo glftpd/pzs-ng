@@ -61,7 +61,7 @@ format DOTONE =
   $IMDBURL
 |--------------------------------------------------------------------------|
 | genre...: ^<<<<<<<<<<<<<<<<<<<<<<<<<<... | ^<<<<<<<<<<<<<<<<<<<<<<<<<<<< |
-            $IMDBGENRE                       $IMDBPLOT
+            $IMDBGENRE,                      $IMDBPLOT
 | score...: [@<<<<<<<<<]  @<< @>>>>> votes | ^<<<<<<<<<<<<<<<<<<<<<<<<<<<< |
             $IMDBBAR,    $IMDBSCORE, $IMDBVOTES, $IMDBPLOT
 | director: ^<<<<<<<<<<<<<<<<<<<<<<<<<<... | ^<<<<<<<<<<<<<<<<<<<<<<<<<<<< |
@@ -278,7 +278,7 @@ sub limit {
  $IMDBVOTES, $IMDBSCORE, $IMDBNAME, $IMDBYEAR, $IMDBNUMSCREENS,
  $IMDBISLIMITED, $IMDBCASTLEADNAME, $IMDBCASTLEADCHAR, $IMDBTAGLINE,
  $IMDBPLOT, $IMDBBAR, $IMDBCASTING, $IMDBCOMMENTSHORT, 
- $IMDBCOMMENTLONG) = @imdbvars;
+ $IMDBCOMMENTLONG, $IMDBMETACRITIC) = @imdbvars;
 
 # limit stuff
 $IMDBGENRE = limit($IMDBGENRE, $NUMGENRE, "/");

@@ -3,122 +3,39 @@
 # PSXC IMDB INFO #
 ##################
 
-# Just edit the 2 lines below, then continue on the "real" config file.
-
-# your glftpd root path.
-GLROOT=/glftpd
-
-# path to the config file when chrooted by glftpd.
-CONFFILE=/etc/psxc-imdb.conf
-
-## End of config ##
-###################
-
 # version number. do not change.
-VERSION="v3.1-graphql"
+VERSION="v3.2"
 
 ######################################################################################################
 
 RECVDARGS="$1"
-# check if configfile exists
-############################
-
-if [ -r $GLROOT$CONFFILE ]; then
- . $GLROOT$CONFFILE
- if [ $? -ne 0 ]; then
-  echo "Unable to open config file ($GLROOT$CONFFILE). Forced to exit."
-  exit 0
- fi
-elif [ -r $CONFFILE ]; then
- . $CONFFILE
- if [ $? -ne 0 ]; then
-  echo "Unable to open config file ($CONFFILE). Forced to exit."
-  exit 0
- fi
-else
- echo "Config file not found. Forced to exit."
- exit 0
-fi
-
-# Start debugging
-if [ "$DEBUG" = "ON" ] || [ "$DEBUG" = "2" ]; then
- set -x
-elif [ "$DEBUG" = "3" ]; then
- set -x -v
-elif [ "$DEBUG" = "4" ]; then
- set -x -v
-fi
-
-# Let's hack glftpd
-if [ -z "$RECVDARGS" ] && [ ! -z "$GLFIX" ]; then
- RECVDARGS=$(ls -1Ft | grep -a -v "/" | grep -a -v "@" | head -n 1 | grep -a -e "[.][nN][fF][oO]$")
-fi
 
 # Remove locale settings which might cause problems
 export LC_ALL=""
 export LANG=""
 
-if [ -z "$USERAGENT" ]; then
-  USERAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
+# Source shared library for API functions
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/psxc-imdb-lib.sh"
+imdb_set_defaults
+imdb_load_config || exit 0
+
+# FIXDIRTIME mtime-snapshot carrier, resolved for this run's context
+# (chrooted vs host) so the snapshot/restore works in both.
+DIRDATE_CARRIER="$(imdb_dirdate_carrier)"
+
+# Start debugging
+if [ "$DEBUG" = "ON" ] || [ "$DEBUG" = "2" ]; then
+ set -x
+elif [ "$DEBUG" = "3" ] || [ "$DEBUG" = "4" ]; then
+ # level 4 additionally traces the bash addons (see EXTERNALSCRIPTNAME below)
+ set -x -v
 fi
 
-if [ -z "$IMDB_GRAPHQL_URL" ]; then
-  IMDB_GRAPHQL_URL="https://graphql.imdb.com/"
+# Let's hack glftpd
+if [ -z "$RECVDARGS" ] && [ ! -z "$GLFIX" ]; then
+ RECVDARGS=$(ls -1Ft | grep -v "/" | grep -v "@" | head -n 1 | grep -e "[.][nN][fF][oO]$")
 fi
-if [ -z "$IMDBAPI_TIMEOUT" ]; then
-  IMDBAPI_TIMEOUT=30
-fi
-if [ -z "$API_RETRY_COUNT" ]; then
-  API_RETRY_COUNT=3
-fi
-if [ -z "$API_RETRY_DELAY" ]; then
-  API_RETRY_DELAY=2
-fi
-if [ -z "$JQ_BIN" ]; then
-  JQ_BIN="/bin/jq"
-fi
-if [ -z "$CERTCOUNTRY" ]; then
-  CERTCOUNTRY="US"
-fi
-if [ -z "$PREMIERECOUNTRY" ]; then
-  PREMIERECOUNTRY="US"
-fi
-
-COUNTRY_MAP='{"US":"United States","GB":"United Kingdom","AU":"Australia","CA":"Canada","FR":"France","DE":"Germany","IT":"Italy","ES":"Spain","JP":"Japan","KR":"South Korea","CN":"China","IN":"India","RU":"Russia","BR":"Brazil","MX":"Mexico","NL":"Netherlands","SE":"Sweden","NO":"Norway","DK":"Denmark","FI":"Finland","PL":"Poland","CZ":"Czech Republic","AT":"Austria","CH":"Switzerland","BE":"Belgium","PT":"Portugal","IE":"Ireland","NZ":"New Zealand","AR":"Argentina","CL":"Chile","CO":"Colombia","PH":"Philippines","TH":"Thailand","HK":"Hong Kong","SG":"Singapore","TW":"Taiwan","IL":"Israel","TR":"Turkey","ZA":"South Africa","EG":"Egypt","ID":"Indonesia","MY":"Malaysia","VN":"Vietnam","GR":"Greece","HU":"Hungary","RO":"Romania","UA":"Ukraine","HR":"Croatia","RS":"Serbia","IS":"Iceland","LU":"Luxembourg"}'
-
-LANGUAGE_MAP='{"en":"English","fr":"French","de":"German","es":"Spanish","it":"Italian","pt":"Portuguese","ja":"Japanese","ko":"Korean","zh":"Chinese","ru":"Russian","hi":"Hindi","ar":"Arabic","nl":"Dutch","sv":"Swedish","no":"Norwegian","da":"Danish","fi":"Finnish","pl":"Polish","cs":"Czech","hu":"Hungarian","ro":"Romanian","bg":"Bulgarian","uk":"Ukrainian","el":"Greek","tr":"Turkish","th":"Thai","vi":"Vietnamese","id":"Indonesian","ms":"Malay","tl":"Tagalog","he":"Hebrew"}'
-
-graphql_request() {
-  local query="$1"
-  local retries=0
-  local response=""
-  local json_payload
-  json_payload=$($JQ_BIN -n --arg q "$query" '{query: $q}')
-
-  while [ $retries -lt $API_RETRY_COUNT ]; do
-    response=$(curl $CURLFLAGS -s -A "$USERAGENT" \
-      -H "Content-Type: application/json" \
-      -H "Origin: https://www.imdb.com" \
-      -H "Referer: https://www.imdb.com/" \
-      --connect-timeout $IMDBAPI_TIMEOUT \
-      -X POST "$IMDB_GRAPHQL_URL" \
-      -d "$json_payload" 2>/dev/null)
-    if [ $? -eq 0 ] && [ -n "$response" ]; then
-      if echo "$response" | $JQ_BIN -e '.data' >/dev/null 2>&1; then
-        echo "$response"
-        return 0
-      fi
-    fi
-    retries=$((retries + 1))
-    sleep $API_RETRY_DELAY
-  done
-  return 1
-}
-
-extract_imdb_id() {
-  local url="$1"
-  echo "$url" | grep -oP 'tt[0-9]+' | head -1
-}
 
 if [ ! -z "$RECVDARGS" ]; then
 
@@ -128,30 +45,32 @@ if [ ! -z "$RECVDARGS" ]; then
 # PATH=$PATHCHROOTED
 # IMDBLOG=$IMDBLOGCHROOTED
  FILENAME="$RECVDARGS"
-   if [ ! -z "$GLROOT" ]; then
-    MYTMPFILE=$(echo "$TMPRESCANFILE" | sed "s%$GLROOT%%")
-   else
-    MYTMPFILE=$TMPRESCANFILE
-   fi
-   PSXCFLAG=$(head -n 1 $MYTMPFILE | tr -cd '0-9')
-   if [ ! -z "$PSXCFLAG" ]; then
-    if [ $PSXCFLAG -ge 4 ]; then
-     let PSXCFLAG=PSXCFLAG-4
+   MYTMPFILE=$(strip_glroot "$TMPRESCANFILE")
+   PSXCFLAG=$(head -n 1 "$MYTMPFILE" 2>/dev/null | tr -cd '0-9')
+    if [ ! -z "$PSXCFLAG" ]; then
+     if [ "$PSXCFLAG" -ge 4 ]; then
+      let PSXCFLAG=PSXCFLAG-4
+     fi
+     if [ "$PSXCFLAG" -ge 2 ]; then
+      DOTIMDB=""
+      INFOTEMPNAME=""
+      DOTDATE=""
+      DOTURL=""
+     fi
     fi
-    if [ $PSXCFLAG -ge 2 ]; then
-     DOTIMDB=""
-     INFOTEMPNAME=""
-     DOTDATE=""
-     DOTURL=""
+    # Snapshot the release dir's original date before creating any files in it
+    # (FIXDIRTIME gated); restored at the end of this block and again by the
+    # queue path so upload-order dirlists stay intact.
+    if [ ! -z "$FIXDIRTIME" ]; then
+     touch -r "$(pwd)" "$DIRDATE_CARRIER" >/dev/null 2>&1
     fi
-   fi
-   if [ ! -z "$DOTDATE" ]; then
-    DOTDATEINFO="$(grep -a [Dd][Aa][Tt][Ee] $FILENAME | tr -c '/a-zA-Z0-9:. -/\n' ' ' | tr -s ' ')"
-    if [ ! -z "$DOTDATEINFO" ]; then
-     echo "$DOTDATEINFO" > $DOTDATE
-     chmod 666 $DOTDATE
+    if [ ! -z "$DOTDATE" ]; then
+     DOTDATEINFO="$(grep [Dd][Aa][Tt][Ee] "$FILENAME" | tr -c '/a-zA-Z0-9:. -/\n' ' ' | tr -s ' ')"
+     if [ ! -z "$DOTDATEINFO" ]; then
+      echo "$DOTDATEINFO" > "$DOTDATE"
+      chmod 666 "$DOTDATE"
+     fi
     fi
-   fi
 
 # Should we even begin searching for an url?
    SEARCHFORURLS=0
@@ -159,7 +78,7 @@ if [ ! -z "$RECVDARGS" ]; then
     SEARCHFORURLS=1
    fi
    for SCANDIR in $SCANDIRS; do
-    if [ ! -z "$(pwd | grep -a "$SCANDIR")" ]; then
+    if [ ! -z "$(pwd | grep "$SCANDIR")" ]; then
      SEARCHFORURLS=1
      break
     fi
@@ -177,42 +96,42 @@ if [ ! -z "$RECVDARGS" ]; then
    fi
 
 # Level 0 search
-   IMDBURLS="$(grep -a [Ii][Mm][Dd][Bb] $FILENAME | tr ' \|' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-   if [ ! -z "$(echo $IMDBURLS | grep -a "imdb\.")" ]; then
-#    IMDBURL="https://www.imdb.com/title/tt""$(echo $IMDBURLS | sed "s/=/-/g" | sed "s/imdb./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-    IMDBURL="https://www.imdb.com/title/tt""$(echo $IMDBURLS | sed "s/=/-/g" | sed "s/imdb./=/" | cut -d "=" -f 2 |  grep -a -o "[0-9]*" | head -n 1)"
-    if [ -z $(echo $IMDBURL | tr -cd '0-9') ]; then
+   IMDBURLS="$(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr ' \|' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+   if [ ! -z "$(echo "$IMDBURLS" | grep "imdb\.")" ]; then
+#    IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
+     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 |  grep -o "[0-9]*" | head -n 1)"
+    if [ -z "$(echo "$IMDBURL" | tr -cd '0-9')" ]; then
      IMDBURL=""
     fi
    fi
 
 # Level 1 search
-   if [ -z "$IMDBURL" ] && [ $RELAXEDURLS -ge 1 ]; then
-    IMDBURLS="$(grep -a [Ii][Mm][Dd][Bb] $FILENAME | tr ' \|' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-    if [ ! -z "$(echo $IMDBURLS | grep -a "imdb\.")" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$(echo $IMDBURLS | sed "s/=/-/g" | sed "s/imdb./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-     if [ -z $(echo $IMDBURL | tr -cd '0-9') ]; then
+   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 1 ]; then
+    IMDBURLS="$(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr ' \|' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+    if [ ! -z "$(echo "$IMDBURLS" | grep "imdb\.")" ]; then
+     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
+     if [ -z "$(echo "$IMDBURL" | tr -cd '0-9')" ]; then
       IMDBURL=""
      fi
     fi
    fi
 
 # Level 2 search
-   if [ -z "$IMDBURL" ] && [ $RELAXEDURLS -ge 2 ]; then
-    IMDBURLS="$(grep -a [Ii][Mm][Dd][Bb] $FILENAME | tr ' \|' '\n' | sed -n /.*[iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-    if [ ! -z "$(echo $IMDBURLS | grep -a "imdb\.")" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$(echo $IMDBURLS | sed "s/=/-/g" | sed "s/imdb./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-     if [ -z $(echo $IMDBURL | tr -cd '0-9') ]; then
+   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 2 ]; then
+    IMDBURLS="$(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr ' \|' '\n' | sed -n /.*[iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+    if [ ! -z "$(echo "$IMDBURLS" | grep "imdb\.")" ]; then
+     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
+     if [ -z "$(echo "$IMDBURL" | tr -cd '0-9')" ]; then
       IMDBURL=""
      fi
     fi
    fi
 
 # Level 3 search
-   if [ -z "$IMDBURL" ] && [ $RELAXEDURLS -ge 3 ]; then
-    for IMDBURLS in $(grep -a [Ii][Mm][Dd][Bb] $FILENAME | tr -c '[:digit:]' '\n' | grep -a -v "^$"); do
-     if [ ! -z $(echo $IMDBURLS | tr -cd '0-9') ]; then
-      if [ $(echo $IMDBURLS | tr -cd '0-9' | wc -c) -eq 8 ] || [ $(echo $IMDBURLS | tr -cd '0-9' | wc -c) -eq 7 ]; then
+   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 3 ]; then
+    for IMDBURLS in $(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr -c '[:digit:]' '\n' | grep -v "^$"); do
+     if [ ! -z "$(echo "$IMDBURLS" | tr -cd '0-9')" ]; then
+      if [ "$(echo "$IMDBURLS" | tr -cd '0-9' | wc -c)" -eq 8 ] || [ "$(echo "$IMDBURLS" | tr -cd '0-9' | wc -c)" -eq 7 ]; then
        IMDBURL="$IMDBURLS"
        break
       fi
@@ -224,9 +143,9 @@ if [ ! -z "$RECVDARGS" ]; then
    fi
 
 # Level 4 search
-   if [ -z "$IMDBURL" ] && [ $RELAXEDURLS -ge 4 ]; then
-    for IMDBURLS in $(cat $FILENAME | tr -c '[:digit:]' '\n' | grep -a -v "^$"); do
-     if [ $(echo $IMDBURLS | wc -c) -eq 8 ] || [ $(echo $IMDBURLS | wc -c) -eq 7 ]; then
+   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 4 ]; then
+    for IMDBURLS in $(cat "$FILENAME" | tr -c '[:digit:]' '\n' | grep -v "^$"); do
+     if [ "$(echo "$IMDBURLS" | wc -c)" -eq 8 ] || [ "$(echo "$IMDBURLS" | wc -c)" -eq 7 ]; then
       IMDBURL="$IMDBURLS"
       break
      fi
@@ -236,9 +155,14 @@ if [ ! -z "$RECVDARGS" ]; then
     fi
    fi
 
+# apply localized URL path if LOCALURL is set
+   if [ ! -z "$IMDBURL" ] && [ ! -z "$LOCALURL" ]; then
+    IMDBURL="$(imdb_localize_url "$IMDBURL" "$LOCALURL")"
+   fi
+
 # export what we've found
    if [ ! -z "$IMDBURL" ]; then
-    echo "$IMDBURL""|""$PWD" >> $IMDBLOGCHROOTED
+     imdb_queue_lookup "$IMDBURL" "$PWD" "$IMDBLOGCHROOTED"
     if [ ! -z "$DOTIMDB" ]; then
      if [ ! -e "$DOTIMDB" ] || [ -w "$DOTIMDB" ]; then
       echo -n "" > $DOTIMDB
@@ -275,7 +199,14 @@ if [ ! -z "$RECVDARGS" ]; then
      fi
     fi
    fi
-   touch -acmr "$FILENAME" $(pwd) >/dev/null 2>&1
+   # Restore the release dir's original date (undoing the dummy-file creation
+   # bump) so the queue step snapshots the true pre-run date. Only if
+   # FIXDIRTIME is enabled; default is "" - the script does not actively
+   # touch directory timestamps.
+   if [ ! -z "$FIXDIRTIME" ] && [ -f "$DIRDATE_CARRIER" ]; then
+    touch -r "$DIRDATE_CARRIER" "$(pwd)" >/dev/null 2>&1
+    rm -f "$DIRDATE_CARRIER" >/dev/null 2>&1
+   fi
 
 #else
 fi
@@ -288,67 +219,35 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 #################################
   PATH=$GLPATHPRE
 
-  a="$(tail -n 5 $GLPRELOG | grep -a "$PRETRIGGER" | tail -n 1)"
-  DIRNAME=""
-  for WORD in $WORDS; do
-   count=0
-   combine=0
-   if [ -z "$a" ]; then
+  a="$(tail -n 5 "$GLPRELOG" | grep "$PRETRIGGER" | tail -n 1)"
+  DIRNAME=$(imdb_extract_pre_dirname "$a" "$PRETRIGGER" "$WORDS" "$SEPARATOR")
+  if [ $? -ne 0 ]; then
     exit 0
-   fi
-   if [ ! -z "$PRETRIGGER" ]; then
-    let WORD=WORD+1
-   fi
-   for b in $a; do
-    if [ -z $(echo $b | grep -a "$PRETRIGGER") ] && [ $count -gt 0 ] || [ -z "$PRETRIGGER" ]; then
-     if [ $combine -eq 1 ]; then
-      c=$c$b
-     else
-      c=$b
-     fi
-     if [ ! -z $(echo "$c" | grep -a "^\"") ]; then
-      combine=1
-     else
-      c=$b
-      let count=count+1
-     fi
-     if [ ! -z $(echo "$c" | grep -a "\"$") ]; then
-      combine=0
-      let count=count+1
-     fi
-     if [ $count -eq $WORD ]; then
-      break
-     fi
-    else
-     if [ "$b" = "$PRETRIGGER" ]; then
-      count=1
-     fi
+  fi
+  if [ -d "$GLROOT$DIRNAME" ]; then
+    FILENAME=$(ls -1 "$GLROOT$DIRNAME" | grep "\.[Nn][Ff][Oo]$" | head -n 1)
+    IMDBURL="$(grep [Ii][Mm][Dd][Bb] "$GLROOT$DIRNAME/$FILENAME" | tr ' ' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+    if [ ! -z "$(echo "$IMDBURL" | grep "\.imdb\.")" ]; then
+     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURL" | sed "s/=/-/g" | sed "s/\.imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
     fi
-   done
-   DIRNAME="$DIRNAME""$c"
-  done
-  DIRNAME=$(echo $DIRNAME | sed "s|\"\"|$SEPARATOR|g" | sed "s|\"||g")
-  if [ -d $GLROOT$DIRNAME ]; then
-   FILENAME=$(ls -1 $GLROOT$DIRNAME | grep -a "\.[Nn][Ff][Oo]$" | head -n 1)
-   IMDBURL="$(grep -a [Ii][Mm][Dd][Bb] $GLROOT$DIRNAME/$FILENAME | tr ' ' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-   if [ ! -z "$(echo $IMDBURL | grep -a "\.imdb\.")" ]; then
-    IMDBURL="https://www.imdb.com/title/tt""$(echo $IMDBURL | sed "s/=/-/g" | sed "s/.imdb./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-   fi
-   if [ ! -z "$IMDBURL" ]; then
-    a="$(tail -n 5 $GLLOG | grep -a "$TRIGGER" | grep -a "$DIRNAME" | tail -n 1)"
+    if [ ! -z "$IMDBURL" ] && [ ! -z "$LOCALURL" ]; then
+     IMDBURL="$(imdb_localize_url "$IMDBURL" "$LOCALURL")"
+    fi
+    if [ ! -z "$IMDBURL" ]; then
+     a="$(tail -n 5 "$GLLOG" | grep "$TRIGGER" | grep "$DIRNAME" | tail -n 1)"
     if [ -z "$a" ]; then
      SEARCHFORURLS=0
      if [ -z "$SCANDIRS" ]; then
       SEARCHFORURLS=1
      fi
      for SCANDIR in $SCANDIRS; do
-      if [ ! -z "$(echo "$DIRNAME" | grep -a "$SCANDIR")" ]; then
+      if [ ! -z "$(echo "$DIRNAME" | grep "$SCANDIR")" ]; then
        SEARCHFORURLS=1
        break
       fi
      done
      if [ ! $SEARCHFORURLS -eq 0 ]; then
-      echo "$IMDBURL""|""$DIRNAME" >> $IMDBLOG
+       imdb_queue_lookup "$IMDBURL" "$DIRNAME" "$IMDBLOG"
      fi
     fi
    fi
@@ -358,7 +257,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   fi
  fi
 
- if [ ! -e $IMDBLOG ]; then
+ if [ ! -e "$IMDBLOG" ]; then
 
 # Check to see if it's a first-run
 ##################################
@@ -370,7 +269,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 # The main part.
 ################
 
- if [ -z "$(cat $IMDBLOG)" ]; then
+ if [ -z "$(cat "$IMDBLOG")" ]; then
 
 # No new imdb-info. let's quit.
 ###############################
@@ -379,50 +278,59 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 
 # Make sure this script isn't already running.
 ##############################################
- sleep 0.$RANDOM
- IMDBPIDCONTENT="$(head -n2 $IMDBPID | tail -n1)"
- [[ ! -z "$IMDBPIDCONTENT" ]] &&
-   [[ -1 -eq "$IMDBPIDCONTENT" || ! -z $(ps ax | awk '{print $1}' | grep -a -e "^$IMDBPIDCONTENT$") ]] &&
-     exit 0
- echo $$ > $IMDBPID
+ LOCKDIR="${IMDBPID}.lock"
+ if mkdir "$LOCKDIR" 2>/dev/null; then
+   trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+ else
+   IMDBPIDCONTENT="$(head -n2 "$IMDBPID" 2>/dev/null | tail -n1)"
+   if [[ -n "$IMDBPIDCONTENT" ]]; then
+     if [[ "$IMDBPIDCONTENT" -ne -1 ]] && [[ -z "$(ps ax | awk '{print $1}' | grep -e "^$IMDBPIDCONTENT$")" ]]; then
+       rmdir "$LOCKDIR" 2>/dev/null
+       mkdir "$LOCKDIR" 2>/dev/null && trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+     else
+       exit 0
+     fi
+   fi
+ fi
+ echo $$ > "$IMDBPID"
 
 # Seems like something was put into the log. Let's check it.
 ############################################################
- IMDBFLAGS=$(head -n 1 $TMPRESCANFILE | tr -cd '0-9')
+ IMDBFLAGS=$(head -n 1 "$TMPRESCANFILE" 2>/dev/null | tr -cd '0-9')
  if [ ! -z "$IMDBFLAGS" ]; then
-  if [ $IMDBFLAGS -ge 4 ]; then
+  if [ "$IMDBFLAGS" -ge 4 ]; then
    EXTERNALSCRIPTNAME=""
    let IMDBFLAGS=IMDBFLAGS-4
   fi
-  if [ $IMDBFLAGS -ge 2 ]; then
+  if [ "$IMDBFLAGS" -ge 2 ]; then
    DOTIMDB=""
    INFOTEMPNAME=""
    let IMDBFLAGS=IMDBFLAGS-2
   fi
-  if [ $IMDBFLAGS -ge 1 ]; then
+  if [ "$IMDBFLAGS" -ge 1 ]; then
    USEBOT=""
   fi
  fi
 
- if [ -z "$LANGUAGENUM" ] || [ $LANGUAGENUM -eq 0 ]; then
+ if [ -z "$LANGUAGENUM" ] || [ "$LANGUAGENUM" -eq 0 ]; then
   LANGUAGENUM=99
  fi
- if [ -z "$COUNTRYNUM" ] || [ $COUNTRYNUM -eq 0 ]; then
+ if [ -z "$COUNTRYNUM" ] || [ "$COUNTRYNUM" -eq 0 ]; then
   COUNTRYNUM=99
  fi
- if [ -z "$CERTIFICATIONNUM" ] || [ $CERTIFICATIONNUM -eq 0 ]; then
+ if [ -z "$CERTIFICATIONNUM" ] || [ "$CERTIFICATIONNUM" -eq 0 ]; then
   CERTIFICATIONNUM=99
  fi
- if [ -z "$CASTNUM" ] || [ $CASTNUM -eq 0 ]; then
+ if [ -z "$CASTNUM" ] || [ "$CASTNUM" -eq 0 ]; then
   CASTNUM=99
  fi
- if [ -z "$GENRENUM" ] || [ $GENRENUM -eq 0 ]; then
+ if [ -z "$GENRENUM" ] || [ "$GENRENUM" -eq 0 ]; then
   GENRENUM=99
  fi
- if [ -z "$RUNTIMENUM" ] || [ $RUNTIMENUM -eq 0 ]; then
+ if [ -z "$RUNTIMENUM" ] || [ "$RUNTIMENUM" -eq 0 ]; then
   RUNTIMENUM=99
  fi
- if [ -z "$DIRECTORNUM" ] || [ $DIRECTORNUM -eq 0 ]; then
+ if [ -z "$DIRECTORNUM" ] || [ "$DIRECTORNUM" -eq 0 ]; then
   DIRECTORNUM=99
  fi
 
@@ -431,21 +339,53 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   SHOWMETACRITIC="NO"
  fi
 
- while [ ! -z "$(cat $IMDBLOG)" ]; do
-  IMDBLINE="$(grep -a -e "/" "$IMDBLOG" | head -n 1)"
-  grep -a -F -v "$IMDBLINE" "$IMDBLOG" > $TMPFILE
-  cat $TMPFILE > $IMDBLOG
+# Save the effective per-release defaults (after run-level IMDBFLAGS
+# processing) so each queue entry starts fresh. Per-entry branches (API
+# error, missing dir, find /dev/null entries) must not leak state into the
+# next release processed in the same run.
+  DOTIMDB_DEFAULT="$DOTIMDB"
+  USEBOT_DEFAULT="$USEBOT"
+  EXTERNALSCRIPTNAME_DEFAULT="$EXTERNALSCRIPTNAME"
+  INFOTEMPNAME_DEFAULT="$INFOTEMPNAME"
+  BOTONELINE_DEFAULT="$BOTONELINE"
+  TRIGGER_DEFAULT="$TRIGGER"
+  LOGFORMAT_DEFAULT="$LOGFORMAT"
+  MYOWNFORMAT_DEFAULT="$MYOWNFORMAT"
+  MYOWNEMPTY_DEFAULT="$MYOWNEMPTY"
+  GLLOG_DEFAULT="$GLLOG"
+  TAGPLOT_DEFAULT="$TAGPLOT"
+  BOTHEAD_DEFAULT="$BOTHEAD"
+
+ while [ ! -z "$(cat "$IMDBLOG")" ]; do
+  IMDBLINE="$(grep -e "/" "$IMDBLOG" | head -n 1)"
+  grep -F -v "$IMDBLINE" "$IMDBLOG" > "$TMPFILE"
+  cat "$TMPFILE" > "$IMDBLOG"
+  DOTIMDB="$DOTIMDB_DEFAULT"
+  USEBOT="$USEBOT_DEFAULT"
+  EXTERNALSCRIPTNAME="$EXTERNALSCRIPTNAME_DEFAULT"
+  INFOTEMPNAME="$INFOTEMPNAME_DEFAULT"
+  BOTONELINE="$BOTONELINE_DEFAULT"
+  TRIGGER="$TRIGGER_DEFAULT"
+  LOGFORMAT="$LOGFORMAT_DEFAULT"
+  MYOWNFORMAT="$MYOWNFORMAT_DEFAULT"
+  MYOWNEMPTY="$MYOWNEMPTY_DEFAULT"
+  GLLOG="$GLLOG_DEFAULT"
+  TAGPLOT="$TAGPLOT_DEFAULT"
+  BOTHEAD="$BOTHEAD_DEFAULT"
   ISLIMITED=""
   BUSINESS=""
   BUSINESSSHORT=""
   PREMIERE=""
   LIMITED=""
   EXEMPTED=""
-  IMDBURL="$(echo $IMDBLINE | cut -d "|" -f 1)"
-  IMDBLNK="$(echo $IMDBLINE | cut -d "|" -f 2)"
-  IMDBDST="$(echo $IMDBLINE | cut -d "|" -f 3)"
+  IMDBURL="$(echo "$IMDBLINE" | cut -d "|" -f 1)"
+  if [ ! -z "$IMDBURL" ] && [ ! -z "$LOCALURL" ]; then
+   IMDBURL="$(imdb_localize_url "$IMDBURL" "$LOCALURL")"
+  fi
+  IMDBLNK="$(echo "$IMDBLINE" | cut -d "|" -f 2)"
+  IMDBDST="$(echo "$IMDBLINE" | cut -d "|" -f 3)"
   DEBUGCOUNT=1
-  if [ ! -z $DEBUG ]; then
+  if [ ! -z "$DEBUG" ]; then
    echo "$DEBUGCOUNT : DOTIMDB = '$DOTIMDB'"
    echo "$DEBUGCOUNT : USEBOT = '$USEBOT'"
   fi
@@ -464,7 +404,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
    LOGFORMAT="$FINDLOGFORMAT"
    MYOWNFORMAT="$FINDMYOWNFORMAT"
    MYOWNEMPTY="$FINDMYOWNEMPTY"
-   if [ ! -z "$PSXCFINDLOG" ] && [ -w $PSXCFINDLOG ]; then
+   if [ ! -z "$PSXCFINDLOG" ] && [ -w "$PSXCFINDLOG" ]; then
     GLLOG=$PSXCFINDLOG
    fi
   else
@@ -474,12 +414,12 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
    INFOTEMPNAME=""
   fi
   DEBUGCOUNT=2
-  if [ ! -z $DEBUG ]; then
+  if [ ! -z "$DEBUG" ]; then
    echo "$DEBUGCOUNT : DOTIMDB = '$DOTIMDB'"
    echo "$DEBUGCOUNT : USEBOT = '$USEBOT'"  
   fi
   for EXEMPT in $BOTEXEMPT; do
-   if [ ! -z $(echo "$IMDBLKL" | grep -a "$EXEMPT") ]; then
+   if [ ! -z "$(echo "$IMDBLKL" | grep "$EXEMPT")" ]; then
     USEBOT=""
     EXEMPTED="ON"
    fi
@@ -490,40 +430,48 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
    BOTHEAD=""
   fi
   DEBUGCOUNT=3
-  if [ ! -z $DEBUG ]; then
+  if [ ! -z "$DEBUG" ]; then
    echo "$DEBUGCOUNT : DOTIMDB = '$DOTIMDB'"
    echo "$DEBUGCOUNT : USEBOT = '$USEBOT'"  
   fi
-  if [ ! -z $(grep -a "$IMDBURL" "$IMDBURLLOG") ] || [ ! -z $EXEMPTED ]; then
+  if [ ! -z "$(grep "$IMDBURL" "$IMDBURLLOG")" ] || [ ! -z "$EXEMPTED" ]; then
    if [ ! "$IMDBLKL" = "/dev/null" ]; then
     USEBOT=""
    fi
   else
    if [ ! "$IMDBLKL" = "/dev/null" ]; then
-    echo "$IMDBURL" >> $IMDBURLLOG
-    tail -n $KEEPURLS $IMDBURLLOG > $TMPFILE
-    cat $TMPFILE > $IMDBURLLOG
-    echo -n "" > $TMPFILE
+    echo "$IMDBURL" >> "$IMDBURLLOG"
+    tail -n "$KEEPURLS" "$IMDBURLLOG" > "$TMPFILE"
+    cat "$TMPFILE" > "$IMDBURLLOG"
+    echo -n "" > "$TMPFILE"
    fi
   fi
   DEBUGCOUNT=4
-  if [ ! -z $DEBUG ]; then
+  if [ ! -z "$DEBUG" ]; then
    echo "$DEBUGCOUNT : DOTIMDB = '$DOTIMDB'"
    echo "$DEBUGCOUNT : USEBOT = '$USEBOT'"
   fi
 
+# Snapshot the release dir's original date so it can be restored after
+# writing the info files (FIXDIRTIME gated). Works chrooted and on host.
+  RELDIR="$GLROOT$IMDBLKL"
+  [ -d "$RELDIR" ] || RELDIR="$IMDBLKL"
+  if [ ! -z "$FIXDIRTIME" ] && [ -d "$RELDIR" ]; then
+   touch -r "$RELDIR" "$DIRDATE_CARRIER" >/dev/null 2>&1
+  fi
+
 # grab info from GraphQL API
 #############################
-  IMDB_ID=$(extract_imdb_id "$IMDBURL")
+  IMDB_ID=$(imdb_extract_id "$IMDBURL")
   OUTPUTOK=""
 
   if [ -z "$IMDB_ID" ]; then
-    if [ ! -z $DEBUG ]; then
+    if [ ! -z "$DEBUG" ]; then
       echo "DEBUG: Could not extract IMDb ID from $IMDBURL"
     fi
   else
     TITLE_QUERY="query{title(id:\"${IMDB_ID}\"){titleText{text}originalTitleText{text}releaseYear{year}titleType{text}genres{genres{text}}ratingsSummary{aggregateRating voteCount}plot{plotText{plainText}}runtime{seconds}directors:credits(first:${DIRECTORNUM},filter:{categories:[\"director\"]}){edges{node{name{nameText{text}}}}}stars:credits(first:${CASTNUM},filter:{categories:[\"actor\",\"actress\"]}){edges{node{name{nameText{text}}}}}countriesOfOrigin{countries{id}}spokenLanguages{spokenLanguages{id}}akas(first:50){edges{node{text country{id}}}}taglines(first:1){edges{node{text}}}certificates(first:50){edges{node{rating country{id}}}}releaseDates(first:100){edges{node{day month year country{id}attributes{text}}}}productionBudget{budget{amount currency}}worldwide:lifetimeGross(boxOfficeArea:WORLDWIDE){total{amount currency}}openingWeekendGross(boxOfficeArea:DOMESTIC){gross{total{amount currency}}}metacritic{metascore{score reviewCount}}}}"
-    API_RESPONSE=$(graphql_request "$TITLE_QUERY")
+    API_RESPONSE=$(imdb_request "$TITLE_QUERY")
 
     if [ $? -eq 0 ] && [ -n "$API_RESPONSE" ]; then
       TITLE=$($JQ_BIN -r '.data.title.titleText.text // empty' <<< "$API_RESPONSE")
@@ -548,45 +496,16 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         # Extract language from release name and look up localized AKA title
         LOCALETITLE=""
         if [ -z "$USEORIGTITLE" ]; then
-          RELLANG=$(echo "$IMDBDIR" | tr '.\-_' '\n' | tr 'A-Z' 'a-z' | grep -axF -e chinese -e dutch -e english -e finnish -e french -e german -e greek -e hebrew -e hungarian -e italian -e japanese -e korean -e norwegian -e polish -e portuguese -e romanian -e russian -e spanish -e swedish -e turkish -e nl -e fr -e de -e it -e es -e en -e danish -e icelandic -e czech | head -n 1)
-          if [ ! -z "$RELLANG" ]; then
-            case "$RELLANG" in
-              chinese)    AKA_CC="CN" ;;
-              dutch)      AKA_CC="NL" ;;
-              english)    AKA_CC="GB" ;;
-              finnish)    AKA_CC="FI" ;;
-              french)     AKA_CC="FR" ;;
-              german)     AKA_CC="DE" ;;
-              greek)      AKA_CC="GR" ;;
-              hebrew)     AKA_CC="IL" ;;
-              hungarian)  AKA_CC="HU" ;;
-              italian)    AKA_CC="IT" ;;
-              japanese)   AKA_CC="JP" ;;
-              korean)     AKA_CC="KR" ;;
-              norwegian)  AKA_CC="NO" ;;
-              polish)     AKA_CC="PL" ;;
-              portuguese) AKA_CC="PT" ;;
-              romanian)   AKA_CC="RO" ;;
-              russian)    AKA_CC="RU" ;;
-              spanish)    AKA_CC="ES" ;;
-              swedish)    AKA_CC="SE" ;;
-              turkish)    AKA_CC="TR" ;;
-              nl)         AKA_CC="NL" ;;
-              fr)         AKA_CC="FR" ;;
-              de)         AKA_CC="DE" ;;
-              it)         AKA_CC="IT" ;;
-              es)         AKA_CC="ES" ;;
-              en)         AKA_CC="GB" ;;
-              danish)     AKA_CC="DK" ;;
-              icelandic)  AKA_CC="IS" ;;
-              czech)      AKA_CC="CZ" ;;
-              *)          AKA_CC="" ;;
-            esac
-            if [ ! -z "$AKA_CC" ]; then
-              LOCALETITLE=$($JQ_BIN -r --arg cc "$AKA_CC" '(.data.title.akas.edges // []) | map(select(.node.country.id == $cc)) | .[0].node.text // empty' <<< "$API_RESPONSE")
-              if [ -z "$LOCALETITLE" ] && [ ! -z $DEBUG ]; then
-                echo "DEBUG: No AKA found for $IMDB_ID in country $AKA_CC"
-              fi
+          RELLANG=$(echo "$IMDBDIR" | tr '.\-_' '\n' | tr 'A-Z' 'a-z' | grep -xF -e chinese -e dutch -e english -e finnish -e french -e german -e greek -e hebrew -e hungarian -e italian -e japanese -e korean -e norwegian -e polish -e portuguese -e romanian -e russian -e spanish -e swedish -e turkish -e nl -e fr -e de -e it -e es -e en -e danish -e icelandic -e czech | head -n 1)
+          if [ -n "$RELLANG" ] && [ -n "${LANG_TO_COUNTRY[$RELLANG]:-}" ]; then
+            AKA_CC="${LANG_TO_COUNTRY[$RELLANG]}"
+          else
+            AKA_CC=""
+          fi
+          if [ ! -z "$AKA_CC" ]; then
+            LOCALETITLE=$($JQ_BIN -r --arg cc "$AKA_CC" '(.data.title.akas.edges // []) | map(select(.node.country.id == $cc)) | .[0].node.text // empty' <<< "$API_RESPONSE")
+            if [ -z "$LOCALETITLE" ] && [ ! -z $DEBUG ]; then
+              echo "DEBUG: No AKA found for $IMDB_ID in country $AKA_CC"
             fi
           fi
         fi
@@ -663,7 +582,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         RUNTIMECLEAN="$RUNTIME"
 
         DIRECTORCLEAN=$($JQ_BIN -r '(.data.title.directors.edges // []) | .[0:'"$DIRECTORNUM"'] | map(.node.name.nameText.text) | join("/")' <<< "$API_RESPONSE")
-        DIRECTOR="Directed by..: $DIRECTORCLEAN"
+        DIRECTOR="$DIRECTORCLEAN"
 
         CASTCLEAN=$($JQ_BIN -r '(.data.title.stars.edges // []) | .[0:'"$CASTNUM"'] | map(.node.name.nameText.text) | join(", ")' <<< "$API_RESPONSE")
         CAST="$CASTCLEAN"
@@ -728,14 +647,14 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     if [ -n "$UNSUPPORTED_TYPE" ]; then
       ERROR_MSG="iMDB type '$TITLETYPE' not fully supported (limited data available)"
     fi
-    if [ ! -z "$(echo $IMDBLKL | grep -a -e "/dev/null")" ]; then
-      if [ -z "$LOGFORMAT" ]; then
-        echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ERROR_MSG\" \"$IMDBDST\"" >> $GLLOG
-      elif [ "$LOGFORMAT" = "MYOWN" ]; then
-        echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ERROR_MSG\" \"$IMDBDST\"" >> $GLLOG
-      else
-        echo "$DATE $TRIGGER \"$IMDBLKL\" \"\" \"$ERROR_MSG\"" >> $GLLOG
-      fi
+    if [ ! -z "$(echo "$IMDBLKL" | grep -e "/dev/null")" ]; then
+     if [ -z "$LOGFORMAT" ]; then
+        imdb_write_log "$ERROR_MSG"
+       elif [ "$LOGFORMAT" = "MYOWN" ]; then
+        imdb_write_log "$ERROR_MSG"
+       else
+        echo "$DATE $TRIGGER \"$IMDBLKL\" \"\" \"$ERROR_MSG\"" >> "$GLLOG"
+       fi
     else
       rm -f "$GLROOT/$IMDBLKL/$INFOTEMPNAME" >/dev/null 2>&1
       rmdir "$GLROOT/$IMDBLKL/$INFOTEMPNAME" >/dev/null 2>&1
@@ -748,16 +667,16 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 
     if [ ! -z "$USEBOM" ]; then
       BOMURL="https://www.boxofficemojo.com/title/${IMDB_ID}/"
-      BOM_RESPONSE=$(curl $CURLFLAGS -s -A "$USERAGENT" --connect-timeout $IMDBAPI_TIMEOUT "$BOMURL" 2>/dev/null)
+      BOM_RESPONSE=$(curl "$CURLFLAGS" -s -A "$USERAGENT" --connect-timeout "$IMDBAPI_TIMEOUT" "$BOMURL" 2>/dev/null)
       if [ -n "$BOM_RESPONSE" ]; then
         BOMRELEASEGROUP=$(echo "$BOM_RESPONSE" | sed -n -E 's|.*<option value="(/releasegroup/gr[0-9]+/)">Original Release</option>.*|\1|p')
         if [ -n "$BOMRELEASEGROUP" ]; then
           BOMURLRELEASEGROUP="https://www.boxofficemojo.com${BOMRELEASEGROUP}"
-          BOM_RELEASE=$(curl $CURLFLAGS -s -A "$USERAGENT" --connect-timeout $IMDBAPI_TIMEOUT "$BOMURLRELEASEGROUP" 2>/dev/null)
+          BOM_RELEASE=$(curl "$CURLFLAGS" -s -A "$USERAGENT" --connect-timeout "$IMDBAPI_TIMEOUT" "$BOMURLRELEASEGROUP" 2>/dev/null)
           BOMRELEASE=$(echo "$BOM_RELEASE" | sed -n -E 's|.*<a class="a-link-normal" href="(/release/rl[0-9]+/)[^\"]*">Domestic[^\n]*</a>.*|\1|p' | head -1)
           if [ -n "$BOMRELEASE" ]; then
             BOMURLRELEASE="https://www.boxofficemojo.com${BOMRELEASE}"
-            BOM_DETAIL=$(curl $CURLFLAGS -s -A "$USERAGENT" --connect-timeout $IMDBAPI_TIMEOUT "$BOMURLRELEASE" 2>/dev/null)
+            BOM_DETAIL=$(curl "$CURLFLAGS" -s -A "$USERAGENT" --connect-timeout "$IMDBAPI_TIMEOUT" "$BOMURLRELEASE" 2>/dev/null)
             if [ ! -z "$USEWIDEST" ]; then
               BUSINESSSCREENS=$(echo "$BOM_DETAIL" | sed -n -E 's|.*<div[^>]*><span>Widest Release</span><span>([0-9,]+) theaters</span></div>.*|\1|p' | head -1 | tr -d ',')
             else
@@ -776,7 +695,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       fi
     fi
    if [ ! -z "$IMDBHEAD" ]; then
-    BOTHEAD=$(echo $BOTHEADORIG | sed "s/RELEASENAME/$BOLD$IMDBDIR$BOLD/")
+    BOTHEAD=$(echo "$BOTHEAD" | sed "s/RELEASENAME/$BOLD$IMDBDIR$BOLD/")
    fi
    if [ ! -z $DEBUG ]; then
     DEBUGCOUNT=5
@@ -797,9 +716,6 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 # Time to put stuff out so the bot can read it.
 ###############################################
 
-    if [ ! -z "$LOCALURL" ]; then
-     IMDBURL="$(echo $IMDBURL | sed "s|/www.|/$LOCALURL.|g" | tr 'A-Z' 'a-z')"
-    fi
     HEADTMP="Title........: $BOLD$TITLE$BOLD"
     if [ ! -z "$COUNTRY" ]; then
      HEADTMP="$HEADTMP / $COUNTRY"
@@ -809,59 +725,59 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     fi
     HEAD=$(echo "$HEADTMP" | sed "s/Country......: //" | sed "s/Language.....: //" | tr -s ' ')
     if [ ! -z "$BOTHEAD" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$BOTHEAD\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$BOTHEAD"
     fi
     if [ ! -z "$HEAD" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$HEAD\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$HEAD"
     fi
     if [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"IMDb Link....: $IMDBURL\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "IMDb Link....: $IMDBURL"
     fi
     if [ ! -z "$DIRECTOR" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$DIRECTOR\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$DIRECTOR"
     fi
     if [ ! -z "$GENRE" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$GENRE\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$GENRE"
     fi
     if [ ! -z "$RATING" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$RATING\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$RATING"
     fi
     if [ ! -z "$SHOWMETACRITIC" ] && [ ! -z "$METASCORE" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Metacritic..: $METASCORE/100 ($METAREVIEWS reviews)\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "Metacritic..: $METASCORE/100 ($METAREVIEWS reviews)"
     fi
     if [ ! -z "$SHOWSTAR" ] && [ -z "$BOTONELINE" ] && [ ! -z "$CASTLEADNAME" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Starring.....: $CASTLEADNAME as $CASTLEADCHAR\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "Starring.....: $CASTLEADNAME as $CASTLEADCHAR"
     fi
     if [ ! -z "$RUNTIME" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$RUNTIME\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$RUNTIME"
     fi
     if [ ! -z "$BUSINESSSHORT" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Opening Stats: $BUSINESSSHORT\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+     imdb_write_log "Opening Stats: $BUSINESSSHORT" --usd
     fi
     if [ ! -z "$PREMIERE" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Premiere Date: $PREMIERE\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "Premiere Date: $PREMIERE"
     fi
     if [ ! -z "$LIMITED" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"Limited Date.: $LIMITED\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "Limited Date.: $LIMITED"
     fi
     if [ ! -z "$TAGLINE" ] && [ ! -z "$PLOT" ] && [ -z "$BOTONELINE" ]; then
      if [ "$TAGPLOT" = "TAG" ] || [ -z "$TAGPLOT" ] ; then
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$TAGLINE\" \"$IMDBDST\"" >> $GLLOG
+      imdb_write_log "$TAGLINE"
      fi
      if [ "$TAGPLOT" = "PLOT" ] || [ -z "$TAGPLOT" ]; then
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$PLOT\" \"$IMDBDST\"" >> $GLLOG
+      imdb_write_log "$PLOT"
      fi
     elif [ ! -z "$TAGLINE" ] && [ ! "$TAGPLOT" = "NONE" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$TAGLINE\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$TAGLINE"
     elif [ ! -z "$PLOT" ] && [ ! "$TAGPLOT" = "NONE" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$PLOT\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$PLOT"
     fi
     if [ ! -z "$SHOWCOMMENTSHORT" ] && [ ! "$COMMENTSHORT" = "User Reviews:" ] && [ -z "$BOTONELINE" ]; then
-     echo "$DATE $TRIGGER \"$IMDBLKL\" \"$COMMENTSHORT\" \"$IMDBDST\"" >> $GLLOG
+     imdb_write_log "$COMMENTSHORT"
     fi
     if  [ ! -z "$BOTONELINE" ]; then
      if [ -z "$LOGFORMAT" ]; then
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$ONELINE\" \"$IMDBDST\"" >> $GLLOG
+      imdb_write_log "$ONELINE"
      elif [ "$LOGFORMAT" = "MYOWN" ]; then
 #      NEWLINE="|"
       MYOWNPAIRS="%imdbdirname|IMDBDIR %imdburl|IMDBURL %imdbtitle|TITLE %imdbgenre|GENRECLEAN %imdbrating|RATINGCLEAN %imdbcountry|COUNTRYCLEAN %imdblanguage|LANGUAGECLEAN %imdbcertification|CERTCLEAN %imdbruntime|RUNTIMECLEAN %imdbdirector|DIRECTORCLEAN %imdbbusinessdata|BUSINESSSHORT %imdbpremiereinfo|PREMIERE %imdblimitedinfo|LIMITED %imdbvotes|RATINGVOTES %imdbscore|RATINGSCORE %imdbname|TITLENAME %imdbyear|TITLEYEAR %imdbnumscreens|BUSINESSSCREENS %imdbislimited|ISLIMITED %imdbcastleadname|CASTLEADNAME %imdbcastleadchar|CASTLEADCHAR %imdbtagline|TAGLINECLEAN %imdbplot|PLOTCLEAN %imdbbar|RATINGBAR %imdbcasting|CASTCLEAN %imdbcommentshort|COMMENTSHORTCLEAN %imdbmetacritic|METACLEAN %newline|NEWLINE %bold|BOLD"
@@ -879,19 +795,19 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       if [ "$IMDBSPLITLINES" = "YES" ]; then
        LINE1="${MYOWNFORMAT1%%\\n*}"
        LINE2="${MYOWNFORMAT1#*\\n}"
-       if [ "$LINE1" != "$LINE2" ]; then
-        echo "$DATE $TRIGGER \"$IMDBLKL\" \"$LINE1\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
-        CURTRIG="$TRIGGER"
-        [ -n "$IMDBSPLITTRIG" ] && CURTRIG="$IMDBSPLITTRIG"
-        echo "$DATE $CURTRIG \"$IMDBLKL\" \"$LINE2\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+        if [ "$LINE1" != "$LINE2" ]; then
+         imdb_write_log "$LINE1" --usd
+         CURTRIG="$TRIGGER"
+         [ -n "$IMDBSPLITTRIG" ] && CURTRIG="$IMDBSPLITTRIG"
+         imdb_write_log "$LINE2" --usd "$CURTRIG"
        else
-        echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+        imdb_write_log "${MYOWNFORMAT1}" --usd
        fi
       else
-       echo "$DATE $TRIGGER \"$IMDBLKL\" \"${MYOWNFORMAT1}\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+       imdb_write_log "${MYOWNFORMAT1}" --usd
       fi
      else
-      echo "$DATE $TRIGGER \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$METACLEAN\" \"$IMDBDST\"" | tr '[=$=]' '¤' | sed "s|¤|USD|g" >> $GLLOG
+      imdb_write_log "$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$METACLEAN" --usd
      fi
     fi
    fi
@@ -900,101 +816,101 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 # Echo stuff to the .imdb file
 ##############################
 
-    echo -e "$IMDBHEAD" > "$IMDBLNK"
-    OWNER=$(ls -1nl "$GLROOT$IMDBLKL" | tail -n 1 | { read junk junk owner group junk; echo $owner:$group; };)
-    echo "Title........: $TITLE" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+    printf "%b\n" "$IMDBHEAD" > "$IMDBLNK"
+    OWNER=$(ls -1nl "$GLROOT$IMDBLKL" | tail -n 1 | { read junk junk owner group junk; echo "$owner:$group"; };)
+    echo "Title........: $TITLE" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     echo "-" >> "$IMDBLNK"
     echo "IMDb Link....: $IMDBURL" | head -n 1 >> "$IMDBLNK"
     if [ ! -z "$DIRECTOR" ]; then
-     echo "$DIRECTOR" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "$DIRECTOR" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$GENRE" ]; then
-     echo "$GENRE" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "$GENRE" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$RATING" ]; then
-     echo "$RATING" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "$RATING" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$SHOWMETACRITIC" ] && [ ! -z "$METASCORE" ]; then
-     echo "Metacritic..: $METASCORE/100 ($METAREVIEWS reviews)" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "Metacritic..: $METASCORE/100 ($METAREVIEWS reviews)" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$TAGLINE" ]; then
-     echo "$TAGLINE" | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
+     echo "$TAGLINE" | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
     fi
     echo "-" >> "$IMDBLNK"
     if [ ! -z "$COUNTRY" ]; then
-     echo "$COUNTRY" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "$COUNTRY" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$LANGUAGE" ]; then
-     echo "$LANGUAGE" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "$LANGUAGE" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$CERT" ]; then
-     echo "Certification:[[SPACE]]$CERT" | fold -s -w $IMDBWIDTH | head -n 1 | sed 's/\[\[SPACE\]\]/ /' >> "$IMDBLNK"
+     echo "Certification:[[SPACE]]$CERT" | fold -s -w "$IMDBWIDTH" | head -n 1 | sed 's/\[\[SPACE\]\]/ /' >> "$IMDBLNK"
     fi
     if [ ! -z "$PREMIERE" ]; then
-     echo "Premiere Date: $PREMIERE" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "Premiere Date: $PREMIERE" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$LIMITED" ]; then
-     echo "Limited Date.: $LIMITED" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "Limited Date.: $LIMITED" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$RUNTIME" ]; then
-     echo "Runtime......: $RUNTIME" | fold -s -w $IMDBWIDTH | head -n 1 >> "$IMDBLNK"
+     echo "Runtime......: $RUNTIME" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     fi
     if [ ! -z "$CAST" ]; then
      echo "-" >> "$IMDBLNK"
      echo "Credited Cast:" >> "$IMDBLNK"
-     echo "$CAST" | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
+     echo "$CAST" | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
     fi
     if [ ! -z "$BUSINESS" ]; then
      echo "-" >> "$IMDBLNK"
      echo "Business Data on Opening Weekend:" >> "$IMDBLNK"
-     echo "$BUSINESS" | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
+     echo "$BUSINESS" | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
     fi
     if [ ! -z "$PLOT" ]; then
      echo "-" >> "$IMDBLNK"
-     #echo "$PLOT" | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
-     echo "$PLOT" | sed s/"$NEWLINE"//g | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
+     #echo "$PLOT" | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
+     echo "$PLOT" | sed s/"$NEWLINE"//g | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
     fi
     if [ ! -z "$SHOWCOMMENT" ] && [ ! -z "$COMMENT" ]; then
      echo "---" >> "$IMDBLNK"
      echo "User Review:" >> "$IMDBLNK"
-     echo "$COMMENT" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | fold -s -w $IMDBWIDTH >> "$IMDBLNK"
+     echo "$COMMENT" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
     fi
-    echo -e "$IMDBTAIL" >> "$IMDBLNK"
+    printf "%b\n" "$IMDBTAIL" >> "$IMDBLNK"
    fi
 
    if [ ! -z "$INFOTEMPNAME" ] && [ -e "$GLROOT$IMDBLKL/$INFOTEMPNAME" ]; then
 
 # make a file/dir with imdb info in the name 
 
-    INFOGENRES=$(echo $GENRECLEAN | tr '/ ' '\n' |  sed -e /^$/d | wc -l)
-    if [ ! $INFOGENRES -gt $INFOGENREMAX ]; then
+    INFOGENRES=$(echo "$GENRECLEAN" | tr '/ ' '\n' |  sed -e /^$/d | wc -l)
+    if [ ! "$INFOGENRES" -gt "$INFOGENREMAX" ]; then
      let INFOGENREMAXED=INFOGENRES
     else
      let INFOGENREMAXED=INFOGENREMAX
     fi
-    if [ ! $INFOGENRES -lt 1 ]; then
-     GENREFILE="$(echo $GENRECLEAN | tr '/ ' '\n' |  sed -e /^$/d | head -n $INFOGENREMAX | tr '\n' ' ' | sed "s/ /$INFOGENRESEP/g" | cut -d "$INFOGENRESEP" -f 1-$INFOGENREMAXED)"
+    if [ ! "$INFOGENRES" -lt 1 ]; then
+     GENREFILE="$(echo "$GENRECLEAN" | tr '/ ' '\n' |  sed -e /^$/d | head -n "$INFOGENREMAX" | tr '\n' ' ' | sed "s/ /$INFOGENRESEP/g" | cut -d "$INFOGENRESEP" -f 1-"$INFOGENREMAXED")"
     else
      GENREFILE="Unclassified"
     fi
-    VOTESFILE="$(echo $RATINGVOTES | tr ',' '.')"
+    VOTESFILE="$(echo "$RATINGVOTES" | tr ',' '.')"
     [[ -z "$VOTESFILE" ]] && VOTESFILE="NA"
     SCOREFILE="$RATINGSCORE"
     [[ -z "$SCOREFILE" ]] && SCOREFILE="NA"
     LIMITEDFILE="$ISLIMITED"
     [[ -z "$LIMITEDFILE" ]] && LIMITEDFILE="unknown"
-    NUMSCREENS="$(echo $BUSINESSSCREENS | tr ',' '.')"
+    NUMSCREENS="$(echo "$BUSINESSSCREENS" | tr ',' '.')"
     [[ -z "$NUMSCREENS" ]] && NUMSCREENS="unknown"
     RUNTIMEFILE="$RUNTIMECLEAN"
     [[ -z "$RUNTIMEFILE" ]] && RUNTIMEFILE="unknown"
-    INFOFILENAMEOLD="$(echo "$INFOFILENAME" | tr -c $INFOVALID $INFOCHARTO | sed "s%VOTES%*%g" | sed "s%SCORE%*%g" | sed "s%GENRE%*%g" | sed "s%RUNTIME%*%g" | sed "s%YEAR%*%g" | sed "s%ISLIMITED%*%g" | sed "s%SCREENS%*%g")"
+    INFOFILENAMEOLD="$(echo "$INFOFILENAME" | tr -c "$INFOVALID" "$INFOCHARTO" | sed "s%VOTES%*%g" | sed "s%SCORE%*%g" | sed "s%GENRE%*%g" | sed "s%RUNTIME%*%g" | sed "s%YEAR%*%g" | sed "s%ISLIMITED%*%g" | sed "s%SCREENS%*%g")"
     INFOFILENAMEOLDA="$(echo "$INFOFILENAMEOLD" | sed "s%*%.*%g")"
     INFOFILENAMEOLDB="$(echo "$INFOFILENAMEOLDA" | tr '\]\[' '.')"
     INFOFILENAMEPRINT="$(echo "$INFOFILENAME" | sed "s%VOTES%$VOTESFILE%g" | sed "s%SCORE%$SCOREFILE%g" | sed "s%GENRE%$GENREFILE%g" | sed "s%RUNTIME%$RUNTIMEFILE%g" | sed "s%YEAR%$TITLEYEAR%g" | sed "s%ISLIMITED%$LIMITEDFILE%g" | sed "s%SCREENS%$NUMSCREENS%g")"
-    INFOFILENAMEPRINT="$(echo "$INFOFILENAMEPRINT" | tr -c $INFOVALID $INFOCHARTO)"
-    if [ ! -z "$(ls -1 "$GLROOT$IMDBLKL" | grep -a -e "$INFOFILENAMEOLDB")" ]; then
-     for OLDINFOFILE in $(ls -1  "$GLROOT$IMDBLKL" | grep -a -e "$INFOFILENAMEOLDB" | tr ' ' '^'); do
-      OLDINFOFILE="$(echo $OLDINFOFILE | tr '^' ' ')"
+    INFOFILENAMEPRINT="$(echo "$INFOFILENAMEPRINT" | tr -c "$INFOVALID" "$INFOCHARTO")"
+    if [ ! -z "$(ls -1 "$GLROOT$IMDBLKL" | grep -e "$INFOFILENAMEOLDB")" ]; then
+     for OLDINFOFILE in $(ls -1  "$GLROOT$IMDBLKL" | grep -e "$INFOFILENAMEOLDB" | tr ' ' '^'); do
+      OLDINFOFILE="$(echo "$OLDINFOFILE" | tr '^' ' ')"
       rm -f "$GLROOT$IMDBLKL/$OLDINFOFILE" >/dev/null 2>&1
       rmdir "$GLROOT$IMDBLKL/$OLDINFOFILE" >/dev/null 2>&1
      done
@@ -1005,47 +921,45 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 # create a thumbnail?
 
    if [ "$DOWNLOADTHUMB" = "YES" ]; then
-    FILENAME=$(ls -1Ftr "$GLROOT$IMDBLKL" | grep -a -v "/" | grep -a -v "@" | grep -a -e "[.][nN][fF][oO]" | head -n 1)
-    TMBNAME=$(echo $FILENAME | sed "s/\.nfo/.jpg/")
+    FILENAME=$(ls -1Ftr "$GLROOT$IMDBLKL" | grep -v "/" | grep -v "@" | grep -e "[.][nN][fF][oO]" | head -n 1)
+    TMBNAME=$(echo "$FILENAME" | sed "s/\.nfo/.jpg/")
     if [ ! -z "$USEWGET" ]; then
-     wget $WGETFLAGS -U "$USERAGENT" -O $TMPFILE --timeout=30 $GLROOT$IMDBLKL/$TMBNAME >/dev/null 2>&1
+     wget "$WGETFLAGS" -U "$USERAGENT" -O "$TMPFILE" --timeout=30 "$GLROOT$IMDBLKL/$TMBNAME" >/dev/null 2>&1
     elif [ ! -z "$USECURL" ]; then
-     curl $CURLFLAGS -A "$USERAGENT" -o $TMPFILE --connect-timeout 30 $GLROOT$IMDBLKL/$TMBNAME >/dev/null 2>&1
+     curl "$CURLFLAGS" -A "$USERAGENT" -o "$TMPFILE" --connect-timeout 30 "$GLROOT$IMDBLKL/$TMBNAME" >/dev/null 2>&1
     fi
    fi
 
 # Should we run any external scripts?
 
    if [ ! -z "$EXTERNALSCRIPTNAME" ]; then
-    FILENAMED=$(ls -1Ftr "$GLROOT$IMDBLKL" | grep -a -v "/" | grep -a -v "@" | grep -a -e "[.][nN][fF][oO]" | head -n 1)
-    if [ ! -z "$FILENAMED" ]; then
-     touch -acmr "$GLROOT$IMDBLKL/$FILENAMED" "$GLROOT$IMDBLKL" >/dev/null 2>&1
-    fi
     for EXTERNALNAME in $EXTERNALSCRIPTNAME; do
-     if [ "$DEBUG" = "4" ] && [ ! -z "$(head -n 1 $EXTERNALNAME | grep -a -e "/bin/bash")" ]; then
-      bash -x -v $EXTERNALNAME "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\" \"$METACLEAN\""
+     if [ "$DEBUG" = "4" ] && [ ! -z "$(head -n 1 "$EXTERNALNAME" | grep -e "/bin/bash")" ]; then
+      bash -x -v "$EXTERNALNAME" "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\" \"$METACLEAN\""
      else
-      $EXTERNALNAME "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\" \"$METACLEAN\""
+      "$EXTERNALNAME" "\"$DATE\" \"$IMDBLNK\" \"$IMDBLKL\" \"$IMDBDIR\" \"$IMDBURL\" \"$TITLE\" \"$GENRECLEAN\" \"$RATINGCLEAN\" \"$COUNTRYCLEAN\" \"$LANGUAGECLEAN\" \"$CERTCLEAN\" \"$RUNTIMECLEAN\" \"$DIRECTORCLEAN\" \"$BUSINESSSHORT\" \"$PREMIERE\" \"$LIMITED\" \"$RATINGVOTES\" \"$RATINGSCORE\" \"$TITLENAME\" \"$TITLEYEAR\" \"$BUSINESSSCREENS\" \"$ISLIMITED\" \"$CASTLEADNAME\" \"$CASTLEADCHAR\" \"$TAGLINECLEAN\" \"$PLOTCLEAN\" \"$RATINGBAR\" \"$CASTCLEAN\" \"$COMMENTSHORTCLEAN\" \"$COMMENTCLEAN\" \"$METACLEAN\""
      fi
-    done
+     done
+    fi
+   fi
 
 # restore the releasedir's original date.
 #########################################
-    FILENAMED=$(ls -1Ftr "$GLROOT$IMDBLKL" | grep -a -v "/" | grep -a -v "@" | grep -a -e "[.][nN][fF][oO]" | head -n 1)
-    if [ ! -z "$FILENAMED" ]; then
-     touch -acmr "$GLROOT$IMDBLKL/$FILENAMED" "$GLROOT$IMDBLKL" >/dev/null 2>&1
-    fi
+   RELDIR="$GLROOT$IMDBLKL"
+   [ -d "$RELDIR" ] || RELDIR="$IMDBLKL"
+   if [ ! -z "$FIXDIRTIME" ] && [ -f "$DIRDATE_CARRIER" ] && [ -d "$RELDIR" ]; then
+    touch -r "$DIRDATE_CARRIER" "$RELDIR" >/dev/null 2>&1
+    rm -f "$DIRDATE_CARRIER" >/dev/null 2>&1
    fi
-  fi
 
 # clean up and make ready for next run.
 #######################################
 
-  grep -a -F -v "$IMDBLINE" "$IMDBLOG" > $TMPFILE
-  cat $TMPFILE > $IMDBLOG
-  > $TMPFILE
+  grep -F -v "$IMDBLINE" "$IMDBLOG" > "$TMPFILE"
+  cat "$TMPFILE" > "$IMDBLOG"
+  > "$TMPFILE"
  done
- > $TMPRESCANFILE
- > $IMDBPID
+ > "$TMPRESCANFILE"
+ > "$IMDBPID"
 fi
 exit 0

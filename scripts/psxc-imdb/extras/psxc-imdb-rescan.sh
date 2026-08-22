@@ -17,10 +17,11 @@
 ########
 
 # Version. No need to change
-VERSION=2.9w
+VERSION=3.2
 
-# Path to psxc-imdb.sh. This is relative to GLROOT.
-PSXC_IMDB=/bin/psxc-imdb.sh
+# Path to psxc-imdb.sh. Auto-detected from this script's location
+# (both are deployed to the same dir, e.g. /bin inside the chroot).
+PSXC_IMDB="$(cd "$(dirname "$0")" && pwd)/psxc-imdb.sh"
 
 # Directories and symlinks to exclude, seperated by a |.
 # We don't want to rescan nuked dirs, so put here the output of this line:
@@ -72,18 +73,16 @@ if [ $# -eq 0 ]; then
 fi
 ARG=$1
 
-PSXC_CONF="`cat "$PSXC_IMDB" | grep -e "^CONFFILE" | head -n 1 | cut -d '=' -f 2`"
-. $PSXC_CONF
+# Source shared library and load psxc-imdb.conf (GLROOT's single source
+# of truth, auto-discovered from this script's location or /etc).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/psxc-imdb-lib.sh"
+imdb_set_defaults
+imdb_load_config || exit 1
 
-if [ ! -z $GLROOT ]; then
- MYTMPFILE="`echo "$TMPFILE" | sed "s%$GLROOT%%"`"
- MYTMPRESCANFILE="`echo "$TMPRESCANFILE" | sed "s%$GLROOT%%"`"
- IMDBPIDCHROOTED="`echo "$IMDBPID" | sed "s%$GLROOT%%"`"
-else
-  MYTMPFILE=$TMPFILE
-  MYTMPRESCANFILE=$TMPRESCANFILE
-  IMDBPIDCHROOTED=$IMDBPID
-fi
+MYTMPFILE=$(strip_glroot "$TMPFILE")
+MYTMPRESCANFILE=$(strip_glroot "$TMPRESCANFILE")
+IMDBPIDCHROOTED=$(strip_glroot "$IMDBPID")
 
 echo "Checking to see if psxc-imdb is running..."
 # If the PID is -1, it means we had psxc-imdb-rescan started in queuemode before
@@ -136,7 +135,7 @@ if [ ! "$ARG" = "-r" ]; then
  proc_doscan
 else
  echo "Scanning recursively for iMDB info.."
- for REL_DIR in `ls -1F | egrep "@$|/$" | grep -E -v "($EXCLUDES)" | tr ' ' '%'`; do
+ for REL_DIR in `ls -1F | grep -E "@$|/$" | grep -E -v "($EXCLUDES)" | tr ' ' '%'`; do
   REL_DIR="`echo $REL_DIR | tr '%@' ' /'`"
   echo "$REL_DIR ..."
   cd "$REL_DIR"

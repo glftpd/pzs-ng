@@ -9,45 +9,23 @@
 # and chmod'ed world read-writable.
 
 # version number. do not change.
-VERSION="v3.1-graphql"
+VERSION="v3.2"
 
 # needed binaries. do not change.
 BINARIES="date cat echo cut curl jq grep head sed awk fold rm bash ls basename dirname chmod ps wc"
 BINARIESCHROOT="wc grep tr sed head echo bash chmod basename pwd curl jq"
-
-# your glftpd root path.
-GLROOT=/glftpd
-
-# path to the config file when chrooted by glftpd.
-CONFFILE=/etc/psxc-imdb.conf
 
 ## End of config ##
 ###################
 
 ######################################################################################################
 
-# check if configfile exists
-############################
+# Source shared library for API functions
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/psxc-imdb-lib.sh"
 
-MYGLROOT=$GLROOT
-if [ -r $MYGLROOT$CONFFILE ]; then
- . $MYGLROOT$CONFFILE
- if [ $? -ne 0 ]; then
-  echo "Unable to open config file ($MYGLROOT$CONFFILE). Forced to exit."
-  exit 0
- fi
-elif [ -r $CONFFILE ]; then
- . $CONFFILE
- if [ $? -ne 0 ]; then
-  echo "Unable to open config file ($CONFFILE). Forced to exit."
-  exit 0
- fi
-else
- echo "Config file not found. Forced to exit."
- exit 0
-fi
-CHGLROOT=$GLROOT
-GLROOT=$MYGLROOT
+imdb_set_defaults
+imdb_load_config || exit 0
   clear
   echo "This script will do a few things to make sure the script can be run"
   echo "without too much fuss. First it will check to see if all binaries are"
@@ -86,9 +64,6 @@ GLROOT=$MYGLROOT
   echo "Press <RETURN> or 'depcheck' to Start, <CTRL-C> to Break"; read line;
   echo ""
   echo "Searching in $GLROOT/bin: "
-  if [ ! "$CHGLROOT" = "$GLROOT" ]; then
-   BINARIESCHROOT="$BINARIESCHROOT $BINARIES"
-  fi
   for BINAR in $BINARIESCHROOT; do
    if [ "$line" = "depcheck" ]; then
     echo "removing $BINAR"
@@ -232,12 +207,17 @@ GLROOT=$MYGLROOT
    echo "$jqtest"
   fi
   echo -n "Verifying that IMDB GraphQL API is reachable ..."
-  apitest=$(curl -s -A "psxc-imdb-sanity" --connect-timeout 10 -X POST -H "Content-Type: application/json" -d '{"query":"query{title(id:\"tt0111161\"){titleText{text}}}"}' https://graphql.imdb.com/ 2>&1 | jq -r '.data.title.titleText.text' 2>&1)
+  SANITY_QUERY='query{title(id:"tt0111161"){titleText{text}}}'
+  SANITY_RESPONSE=$(imdb_request "$SANITY_QUERY")
+  apitest=""
+  if [ -n "$SANITY_RESPONSE" ]; then
+   apitest=$($JQ_BIN -r '.data.title.titleText.text // empty' <<< "$SANITY_RESPONSE" 2>/dev/null)
+  fi
   if [ "$apitest" = "The Shawshank Redemption" ]; then
    echo " looks good."
   else
    echo " GraphQL API test failed. Please check your connection."
-   echo "    Response: $apitest"
+   echo "    Response: ${apitest:-<empty>}"
   fi
   echo -n "Checking for locale settings ..."
   if [ -z "$LC_ALL" ]; then
@@ -263,11 +243,6 @@ GLROOT=$MYGLROOT
    echo "    Please fix."
   else
    echo "OK."
-  fi
-  if [ ! "$CHGLROOT" = "$GLROOT" ]; then
-   echo "You seem to run psxc-imdb totally under chroot."
-   echo "Make sure curl and jq are available in $GLROOT/bin/"
-   echo ""
   fi
   echo ""
   echo "Done testing."

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=3.1
+VERSION=3.2
 
 ############################################################################
 # some variables.                                                          #
@@ -15,7 +15,11 @@ installdir=.install
 installvars=.install.vars
 backupdir=.backup_`date +%Y%m%d-%H%M.%S`
 
-scrlist="psxc-imdb.conf|c psxc-imdb-nuker.sh|g psxc-symlink-maker.sh|g psxc-imdb-dotimdb.pl|g psxc-imdb-rescan.sh|g psxc-imdb-find.sh|g psxc-imdb-sanity.sh|g psxc-imdb.tcl|s psxc-imdb.zpt|s psxc-imdb.sh|g"
+scrlist="psxc-imdb.conf|c psxc-imdb-lib.sh|g psxc-imdb-nuker.sh|g psxc-symlink-maker.sh|g psxc-imdb-dotimdb.pl|g psxc-imdb-rescan.sh|g psxc-imdb-find.sh|g psxc-imdb-sanity.sh|g psxc-imdb.tcl|s psxc-imdb.zpt|s psxc-imdb.sh|g"
+
+# Files that genuinely need editing/checking to work. The rest work with
+# defaults or inherit their config from psxc-imdb.conf.
+editables="psxc-imdb.conf psxc-imdb.tcl psxc-symlink-maker.sh psxc-imdb-nuker.sh"
 
 #                                                                          #
 ############################################################################
@@ -87,6 +91,146 @@ check_id ()
  fi
 }
 
+find_binary() {
+  local binary="$1"
+  local search_paths="/usr/local/bin /usr/bin /bin /usr/sbin /sbin"
+  
+  for path in $search_paths; do
+    if [ -x "$path/$binary" ]; then
+      echo "$path/$binary"
+      return 0
+    fi
+  done
+  
+  # Fallback to PATH search
+  if command -v "$binary" >/dev/null 2>&1; then
+    command -v "$binary"
+    return 0
+  fi
+  
+  return 1
+}
+
+detect_os() {
+  if [ "$(uname)" = "FreeBSD" ]; then
+    echo "freebsd"
+  elif [ -f /etc/debian_version ]; then
+    echo "debian"
+  elif [ -f /etc/redhat-release ] || [ -f /etc/centos-release ] || [ -f /etc/fedora-release ]; then
+    echo "redhat"
+  elif [ -f /etc/SuSE-release ] || [ -f /etc/SUSE-brand ]; then
+    echo "suse"
+  elif [ -f /etc/alpine-release ]; then
+    echo "alpine"
+  else
+    echo "linux"
+  fi
+}
+
+check_required_binaries() {
+  local os_type=$(detect_os)
+  local missing_critical=""
+  local missing_optional=""
+  
+  echo ""
+  echo "Checking required binaries..."
+  echo ""
+  
+  # Critical binaries (must have)
+  for binary in bash jq curl; do
+    local path=$(find_binary "$binary")
+    if [ -z "$path" ]; then
+      missing_critical="$missing_critical $binary"
+      echo "  [X] $binary: NOT FOUND"
+    else
+      # Store detected path for later use
+      eval "BINARY_$(echo $binary | tr 'a-z' 'A-Z')=\"$path\""
+      echo "  [OK] $binary: $path"
+    fi
+  done
+  
+  # Check bash version (must be 4+)
+  if [ -n "$BINARY_BASH" ]; then
+    local bash_version=$("$BINARY_BASH" --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+' | cut -d'.' -f1)
+    if [ -z "$bash_version" ] || [ "$bash_version" -lt 4 ]; then
+      echo "  [X] bash version: $bash_version (version 4+ required)"
+      missing_critical="$missing_critical bash-4+"
+    else
+      echo "  [OK] bash version: $bash_version (OK)"
+    fi
+  fi
+  
+  # Optional but recommended binaries
+  for binary in grep sed awk tr cut head tail wc stat find; do
+    local path=$(find_binary "$binary")
+    if [ -z "$path" ]; then
+      missing_optional="$missing_optional $binary"
+      echo "  [X] $binary: NOT FOUND (optional)"
+    else
+      eval "BINARY_$(echo $binary | tr 'a-z' 'A-Z')=\"$path\""
+      echo "  [OK] $binary: found"
+    fi
+  done
+  
+  echo ""
+  
+  # Handle missing critical binaries
+  if [ -n "$missing_critical" ]; then
+    echo "---------------------------------------------------------------"
+    echo "ERROR: Critical binaries missing:$missing_critical"
+    echo "---------------------------------------------------------------"
+    echo ""
+    echo "Installation hints for your system ($os_type):"
+    echo ""
+    
+    case "$os_type" in
+      freebsd)
+        echo "  sudo pkg install jq curl bash"
+        echo ""
+        echo "  Note: On FreeBSD, these will be installed to /usr/local/bin"
+        ;;
+      debian)
+        echo "  sudo apt-get update"
+        echo "  sudo apt-get install jq curl bash"
+        ;;
+      redhat)
+        echo "  sudo yum install jq curl bash"
+        echo "  # or on newer systems (RHEL 8+, Fedora 22+):"
+        echo "  sudo dnf install jq curl bash"
+        ;;
+      suse)
+        echo "  sudo zypper install jq curl bash"
+        ;;
+      alpine)
+        echo "  sudo apk add jq curl bash"
+        ;;
+      *)
+        echo "  Please install the missing packages using your system's package manager."
+        echo "  Required: jq, curl, bash (version 4 or higher)"
+        ;;
+    esac
+    
+    echo ""
+    echo "---------------------------------------------------------------"
+    read -p "Continue anyway? (NOT recommended) [y/N] " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      exit 1
+    fi
+    echo ""
+  fi
+  
+  # Warn about missing optional binaries
+  if [ -n "$missing_optional" ]; then
+    echo "WARNING: Some optional binaries are missing:$missing_optional"
+    echo "Some features may not work correctly."
+    echo ""
+  fi
+  
+  echo "Binary check complete."
+  echo ""
+}
+
 find_glpaths ()
 {
 # Try to find glftpd.conf and the rootpath for glftpd.
@@ -113,10 +257,10 @@ find_glpaths ()
   if [ ! -z "$GLFTPD_CONF" ]; then
    GLROOT="`cat $GLFTPD_CONF | grep ^rootpath | awk '{print $2}'`"
   fi
-  if [ -z "$GLROOT" ] || [ ! -e $GLROOT ]; then
+  if [ -z "$GLROOT" ] || [ ! -e "$GLROOT" ]; then
    GLROOT="/glftpd"
   fi
-  
+
   # In case we grabbed the wrong info, let the user verify.
   GLOK=""
   while [ -z "$GLOK" ]; do
@@ -136,7 +280,7 @@ find_glpaths ()
    if [ ! -z $line ]; then
     GLFTPD_CONF="$line"
    fi
-   if [ -d $GLROOT ]; then
+   if [ -d "$GLROOT" ]; then
     if [ -e $GLFTPD_CONF ]; then
      GLOK="YES"
     fi
@@ -335,11 +479,10 @@ readyfiles()
   read line
  fi
 }
-
 glmodify ()
 {
  if [ -r $1 ]; then
-  cat $1 | tr -d '' | sed "s|/etc/glftpd.conf|$GLFTPD_CONF|g" | \
+  cat $1 | LC_ALL=C tr -d '\r' | sed "s|/etc/glftpd.conf|$GLFTPD_CONF|g" | \
    sed "s|/glftpd/|$GLROOT/|g" | sed "s|/glftpd$|$GLROOT|g" | \
    sed "s|/glftpd |$GLROOT |g" | sed "s|/glftpd\"|$GLROOT\"|g" | \
    sed "s|/ftp-data/|$GLDATA/|g" | sed "s|/ftp-data$|$GLDATA|g" | \
@@ -407,13 +550,15 @@ copy_scripts ()
      echo "... copying $scrname to $scrpath" | fold -s -w $foldline
      cp -fRp $installdir/$scrname $scrpath/ || echo "Failed."
     fi
-    echo ""
-    echo -n "Do you wish to edit/check the config in $scrname? [y]> " | fold -s -w $foldline
-    read line
-    if [ -z "$line" ] || [ "$line" = "y" ]; then
-     $EDITOR $scrpath/$scrname
+    if [ ! -z "`echo " $editables " | grep -o " $scrname "`" ]; then
+     echo ""
+     echo -n "Do you wish to edit/check the config in $scrname? [y]> " | fold -s -w $foldline
+     read line
+     if [ -z "$line" ] || [ "$line" = "y" ]; then
+      $EDITOR $scrpath/$scrname
+     fi
+     echo ""
     fi
-    echo ""
    fi
   fi
  done
@@ -438,12 +583,12 @@ modify_glftpd_conf ()
      doexecall=`nl -ba $GLFTPD_CONF | tail -n 1 | awk '{print $1}'`
      if [ ! -z "$doexecnr" ]; then
       head -n $doexecnr $GLFTPD_CONF >$tmpfile
-      echo -e "show_diz\t$dotimdb\t*" >>$tmpfile
+      printf "show_diz\t%s\t*\n" "$dotimdb" >>$tmpfile
       let doexec=doexecall-doexecnr
       tail -n $doexec $GLFTPD_CONF >>$tmpfile
       cat $tmpfile >$GLFTPD_CONF
      else
-      echo -e "show_diz\t$dotimdb\t*" >>$GLFTPD_CONF
+      printf "show_diz\t%s\t*\n" "$dotimdb" >>$GLFTPD_CONF
      fi
      echo "$dotimdb added to show_diz"
     fi
@@ -455,23 +600,23 @@ modify_glftpd_conf ()
    doexecall=`nl -ba $GLFTPD_CONF | tail -n 1 | awk '{print $1}'`
    if [ ! -z "$doexecnr" ]; then
     head -n $doexecnr $GLFTPD_CONF >$tmpfile
-    echo -e "site_cmd\tIMDB-RESCAN\tEXEC\t/bin/psxc-imdb-rescan.sh" >>$tmpfile
+    printf "site_cmd\tIMDB-RESCAN\tEXEC\t/bin/psxc-imdb-rescan.sh\n" >>$tmpfile
     let doexec=doexecall-doexecnr
     tail -n $doexec $GLFTPD_CONF >>$tmpfile
     cat $tmpfile >$GLFTPD_CONF
    else
-    echo -e "site_cmd\tIMDB-RESCAN\tEXEC\t/bin/psxc-imdb-rescan.sh" >>$GLFTPD_CONF
+    printf "site_cmd\tIMDB-RESCAN\tEXEC\t/bin/psxc-imdb-rescan.sh\n" >>$GLFTPD_CONF
    fi
    docustomnr=`nl -ba $GLFTPD_CONF | awk '{print $2,$1}' | grep -e "^custom" | tail -n 1 | awk '{print $2}'`
    docustomall=`nl -ba $GLFTPD_CONF | tail -n 1 | awk '{print $1}'`
    if [ ! -z "$docustomnr" ]; then
     head -n $docustomnr $GLFTPD_CONF >$tmpfile
-    echo -e "custom-imdb-rescan\t1" >>$tmpfile
+    printf "custom-imdb-rescan\t1\n" >>$tmpfile
     let docustom=docustomall-docustomnr
     tail -n $docustom $GLFTPD_CONF >>$tmpfile
     cat $tmpfile >$GLFTPD_CONF
    else
-    echo -e "custom-imdb-rescan\t1" >>$GLFTPD_CONF
+    printf "custom-imdb-rescan\t1\n" >>$GLFTPD_CONF
    fi
    echo "imdb-rescan added as a site command (flag 1 users only)"
    echo "backup of the old file is in $backupdir"
@@ -502,7 +647,7 @@ modify_crontab ()
    fi
   done
   crontab -u $cronname -l | grep -v "psxc-imdb.sh" >$tmpfile 2>/dev/null
-  echo -e "*/10\t*\t*\t*\t*\t$GLROOT/bin/psxc-imdb.sh" >>$tmpfile
+  printf "*/10\t*\t*\t*\t*\t%s/bin/psxc-imdb.sh\n" "$GLROOT" >>$tmpfile
   crontab -u $cronname $tmpfile
   echo ""
   echo "crontab edited - it will now run the imdb-script every 10 minutes. Edit this"
@@ -525,12 +670,12 @@ modify_eggdrop_conf ()
    doeggall=`nl -ba $GLBOT/$EGGDROP_CONF | tail -n 1 | awk '{print $1}'`
    if [ ! -z "$doeggnr" ]; then
     head -n $doeggnr $GLBOT/$EGGDROP_CONF >$tmpfile
-    echo -e "source\t$GLBOTPATH/pzs-ng/plugins/psxc-imdb.tcl" >>$tmpfile
+    printf "source\t%s/pzs-ng/plugins/psxc-imdb.tcl\n" "$GLBOTPATH" >>$tmpfile
     let doegg=doeggall-doeggnr
     tail -n $doegg $GLBOT/$EGGDROP_CONF >>$tmpfile
     cat $tmpfile >$GLBOT/$EGGDROP_CONF
    else
-    echo -e "source\t$GLBOTPATH/pzs-ng/plugins/psxc-imdb.tcl" >>$GLBOT/$EGGDROP_CONF
+    printf "source\t%s/pzs-ng/plugins/psxc-imdb.tcl\n" "$GLBOTPATH" >>$GLBOT/$EGGDROP_CONF
    fi
    echo "$GLBOTPATH/pzs-ng/plugins/psxc-imdb.tcl added to list of sources" | fold -s -w $foldline
   fi
@@ -693,6 +838,7 @@ start_menu ()
 }
 
 check_id
+check_required_binaries
 check_dir
 if [ -e $installvars ]; then
  . $installvars

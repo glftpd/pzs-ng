@@ -8,51 +8,14 @@
 # and don't mind spreading the wealth, please send it to me so I can include
 # it.
 #
-VERSION=2.5
+VERSION=3.2
 
-IFSORIG=$IFS
-IFS="^"
+# Source shared library for API functions
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/psxc-imdb-lib.sh"
 
-# Initialize variables. bash is a bit limited, so we gotta do a "hack"
-c=1
-for a in `echo $@ | sed "s|\" \"|^|g"`; do
-b[c]=$a
-let c=c+1
-done
-
-IFS=$IFSORIG
-
-# Give the variables some sensible names
-IMDBDATE=${b[1]}
-IMDBDOTFILE=${b[2]}
-IMDBRELPATH=${b[3]}
-IMDBDIRNAME=${b[4]}
-IMDBURL=${b[5]}
-IMDBTITLE=${b[6]}
-IMDBGENRE=${b[7]}
-IMDBRATING=${b[8]}
-IMDBCOUNTRY=${b[9]}
-IMDBLANGUAGE=${b[10]}
-IMDBCERTIFICATION=${b[11]}
-IMDBRUNTIME=${b[12]}
-IMDBDIRECTOR=${b[13]}
-IMDBBUSINESSDATA=${b[14]}
-IMDBPREMIERE=${b[15]}
-IMDBLIMITED=${b[16]}
-IMDBVOTES=${b[17]}
-IMDBSCORE=${b[18]}
-IMDBNAME=${b[19]}
-IMDBYEAR=${b[20]}
-IMDBNUMSCREENS=${b[21]}
-IMDBISLIMITED=${b[22]}
-IMDBCASTLEADNAME=${b[23]}
-IMDBCASTLEADCHAR=${b[24]}
-IMDBTAGLINE=${b[25]}
-IMDBPLOT=${b[26]}
-IMDBBAR=${b[27]}
-IMDBCASTING=${b[28]}
-IMDBCOMMENTSHORT=${b[29]}
-IMDBCOMMENTFULL=${b[30]}
+# Parse IMDB positional arguments using shared function from psxc-imdb-lib.sh
+parse_imdb_args "$@"
 
 #########################################################################
 # From here on you should just paste/format the output to your liking.

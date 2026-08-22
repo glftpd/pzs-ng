@@ -44,17 +44,20 @@
 # v3.1  Switch to IMDB GraphQL API (graphql.imdb.com)
 #       Fix JSON escaping in search query using jq
 #       Fix conf path (/mnt/glftpd/etc -> /glftpd/etc)
+# v3.2  Extract shared API library (psxc-imdb-lib.sh)
+#       Unify VERSION strings across suite
 ##################################################
 
 ########
 # CONFIG
 
 # Version. No need to change.
-VERSION="v3.1-graphql"
+VERSION=3.2
 
-# (full) path to psxc-imdb.conf
-PSXC_IMDB_CONF=/glftpd/etc/psxc-imdb.conf
-#PSXC_IMDB_CONF=/etc/psxc-imdb.conf
+# (full) path to psxc-imdb.conf. Leave empty to auto-discover
+# ($GLROOT/etc/psxc-imdb.conf or /etc/psxc-imdb.conf).
+PSXC_IMDB_CONF=""
+#PSXC_IMDB_CONF=/glftpd/etc/psxc-imdb.conf
 
 # max hits listed
 MAXLIST=10
@@ -144,55 +147,28 @@ IMDBSEARCHTITLA=$(echo "$IMDBSEARCHORIG" | sed 's/\([^0-9]*[0-9]\{4\}\).*/\1/')
 IMDBSEARCHTITLE="$(echo $IMDBSEARCHTITLA | tr ' ' '+' | sed 's/+$//')"
 IMDBSEARCHTITLB=$(echo $IMDBSEARCHTITLA)
 
-. $PSXC_IMDB_CONF
-
-if [ -z "$IMDB_GRAPHQL_URL" ]; then
-  IMDB_GRAPHQL_URL="https://graphql.imdb.com/"
-fi
-if [ -z "$IMDBAPI_TIMEOUT" ]; then
-  IMDBAPI_TIMEOUT=30
-fi
-if [ -z "$JQ_BIN" ]; then
-  JQ_BIN="/bin/jq"
-fi
-if [ -z "$USERAGENT" ]; then
-  USERAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
-fi
-if [ -z "$CURLFLAGS" ]; then
-  CURLFLAGS="-L"
-fi
-
-IMDBLOCAL="$LOCALURL"
-if [ -z "$IMDBLOCAL" ]; then
- IMDBLOCAL="www"
-fi
+# Source shared library for API functions
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/psxc-imdb-lib.sh"
+imdb_set_defaults
+imdb_load_config "$PSXC_IMDB_CONF"
 
 if [ -z "$IMDBNOURL" ] && [ $(echo "$IMDBSEARCHWORDS" | wc -w) -eq 1 ]; then
  IMDBSEARCHID="$(echo -n "$IMDBSEARCHWORDS" | tr -cd '0-9')"
  if [ ! -z "$IMDBSEARCHID" ]; then
   IMDBIDWC=$(echo -n "$IMDBSEARCHID" | wc -c)
   if [ $IMDBIDWC -ge 5 ] && [ $IMDBIDWC -le 8 ]; then
-    URLTOUSE="https://$IMDBLOCAL.imdb.com/title/tt$IMDBSEARCHID"
+     URLTOUSE="https://www.imdb.com/title/tt$IMDBSEARCHID"
   fi
  fi
 fi
 
 if [ -z "$URLTOUSE" ]; then
-  SEARCH_QUERY="query{mainSearch(first:${IMDBLIST:-$DEFLIST},options:{searchTerm:\"$(echo "$IMDBSEARCHTITLE" | sed 's/+/%20/g')\"}){edges{node{entity{... on Title{id titleText{text}releaseYear{year}titleType{text}}}}}}}"
-  SEARCH_PAYLOAD=$($JQ_BIN -n --arg q "$SEARCH_QUERY" '{query: $q}')
-  SEARCH_RESPONSE=$(curl $CURLFLAGS -s -A "$USERAGENT" \
-    -H "Content-Type: application/json" \
-    --connect-timeout $IMDBAPI_TIMEOUT \
-    -X POST "$IMDB_GRAPHQL_URL" \
-    -d "$SEARCH_PAYLOAD" 2>/dev/null)
+  SEARCH_QUERY="query{mainSearch(first:${IMDBLIST:-$DEFLIST},options:{searchTerm:\"$(echo "$IMDBSEARCHTITLE" | sed 's/+/ /g')\"}){edges{node{entity{... on Title{id titleText{text}releaseYear{year}titleType{text}}}}}}}"
+  SEARCH_RESPONSE=$(imdb_request "$SEARCH_QUERY")
 
-  if [ $? -gt 0 ] || [ -z "$SEARCH_RESPONSE" ]; then
+  if [ -z "$SEARCH_RESPONSE" ]; then
     echo "$PREWORD Internal Error. GraphQL API may be down, or not answering. Try again later."
-    exit 0
-  fi
-
-  if ! echo "$SEARCH_RESPONSE" | $JQ_BIN -e '.data' >/dev/null 2>&1; then
-    echo "$PREWORD Internal Error. Invalid API response. Try again later."
     exit 0
   fi
 
@@ -218,7 +194,10 @@ if [ -z "$URLTOUSE" ]; then
 
       if [ -n "$RESULT_ID" ] && [ -n "$RESULT_TITLE" ]; then
         DISPLAY_NUM=$((COUNTER + 1))
-        RESULT_URL="https://$IMDBLOCAL.imdb.com/title/$RESULT_ID"
+        RESULT_URL="https://www.imdb.com/title/$RESULT_ID"
+        if [ ! -z "$LOCALURL" ]; then
+          RESULT_URL="$(imdb_localize_url "$RESULT_URL" "$LOCALURL")"
+        fi
         if [ -n "$RESULT_YEAR" ]; then
           echo "$PREWORD $DISPLAY_NUM. ($RESULT_URL) $RESULT_TITLE ($RESULT_YEAR) [$RESULT_TYPE]"
         else
@@ -238,7 +217,10 @@ if [ -z "$URLTOUSE" ]; then
 fi
 
 if [ ! -z "$URLTOUSE" ]; then
- URLTOSHOW=$(echo $URLTOUSE | sed "s|/www.|/$IMDBLOCAL.|")
+ if [ ! -z "$LOCALURL" ]; then
+  URLTOUSE="$(imdb_localize_url "$URLTOUSE" "$LOCALURL")"
+ fi
+ URLTOSHOW=$URLTOUSE
  if [ -z "$VERBOSE" ] && [ -z "$IMDBPRIVATE" ]; then
   if [ -z "$IMDBLIST" ]; then
    echo -n "$PREWORD '$IMDBSEARCHTITLB' found @ ${BOLD}${URLTOSHOW}${BOLD}. "
@@ -247,12 +229,12 @@ if [ ! -z "$URLTOUSE" ]; then
   fi
   echo "Please wait while gathering details.."
  fi
- if [ ! -z "$DEBUG" ]; then
-  echo "$URLTOUSE|/dev/null|$DESTINATION" | sed "s%/|%|%"
- fi
- if [ -z "$IMDBPRIVATE" ]; then
-  echo "$URLTOUSE|/dev/null|$DESTINATION" | sed "s%/|%|%" >>$IMDBLOG
- fi
+  if [ ! -z "$DEBUG" ]; then
+   echo "$URLTOUSE|/dev/null|$DESTINATION"
+  fi
+  if [ -z "$IMDBPRIVATE" ]; then
+   imdb_queue_lookup "$URLTOUSE" "/dev/null|$DESTINATION" "$IMDBLOG"
+  fi
 else
  echo "$PREWORD Sorry, nothing found on '${BOLD}${IMDBSEARCHWORDS}${BOLD}'."
 fi

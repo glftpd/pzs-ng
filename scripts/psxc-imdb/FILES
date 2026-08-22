@@ -9,9 +9,11 @@ TODO                     - Your requests, future plans.
 UPGRADING                - What needs to be done to upgrade your install.
 main/
  - psxc-imdb.sh          - Main script. (chmod 755)
- - psxc-imdb-bot.tcl     - botscript. (chmod 644)
+ - psxc-imdb-lib.sh      - Shared API library. (chmod 644)
  - psxc-imdb.conf        - main configfile. (chmod 644)
- - psxc-imdb-conf.tcl    - tcl configfile. (chmod 644)
+ - psxc-imdb.tcl         - botscript. (chmod 644)
+ - psxc-imdb.zpt         - botscript theme file. (chmod 644)
+ - old/                  - Old bot/config tcl files, kept for reference.
 addons/                  - Directory with addons, aka EXTERNALSCRIPT.
  - psxc-imdb-nuker.sh    - An auto nuker/logger/nuke warner.
  - psxc-symlink-maker.sh - A symlink maker used to sort releases based on
@@ -24,8 +26,11 @@ extras/                  - Directory with example-files and other helpful things
                             addons.
  - psxc-imdb-find.sh     - A script used to find imdb-info based on name.
                             Mostly used in conjunction with psxc-imdb-find.tcl.
+installer.sh             - The installer script. (chmod 755)
 other/                   - Directory with other stuff for the imdb-script.
-diff/                    - Directory with diff-files. Useful for patching
-                            your own modified files, or checking what's
-                            changed.
+ - libcopy.sh            - Copies needed libs to your chroot.
+ - makeclean.sh          - Removes empty lines and comments from a configfile.
+ - makediff.sh           - Makes a diff-file of your modified files.
+ - stripcr.sh            - Strips CR from files.
+ - psxc-depcheck_v0.1.tgz - A dependency checker.
 

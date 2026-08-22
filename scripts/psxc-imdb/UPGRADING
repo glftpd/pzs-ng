@@ -1,10 +1,34 @@
 PSXC-IMDB UPGRADING:
 --------------------
 
-NOTE: If you use a different GLROOT than /glftpd, you most
-      likely need to change a couple of variables in the files
-      you replace.
+NOTE: If you use a different GLROOT than /glftpd, set GLROOT in
+      psxc-imdb.conf and the paths in psxc-imdb.tcl accordingly.
+      psxc-imdb-find.sh and the addons auto-detect their config.
 
+3.1 -> 3.2 - replace psxc-imdb.sh, psxc-imdb-lib.sh, psxc-imdb.conf, psxc-imdb.tcl,
+             installer.sh
+             - if you use them, also replace:
+             - psxc-imdb-rescan.sh, psxc-imdb-find.sh, psxc-imdb-sanity.sh,
+               psxc-imdb-parser.sh
+             - psxc-imdb-nuker.sh, psxc-symlink-maker.sh, psxc-imdb-dotimdb.pl
+             --- new variables:
+             - psxc-imdb.conf: FIXDIRTIME (default: "" - empty means never
+               actively touch dir timestamps; set to "YES" to restore the
+               release dir's original mtime after writing the info files)
+             - psxc-imdb.conf: LOCALURL (set to a language code for localized
+               IMDB URLs, e.g. "de". Leave empty for default English URLs.
+               Supported: de, fr, es, it, pt, hi)
+             NOTE: psxc-imdb-lib.sh is REQUIRED. If missing, psxc-imdb.sh
+                   exits silently and does nothing.
+3.0 -> 3.1 - replace psxc-imdb.sh, psxc-imdb.conf, psxc-imdb.tcl, installer.sh
+             - if you use them, also replace:
+             - psxc-imdb-find.sh, psxc-imdb-sanity.sh
+             - psxc-imdb-nuker.sh, psxc-symlink-maker.sh
+             --- new variables:
+             - psxc-imdb.conf: IMDB_GRAPHQL_URL
+             - psxc-imdb.conf: SHOWMETACRITIC
+             - psxc-imdb.conf: USEORIGTITLE
+             - psxc-imdb.conf: USERAGENT
 2.9v -> 2.9w - replace psxc-imdb.sh, psxc-imdb-rescan.sh
 2.9u -> 2.9v - replace psxc-imdb.sh, psxc-imdb-find.sh, psxc-imdb-rescan.sh
              --- new variables:
