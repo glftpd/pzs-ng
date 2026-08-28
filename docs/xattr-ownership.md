@@ -12,38 +12,50 @@ copy it into the third-party tool's tree.
 ## Attribute: `user.ftpd.meta`
 
 One binary blob per file/directory, packed, host-endian (x86_64 →
-little-endian), **40 bytes**:
+little-endian), **56 bytes**:
 
 ```c
 struct ftpd_meta {                /* __attribute__((packed)) */
     uint32_t uid;                 /* virtual uid  (chroot /etc/passwd) */
     uint32_t gid;                 /* virtual gid  (chroot /etc/group)  */
-    char     owner[32];           /* username, NUL-terminated, max 31  */
+    char     owner[32];           /* username,   NUL-terminated, max 31 */
+    char     group[16];           /* group name, NUL-terminated, max 15 */
 };
 ```
 
-- `owner` is authoritative for display/attribution — no passwd lookup
-  needed.  `uid`/`gid` are for permission checks and survive user
-  renames only as numbers; resolve them against the **chroot's**
-  `/etc/passwd` / `/etc/group` (fluffer's virtual users live there,
-  NOT in the host's NSS — never use `getpwuid(3)` from outside the
-  chroot).
-- The group *name* is not embedded; map `gid` via chroot
-  `/etc/group`.
+- **Both identities are stored as names, and the name is
+  authoritative.**  `owner` and `group` are what LIST shows and what a
+  zipscript should put in its race table — no passwd/group lookup at
+  all.  The numeric `uid`/`gid` are informational: a gid is meaningless
+  outside the chroot whose `/etc/group` produced it, so when a name
+  and its id disagree the name wins.
+- Groupless users are stamped with the literal group name `NoGroup`
+  (not the site's `default_group`).  Treat it as "no group".
+- A read that returns **40 bytes** is the pre-group-name layout
+  (`uid`, `gid`, `owner[32]`): the owner name is still authoritative;
+  the group name must be derived from `gid` via the **chroot's**
+  `/etc/group`, and an unknown gid means "no group".  There is no
+  migration step — a file gets the 56-byte layout on its next stamp.
+- Any other size means "no valid stamp" — treat as unstamped (below).
 - Read with one syscall:
 
 ```c
 #include <sys/xattr.h>
 
 struct ftpd_meta m;
-if (getxattr(path, "user.ftpd.meta", &m, sizeof(m)) == (ssize_t)sizeof(m)) {
+memset(&m, 0, sizeof(m));
+ssize_t n = getxattr(path, "user.ftpd.meta", &m, sizeof(m));
+if (n == 56) {
+    m.owner[31] = '\0'; m.group[15] = '\0';
+    /* m.owner / m.group = uploader and group, by name */
+} else if (n == 40) {
     m.owner[31] = '\0';
-    /* m.owner = uploader, m.uid/m.gid = virtual ids */
+    /* group: look up m.gid in the chroot's /etc/group */
 }
 ```
 
-A read that returns any size other than 40 means "no valid stamp" —
-treat as unstamped (below).
+Never resolve these ids with `getpwuid(3)` / `getgrgid(3)` from
+outside the chroot — fluffer's virtual users are not in the host NSS.
 
 ## Legacy attributes (read-only fallback)
 
@@ -77,7 +89,7 @@ All three must be present to count as a valid stamp.
   migrated archives.  fluffer's own LIST/STAT/MLSx use exactly this
   chain (xattr owner → xattr uid/gid → real uid/gid → numeric); a
   tool that mirrors it renders identical output.  The bulk stamping
-  tool `tools/fluffer-import-owners.c` exists but is optional.
+  tool `tools/fl_import_owners.c` exists but is optional.
 - fluffer's delete-own/rename-own checks treat a missing stamp as
   "unowned" (fail closed), not "everybody's".
 

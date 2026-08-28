@@ -1319,7 +1319,10 @@ get_g_name_exact(gid_t gid)
  * uploader lives in the user.ftpd.meta xattr (see docs/xattr-ownership.md).
  * Fills uname/gname from the stamp and returns 1, or returns 0 when the
  * file is unstamped so the caller keeps the st_uid/st_gid fallback
- * (correct for pre-fluffer glftpd archives). */
+ * (correct for pre-fluffer glftpd archives).
+ * Layouts: 56 bytes = uid, gid, owner[32], group[16] (names authoritative,
+ * no lookup); 40 bytes = pre-group-name layout, group resolved from gid via
+ * the chroot's /etc/group; any other size = no valid stamp. */
 int
 fluffer_owner(const char *path, char *uname, size_t usize, char *gname, size_t gsize)
 {
@@ -1327,16 +1330,22 @@ fluffer_owner(const char *path, char *uname, size_t usize, char *gname, size_t g
 		uint32_t	uid;
 		uint32_t	gid;
 		char		owner[32];
+		char		group[16];
 	} __attribute__((packed)) m;
 	uint32_t	uid, gid;
-	char		owner[32];
+	char		owner[32], grp[16] = "";
 	ssize_t		n;
 
-	if (getxattr(path, "user.ftpd.meta", &m, sizeof(m)) == (ssize_t)sizeof(m)) {
+	memset(&m, 0, sizeof(m));
+	n = getxattr(path, "user.ftpd.meta", &m, sizeof(m));
+	if (n == 56 || n == 40) {
 		m.owner[31] = '\0';
+		m.group[15] = '\0';
 		uid = m.uid;
 		gid = m.gid;
 		strlcpy(owner, m.owner, sizeof(owner));
+		if (n == 56)
+			strlcpy(grp, m.group, sizeof(grp));
 	} else {
 		/* legacy triple from early fluffer builds - all three must exist */
 		n = getxattr(path, "user.ftpd.owner", owner, sizeof(owner) - 1);
@@ -1350,7 +1359,10 @@ fluffer_owner(const char *path, char *uname, size_t usize, char *gname, size_t g
 		strlcpy(uname, owner, usize);
 	else
 		strlcpy(uname, get_u_name(uid), usize);
-	strlcpy(gname, get_g_name_exact(gid), gsize);
+	if (*grp)
+		strlcpy(gname, grp, gsize);
+	else
+		strlcpy(gname, get_g_name_exact(gid), gsize);
 	return 1;
 }
 #endif

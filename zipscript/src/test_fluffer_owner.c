@@ -32,6 +32,13 @@ struct ftpd_meta {
 	char	 owner[32];
 } __attribute__((packed));
 
+struct ftpd_meta56 {
+	uint32_t uid;
+	uint32_t gid;
+	char	 owner[32];
+	char	 group[16];
+} __attribute__((packed));
+
 int
 main(void)
 {
@@ -58,6 +65,17 @@ main(void)
 	assert(fluffer_owner(path, un, sizeof(un), gn, sizeof(gn)) == 1);
 	assert(strcmp(un, "raceuser") == 0);
 	assert(strcmp(gn, "second") == 0);
+
+	/* 56-byte layout: owner AND group by name, no table lookup (gid 999
+	 * is deliberately absent from the stub table) */
+	{
+		struct ftpd_meta56 m56 = { 1117, 999, "RBX", "LGD" };
+		assert(sizeof(m56) == 56);
+		assert(setxattr(path, "user.ftpd.meta", &m56, sizeof(m56), 0) == 0);
+		assert(fluffer_owner(path, un, sizeof(un), gn, sizeof(gn)) == 1);
+		assert(strcmp(un, "RBX") == 0);
+		assert(strcmp(gn, "LGD") == 0);
+	}
 
 	/* truncated blob -> treated as unstamped */
 	assert(setxattr(path, "user.ftpd.meta", &m, 20, 0) == 0);
