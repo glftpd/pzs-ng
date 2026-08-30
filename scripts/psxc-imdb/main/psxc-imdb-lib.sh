@@ -27,6 +27,7 @@ imdb_set_defaults() {
   : ${CURLFLAGS:=--max-time 8 -L}
   : ${CERTCOUNTRY:=US}
   : ${PREMIERECOUNTRY:=US}
+  : ${AKANUM:=200}   # Max AKAs to fetch for the localized title lookup (USEORIGTITLE empty)
 
   : ${COUNTRY_MAP:='{"US":"United States","GB":"United Kingdom","AU":"Australia","CA":"Canada","FR":"France","DE":"Germany","IT":"Italy","ES":"Spain","JP":"Japan","KR":"South Korea","CN":"China","IN":"India","RU":"Russia","BR":"Brazil","MX":"Mexico","NL":"Netherlands","SE":"Sweden","NO":"Norway","DK":"Denmark","FI":"Finland","PL":"Poland","CZ":"Czech Republic","AT":"Austria","CH":"Switzerland","BE":"Belgium","PT":"Portugal","IE":"Ireland","NZ":"New Zealand","AR":"Argentina","CL":"Chile","CO":"Colombia","PH":"Philippines","TH":"Thailand","HK":"Hong Kong","SG":"Singapore","TW":"Taiwan","IL":"Israel","TR":"Turkey","ZA":"South Africa","EG":"Egypt","ID":"Indonesia","MY":"Malaysia","VN":"Vietnam","GR":"Greece","HU":"Hungary","RO":"Romania","UA":"Ukraine","HR":"Croatia","RS":"Serbia","IS":"Iceland","LU":"Luxembourg"}'}
 
@@ -291,9 +292,16 @@ imdb_dirdate_carrier() {
 # Usage: IMDBURL=$(extract_imdb_url "$FILENAME" "$RELAXEDURLS")
 extract_imdb_url() {
   local filename="$1"
-  local relaxed="${2:-0}"
+  local relaxed="${2:-}"
   local url=""
   local urls=""
+
+  if [ -z "$relaxed" ]; then
+    relaxed=1
+  fi
+  if [ "$relaxed" = "ON" ]; then
+    relaxed=3
+  fi
 
   # Level 0: Standard URL format
   urls="$(grep [Ii][Mm][Dd][Bb] "$filename" | tr ' \|' '\n' | sed -n '/[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"

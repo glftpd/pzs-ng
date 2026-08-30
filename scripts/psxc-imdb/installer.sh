@@ -151,7 +151,7 @@ check_required_binaries() {
   
   # Check bash version (must be 4+)
   if [ -n "$BINARY_BASH" ]; then
-    local bash_version=$("$BINARY_BASH" --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+' | cut -d'.' -f1)
+    local bash_version=$("$BINARY_BASH" --version 2>/dev/null | head -n1 | sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | cut -d'.' -f1)
     if [ -z "$bash_version" ] || [ "$bash_version" -lt 4 ]; then
       echo "  [X] bash version: $bash_version (version 4+ required)"
       missing_critical="$missing_critical bash-4+"
@@ -550,7 +550,7 @@ copy_scripts ()
      echo "... copying $scrname to $scrpath" | fold -s -w $foldline
      cp -fRp $installdir/$scrname $scrpath/ || echo "Failed."
     fi
-    if [ ! -z "`echo " $editables " | grep -o " $scrname "`" ]; then
+    if [ ! -z "`echo " $editables " | grep " $scrname "`" ]; then
      echo ""
      echo -n "Do you wish to edit/check the config in $scrname? [y]> " | fold -s -w $foldline
      read line

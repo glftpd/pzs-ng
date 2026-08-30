@@ -15,11 +15,19 @@ NOTE: If you use a different GLROOT than /glftpd, set GLROOT in
              - psxc-imdb.conf: FIXDIRTIME (default: "" - empty means never
                actively touch dir timestamps; set to "YES" to restore the
                release dir's original mtime after writing the info files)
+             - psxc-imdb.conf: USEORIGTITLE is now three-valued: "" (default) looks
+               up a localized title from IMDB AKAs based on the release
+               directory language, "YES" always uses the original production
+               title, "NO" always uses the plain English title (disables the
+               localized lookup)
              - psxc-imdb.conf: LOCALURL (set to a language code for localized
                IMDB URLs, e.g. "de". Leave empty for default English URLs.
                Supported: de, fr, es, it, pt, hi)
              NOTE: psxc-imdb-lib.sh is REQUIRED. If missing, psxc-imdb.sh
                    exits silently and does nothing.
+                   The AKANUM default (200 - max AKAs to fetch for the
+                   localized title lookup) is set in psxc-imdb-lib.sh and can
+                   be overridden by adding AKANUM to psxc-imdb.conf.
 3.0 -> 3.1 - replace psxc-imdb.sh, psxc-imdb.conf, psxc-imdb.tcl, installer.sh
              - if you use them, also replace:
              - psxc-imdb-find.sh, psxc-imdb-sanity.sh

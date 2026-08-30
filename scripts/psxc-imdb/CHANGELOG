@@ -50,7 +50,18 @@ PSXC-IMDB CHANGELOG:
                               an API error, a removed release dir, or a find
                               /dev/null entry no longer leaks cleared state into
                               the next release processed in the same run
-- v3.1 - Jul. 24th, 2026 - Switch psxc-imdb to IMDB GraphQL API (graphql.imdb.com)
+                           - USEORIGTITLE is now three-valued: "" (default) looks
+                              up a localized title from IMDB AKAs based on the
+                              release directory language, "YES" always uses the
+                              original production title, "NO" always uses the
+                              plain English title (disables the localized lookup)
+                           - Add AKANUM (default: 200, set in imdb_set_defaults()
+                              in psxc-imdb-lib.sh, overridable via psxc-imdb.conf) - max
+                              number of AKAs to fetch from IMDB for the localized
+                              title lookup. The API returns the full AKA list up to
+                              this number (observed max for popular titles is ~144).
+                              AKA data is only requested when USEORIGTITLE is empty
+ - v3.1 - Jul. 24th, 2026 - Switch psxc-imdb to IMDB GraphQL API (graphql.imdb.com)
                           - Add Metacritic score (metascore + review count) to
                             bot output, .imdb file, and external script args
                           - Add SHOWMETACRITIC config option (default: NO)

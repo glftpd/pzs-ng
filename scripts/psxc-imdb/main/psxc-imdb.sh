@@ -87,73 +87,8 @@ if [ ! -z "$RECVDARGS" ]; then
     exit 0
    fi
 
-# First, replace some old variable values
-   if [ -z "$RELAXEDURLS" ]; then
-    RELAXEDURLS=1
-   fi
-   if [ "$RELAXEDURLS" = "ON" ]; then
-    RELAXEDURLS=3
-   fi
-
-# Level 0 search
-   IMDBURLS="$(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr ' \|' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-   if [ ! -z "$(echo "$IMDBURLS" | grep "imdb\.")" ]; then
-#    IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 |  grep -o "[0-9]*" | head -n 1)"
-    if [ -z "$(echo "$IMDBURL" | tr -cd '0-9')" ]; then
-     IMDBURL=""
-    fi
-   fi
-
-# Level 1 search
-   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 1 ]; then
-    IMDBURLS="$(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr ' \|' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-    if [ ! -z "$(echo "$IMDBURLS" | grep "imdb\.")" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-     if [ -z "$(echo "$IMDBURL" | tr -cd '0-9')" ]; then
-      IMDBURL=""
-     fi
-    fi
-   fi
-
-# Level 2 search
-   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 2 ]; then
-    IMDBURLS="$(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr ' \|' '\n' | sed -n /.*[iI][mM][dD][bB][.].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-    if [ ! -z "$(echo "$IMDBURLS" | grep "imdb\.")" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURLS" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-     if [ -z "$(echo "$IMDBURL" | tr -cd '0-9')" ]; then
-      IMDBURL=""
-     fi
-    fi
-   fi
-
-# Level 3 search
-   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 3 ]; then
-    for IMDBURLS in $(grep [Ii][Mm][Dd][Bb] "$FILENAME" | tr -c '[:digit:]' '\n' | grep -v "^$"); do
-     if [ ! -z "$(echo "$IMDBURLS" | tr -cd '0-9')" ]; then
-      if [ "$(echo "$IMDBURLS" | tr -cd '0-9' | wc -c)" -eq 8 ] || [ "$(echo "$IMDBURLS" | tr -cd '0-9' | wc -c)" -eq 7 ]; then
-       IMDBURL="$IMDBURLS"
-       break
-      fi
-     fi
-    done
-    if [ ! -z "$IMDBURL" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$IMDBURL"
-    fi
-   fi
-
-# Level 4 search
-   if [ -z "$IMDBURL" ] && [ "$RELAXEDURLS" -ge 4 ]; then
-    for IMDBURLS in $(cat "$FILENAME" | tr -c '[:digit:]' '\n' | grep -v "^$"); do
-     if [ "$(echo "$IMDBURLS" | wc -c)" -eq 8 ] || [ "$(echo "$IMDBURLS" | wc -c)" -eq 7 ]; then
-      IMDBURL="$IMDBURLS"
-      break
-     fi
-    done
-    if [ ! -z "$IMDBURL" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$IMDBURL"
-    fi
-   fi
+# extract IMDB URL from NFO with RELAXEDURLS fallback levels
+   IMDBURL="$(extract_imdb_url "$FILENAME" "$RELAXEDURLS")"
 
 # apply localized URL path if LOCALURL is set
    if [ ! -z "$IMDBURL" ] && [ ! -z "$LOCALURL" ]; then
@@ -470,7 +405,11 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
       echo "DEBUG: Could not extract IMDb ID from $IMDBURL"
     fi
   else
-    TITLE_QUERY="query{title(id:\"${IMDB_ID}\"){titleText{text}originalTitleText{text}releaseYear{year}titleType{text}genres{genres{text}}ratingsSummary{aggregateRating voteCount}plot{plotText{plainText}}runtime{seconds}directors:credits(first:${DIRECTORNUM},filter:{categories:[\"director\"]}){edges{node{name{nameText{text}}}}}stars:credits(first:${CASTNUM},filter:{categories:[\"actor\",\"actress\"]}){edges{node{name{nameText{text}}}}}countriesOfOrigin{countries{id}}spokenLanguages{spokenLanguages{id}}akas(first:50){edges{node{text country{id}}}}taglines(first:1){edges{node{text}}}certificates(first:50){edges{node{rating country{id}}}}releaseDates(first:100){edges{node{day month year country{id}attributes{text}}}}productionBudget{budget{amount currency}}worldwide:lifetimeGross(boxOfficeArea:WORLDWIDE){total{amount currency}}openingWeekendGross(boxOfficeArea:DOMESTIC){gross{total{amount currency}}}metacritic{metascore{score reviewCount}}}}"
+    AKA_QUERY=""
+    if [ -z "$USEORIGTITLE" ]; then
+      AKA_QUERY="akas(first:${AKANUM}){edges{node{text country{id}}}}"
+    fi
+    TITLE_QUERY="query{title(id:\"${IMDB_ID}\"){titleText{text}originalTitleText{text}releaseYear{year}titleType{text}genres{genres{text}}ratingsSummary{aggregateRating voteCount}plot{plotText{plainText}}runtime{seconds}directors:credits(first:${DIRECTORNUM},filter:{categories:[\"director\"]}){edges{node{name{nameText{text}}}}}stars:credits(first:${CASTNUM},filter:{categories:[\"actor\",\"actress\"]}){edges{node{name{nameText{text}}}}}countriesOfOrigin{countries{id}}spokenLanguages{spokenLanguages{id}}${AKA_QUERY}taglines(first:1){edges{node{text}}}certificates(first:50){edges{node{rating country{id}}}}releaseDates(first:100){edges{node{day month year country{id}attributes{text}}}}productionBudget{budget{amount currency}}worldwide:lifetimeGross(boxOfficeArea:WORLDWIDE){total{amount currency}}openingWeekendGross(boxOfficeArea:DOMESTIC){gross{total{amount currency}}}metacritic{metascore{score reviewCount}}}}"
     API_RESPONSE=$(imdb_request "$TITLE_QUERY")
 
     if [ $? -eq 0 ] && [ -n "$API_RESPONSE" ]; then
@@ -513,7 +452,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         TITLENAME=$TITLE
         if [ ! -z "$LOCALETITLE" ]; then
           TITLENAME="$LOCALETITLE"
-        elif [ ! -z "$USEORIGTITLE" ] && [ ! -z "$ORIGTITLE" ] && [ "$ORIGTITLE" != "null" ]; then
+        elif [ "$USEORIGTITLE" = "YES" ] && [ ! -z "$ORIGTITLE" ] && [ "$ORIGTITLE" != "null" ]; then
           TITLENAME="$ORIGTITLE"
         fi
 
@@ -564,7 +503,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
           '(.data.title.spokenLanguages.spokenLanguages // []) | .[0:($n|tonumber)] | map(.id) | map($lmap[.] // .) | join("/")' <<< "$API_RESPONSE")
         LANGUAGE="Language.....: $LANGUAGECLEAN"
 
-        PLOTCLEAN=$($JQ_BIN -r '.data.title.plot.plotText.plainText // empty' <<< "$API_RESPONSE" | sed "s/\"/$QUOTECHAR/g" | head -c "$PLOTWIDTH")
+        PLOTCLEAN=$($JQ_BIN -r '.data.title.plot.plotText.plainText // empty' <<< "$API_RESPONSE" | sed "s/\"/$QUOTECHAR/g" | cut -c1-"$PLOTWIDTH")
         PLOT="Plot: $PLOTCLEAN"
 
         runtime_sec=$($JQ_BIN -r '.data.title.runtime.seconds // empty' <<< "$API_RESPONSE")
@@ -788,6 +727,8 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
        if [ ! -z "${!MYOWNVAR}" ]; then
         MYTEMPVAR="$(echo "${!MYOWNVAR}" | tr '\&' '\`')"
         MYOWNFORMAT1="$(echo "${MYOWNFORMAT1}" | sed "s^$MYOWNSTRING^$MYTEMPVAR^g;s/\n/$NEWLINE/g" | tr '\`' '\&')"
+       elif [ "$MYOWNSTRING" = "%bold" ] || [ "$MYOWNSTRING" = "%newline" ]; then
+        MYOWNFORMAT1="$(echo "${MYOWNFORMAT1}" | sed "s^$MYOWNSTRING^^g")"
        else
         MYOWNFORMAT1="$(echo "${MYOWNFORMAT1}" | sed "s^$MYOWNSTRING^$MYOWNEMPTY^g")"
        fi
