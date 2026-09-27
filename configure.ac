@@ -271,9 +271,7 @@ if [[ "x$GLFTPD_SPECIFIC" = "xyes" ]]; then
         glversion="`$STRINGS $GLBIN | $GREP -i '^glftpd ' | $CUT -c8-11 | $TR -d '.'``$FILE $GLBIN | $CUT -d':' -f2 | $CUT -c6,7`"
       else
         if [[ -n "`$STRINGS $GLBIN | $GREP -i fluffer`" ]]; then
-          AC_MSG_RESULT([NOTICE: detected fluffer at $GLBIN, treating as glftpd 2.02-compatible.])
-          FLUFFER="yes"
-          glversion="202`$FILE $GLBIN | $CUT -d':' -f2 | $CUT -c6,7`"
+          AC_MSG_ERROR([fluffer detected at $GLBIN - rerun with --enable-fluffer. Quitting!])
         else
           glversion=""
         fi

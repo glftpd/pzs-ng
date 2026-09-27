@@ -737,7 +737,11 @@
 
 #ifndef fluffer_xattr_owner
 #define fluffer_xattr_owner_is_defaulted
+#ifdef USING_FLUFFER
 #define fluffer_xattr_owner                       TRUE
+#else
+#define fluffer_xattr_owner                       FALSE
+#endif
 #endif
 
 #ifndef force_sfv_first
