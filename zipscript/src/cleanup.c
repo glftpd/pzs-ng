@@ -98,6 +98,7 @@ scandirectory(char *dname, int setfree)
 				if (dp1->d_name[0] != '.') {
 					if (chdir(dp1->d_name) == -1) {
 						printf("Failed to chdir(): %s\n", strerror(errno));
+						continue;
 					}
 					if ((dir2 = opendir("."))) {
 						while ((dp2 = readdir(dir2))) {
@@ -110,8 +111,8 @@ scandirectory(char *dname, int setfree)
 								}
 							}
 						}
+						closedir(dir2);
 					}
-					closedir(dir2);
 					if (chdir("..") == -1) {
 						printf("Failed to chdir(): %s\n", strerror(errno));
 					}
@@ -119,8 +120,8 @@ scandirectory(char *dname, int setfree)
 						rmdir(dp1->d_name);
 				}
 			}
+			closedir(dir1);
 		}
-		closedir(dir1);
 	}
 }
 
@@ -217,11 +218,12 @@ incomplete_cleanup(char *path, char *startpath, int setfree)
 #endif
 					if ((fd = open(dp->d_name, O_NDELAY)) != -1) {
 						close(fd);
-	       					if ((size = readlink(tempa, tempb, PATH_MAX)) < 0) continue;
+	       					if ((size = readlink(tempa, tempb, sizeof(tempb) - 1)) < 0) continue;
 					        tempb[size] = '\0';
-						if (viewonly && tempb[0] == '/')
-							snprintf(tempa, sizeof tempa, "%s%s", startpath, tempb);
-						else
+						if (viewonly && tempb[0] == '/') {
+							if (snprintf(tempa, sizeof tempa, "%s%s", startpath, tempb) >= (int)sizeof tempa)
+								continue;
+						} else
 							memcpy(tempa, tempb, size + 1);
 						if (chdir(tempa) == -1)
 							fprintf(stderr, "chdir(%s): %s\n", tempa, strerror(errno));
@@ -310,11 +312,12 @@ checklink(char *link_, char *startpath, int setfree)
 	static char	temp[PATH_MAX];
         char            fulldir[PATH_MAX], origdir[PATH_MAX];
 
-	if ((size = readlink(link_, temp, PATH_MAX)) < 0) return 0;
+	if ((size = readlink(link_, temp, sizeof(temp) - 1)) < 0) return 0;
 	temp[size] = '\0';
-	if (temp[0] == '/')
-		snprintf(fulldir, sizeof fulldir, "%s%s", startpath, temp);
-	else
+	if (temp[0] == '/') {
+		if (snprintf(fulldir, sizeof fulldir, "%s%s", startpath, temp) >= (int)sizeof fulldir)
+			return 0;
+	} else
 		memcpy(fulldir, temp, size + 1);
 	if (getcwd(origdir, PATH_MAX) == NULL)
 		fprintf(stderr, "getcwd(%s): %s\n", origdir, strerror(errno));
@@ -394,8 +397,8 @@ cleanup(char *pathlist, char *pathlist_dated, int setfree, char *startpath)
 		newentry = pathlist;
 		while (*newentry) {
 			for (entry = newentry; *newentry != ' ' && *newentry; newentry++);
-			sprintf(path, "%s%.*s", startpath, (int)(newentry - entry), entry);
-			incomplete_cleanup(path, startpath, setfree);
+			if (snprintf(path, sizeof(path), "%s%.*s", startpath, (int)(newentry - entry), entry) < (int)sizeof(path))
+				incomplete_cleanup(path, startpath, setfree);
 			if (!*newentry)
 				break;
 			newentry++;
@@ -406,9 +409,9 @@ cleanup(char *pathlist, char *pathlist_dated, int setfree, char *startpath)
 			time_day = localtime_r(&t_day, time_day);
 			while (*newentry) {
 				for (entry = newentry; *newentry != ' ' && *newentry; newentry++);
-				sprintf(path, "%s%.*s", startpath, (int)(newentry - entry), entry);
-				strftime(data_day, PATH_MAX, path, time_day);
-				incomplete_cleanup(data_day, startpath, setfree);
+				if (snprintf(path, sizeof(path), "%s%.*s", startpath, (int)(newentry - entry), entry) < (int)sizeof(path) &&
+				    strftime(data_day, sizeof(data_day), path, time_day) > 0)
+					incomplete_cleanup(data_day, startpath, setfree);
 				if (!*newentry)
 					break;
 				newentry++;
