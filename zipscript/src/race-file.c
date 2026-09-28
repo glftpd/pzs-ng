@@ -1495,7 +1495,7 @@ check_zipfile(const char *dirname, const char *zipfile, int do_nfo)
 			if (!fileexists(zip_bin))
 				d_log("check_zipfile: ERROR! Not able to remove banned file from zip - zip_bin (%s) does not exist!\n", zip_bin);
 			else {
-				char *zip_args[] = { zip_bin, "-qqd", (char *)zipfile, dp->d_name, NULL };
+				char *zip_args[] = { zip_bin, "-qqd", (char *)zipfile, "--", dp->d_name, NULL };
 
 				if (execute_argv(zip_args))
 					d_log("check_zipfile: Failed to remove banned (%s) file from zip.\n", dp->d_name);
