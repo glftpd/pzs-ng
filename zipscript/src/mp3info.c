@@ -236,35 +236,32 @@ int
 get_id3(mp3info * mp3, struct audio *audio)
 {
 	int		retcode = 1;
-	char	fbuf[4];
+	char	tag[128];
 
 	if (mp3->datasize > 128) {
 		if (fseek(mp3->file, -128, SEEK_END)) {
 			fprintf(stderr, "ERROR: Couldn't read last 128 bytes of %s!!\n", mp3->filename);
 			retcode |= 4;
 		} else {
-			fread(fbuf, 1, 3, mp3->file);
-			fbuf[3] = '\0';
-
-			if (!strcmp((const char *)"TAG", (const char *)fbuf)) {
+			/* ID3v1: "TAG", title[30], artist[30], album[30], year[4], comment[30], genre[1] */
+			if (fread(tag, 1, sizeof(tag), mp3->file) == sizeof(tag) && !memcmp(tag, "TAG", 3)) {
 				retcode = 0;
 				mp3->id3_isvalid = 1;
 				mp3->datasize -= 128;
-				fseek(mp3->file, -125, SEEK_END);
-				fread(mp3->id3.title, 1, 30, mp3->file);
+				memcpy(mp3->id3.title, tag + 3, 30);
 				mp3->id3.title[30] = '\0';
-				fread(mp3->id3.artist, 1, 30, mp3->file);
+				memcpy(mp3->id3.artist, tag + 33, 30);
 				mp3->id3.artist[30] = '\0';
-				fread(mp3->id3.album, 1, 30, mp3->file);
+				memcpy(mp3->id3.album, tag + 63, 30);
 				mp3->id3.album[30] = '\0';
-				fread(mp3->id3.year, 1, 4, mp3->file);
+				memcpy(mp3->id3.year, tag + 93, 4);
 				mp3->id3.year[4] = '\0';
-				fread(mp3->id3.comment, 1, 30, mp3->file);
+				memcpy(mp3->id3.comment, tag + 97, 30);
 				mp3->id3.comment[30] = '\0';
 				if (mp3->id3.comment[28] == '\0') {
 					mp3->id3.track[0] = mp3->id3.comment[29];
 				}
-				fread(mp3->id3.genre, 1, 1, mp3->file);
+				mp3->id3.genre[0] = tag[127];
 
 				unpad(mp3->id3.title);
 				unpad(mp3->id3.artist);
@@ -392,7 +389,7 @@ get_mp3_info(char *f, struct audio *audio)
 	}
 	fclose(mp3.file);
 	if (mp3.vbr || *audio->bitrate == '0')
-		sprintf(audio->bitrate, "%.0f", (mp3.vbr_average));
+		snprintf(audio->bitrate, sizeof(audio->bitrate), "%.0f", (mp3.vbr_average));
 //	audio->is_vbr = mp3.vbr;
 //	return mp3.vbr_average;
 }
