@@ -802,9 +802,9 @@ matchpath(char *instr, char *path)
 		switch (*instr) {
 		case 0:
 		case ' ':
-			if ((int)strlen(path) == pos - 1 && *(path + pos - 2) != '/' && *(instr - 1) == '/')
+			if (pos > 0 && (int)strlen(path) == pos - 1 && *(path + pos - 2) != '/' && *(instr - 1) == '/')
 				c = 1;
-			if (!strncmp(instr - pos, path, pos - c)) {
+			if (pos > 0 && !strncmp(instr - pos, path, pos - c)) {
 				if (*(instr - 1) == '/')
 					return 1;
 				if ((int)strlen(path) >= pos) {
