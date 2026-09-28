@@ -78,14 +78,14 @@ read_diz(void)
 	char        disks[4];
 
 	fd = open("file_id.diz", O_NONBLOCK);
-	while ((tgt = read(fd, data, 4096)) > 0) {
+	while ((tgt = read(fd, data, sizeof(data) - 1)) > 0) {	/* removespaces() NUL-terminates at data[tgt] */
 		removespaces(data, tgt);
 
 		for (cnt = 0; cnt < tgt; cnt++)
 			for (cnt2 = 0; cnt2 < (int) search_size; cnt2++) {
 				pos = matches = skip_count = 0;
 				disks[0] = disks[1] = disks[2] = disks[3] = '\0';
-				for (cnt3 = 0; cnt3 <= (int)(strlen(search[cnt2])) - skip_count; cnt3++)
+				for (cnt3 = 0; cnt3 <= (int)(strlen(search[cnt2])) - skip_count && cnt + cnt3 < tgt; cnt3++)
 					switch (search[cnt2][cnt3 + skip_count]) {
 					case '#':
 						if (isdigit(data[cnt + cnt3]) || data[cnt + cnt3] == ' ' || data[cnt + cnt3] == 'o') {
