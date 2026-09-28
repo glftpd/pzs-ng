@@ -66,8 +66,10 @@ set_permissions()
 	d_log("zipscript-c: Zipscript executed by: (uid/gid) %d/%d\n", geteuid(), getegid());
 	if ( program_uid > 0 ) {
 		d_log("zipscript-c: Trying to change effective uid/gid\n");
-		setegid(program_gid);
-		seteuid(program_uid);
+		if (setegid(program_gid) == -1)
+			d_log("zipscript-c: failed to change gid: %s\n", strerror(errno));
+		if (seteuid(program_uid) == -1)
+			d_log("zipscript-c: failed to change uid: %s\n", strerror(errno));
 	} else if (!geteuid()) {
 		d_log("zipscript-c: +s mode detected - trying to change effective uid/gid to !root\n");
 		if (setegid(getgid()) == -1)
@@ -557,7 +559,7 @@ main(int argc, char **argv)
 #if (show_users_in_group_dirs == FALSE)
                 } else {
 			d_log("zipscript-c:    Making username = groupname\n");
-			snprintf(g.v.user.name, 18, "%s", g.v.user.group);
+			strlcpy(g.v.user.name, g.v.user.group, 18);
 #endif
 		}
 	} else {
