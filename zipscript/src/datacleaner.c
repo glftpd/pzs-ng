@@ -123,16 +123,23 @@ remove_dir_loop(char *path)
 		exit(EXIT_FAILURE);
 	}
 	
-	dir = opendir(path);
+	if ((dir = opendir(path)) == NULL) {
+		perror(path);
+		exit(EXIT_FAILURE);
+	}
 	while ((dp = readdir(dir))) {
 		if (dp->d_name[0] != '.' || (dp->d_name[0] == '.' && strlen(dp->d_name) > 2)) {
-			stat(dp->d_name, &sb);
+			if (stat(dp->d_name, &sb) == -1)
+				continue;
 			if (S_ISDIR(sb.st_mode)) {
-				sprintf(target, "%s/%s", path, dp->d_name);
+				if (snprintf(target, sizeof(target), "%s/%s", path, dp->d_name) >= (int)sizeof(target))
+					continue;
 				remove_dir_loop(target);
 				rmdir(target);
 				if (chdir(path) == -1) {
+					/* unlink() below is relative: never run it elsewhere */
 					perror(path);
+					exit(EXIT_FAILURE);
 				}
 			} else
 				unlink(dp->d_name);
@@ -154,23 +161,30 @@ check_dir_loop(char *path, int zd_length)
 		exit(EXIT_FAILURE);
 	}
 
-	dir1 = opendir(path);
+	if ((dir1 = opendir(path)) == NULL) {
+		perror(path);
+		exit(EXIT_FAILURE);
+	}
 	while ((dp = readdir(dir1))) {
 		if (dp->d_name[0] != '.') {
-			stat(dp->d_name, &sb);
+			if (stat(dp->d_name, &sb) == -1)
+				continue;
 			if (S_ISDIR(sb.st_mode)) {
-				sprintf(target, "%s/%s", path, dp->d_name);
+				if (snprintf(target, sizeof(target), "%s/%s", path, dp->d_name) >= (int)sizeof(target))
+					continue;
 				if ((dir2 = opendir(target + zd_length))) {
 					closedir(dir2);
 					check_dir_loop(target, zd_length);
 					if (chdir(path) == -1) {
 						perror(path);
+						exit(EXIT_FAILURE);
 					}
 				} else {
 					remove_dir_loop(target);
 					rmdir(target);
 					if (chdir(path) == -1) {
 						perror(path);
+						exit(EXIT_FAILURE);
 					}
 				}
 			}
