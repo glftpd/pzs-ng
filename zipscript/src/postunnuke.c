@@ -124,7 +124,7 @@ main(int argc, char *argv[])
         }
 
 
-	if (getcwd(g.l.path, PATH_MAX)) {
+	if (!getcwd(g.l.path, PATH_MAX)) {
             printf("ng-post_unnuke: Could not getcwd().\n");
             exit(EXIT_FAILURE);
 	}
