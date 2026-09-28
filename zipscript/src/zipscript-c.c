@@ -471,6 +471,10 @@ main(int argc, char **argv)
 	d_log("zipscript-c: Reading directory structure\n");
 	dir = opendir(".");
 	parent = opendir("..");
+	if (!dir || !parent) {
+		d_log("zipscript-c: Failed to open the release dir or its parent: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 
 	d_log("zipscript-c: Caching release name\n");
 	getrelname(&g);
@@ -1935,14 +1939,15 @@ main(int argc, char **argv)
 			if (g.l.incomplete)
 				unlink(g.l.incomplete);
 			closedir(dir);
-			dir = opendir(".");
-			del_releasedir(dir, g.l.path);
+			if ((dir = opendir(".")))
+				del_releasedir(dir, g.l.path);
 		}
 	}
 #endif
 
 	d_log("zipscript-c: Releasing memory and removing lock\n");
-	closedir(dir);
+	if (dir)
+		closedir(dir);
 	closedir(parent);
 	remove_lock(&g.v);
 
