@@ -295,9 +295,10 @@ get_gluid(char *passwdfile, char *user_name)
 #endif
 
 	f = open(passwdfile, O_NONBLOCK);
-	fstat(f, &fileinfo);
+	if (f == -1 || fstat(f, &fileinfo) == -1)
+		fileinfo.st_size = 0;	/* unreadable: no match, as for an unknown name */
 	f_size = fileinfo.st_size;
-	f_buf = ng_realloc3(f_buf, f_size);
+	f_buf = ng_realloc3(f_buf, f_size + 1);
 	if (!read(f, f_buf, f_size)) {
 		printf("Warning: read() failed: %s\n", strerror(errno));
 	}
@@ -362,9 +363,10 @@ get_glgid(char *groupfile, char *group_name)
 #endif
 
 	f = open(groupfile, O_NONBLOCK);
-	fstat(f, &fileinfo);
+	if (f == -1 || fstat(f, &fileinfo) == -1)
+		fileinfo.st_size = 0;	/* unreadable: no match, as for an unknown name */
 	f_size = fileinfo.st_size;
-	f_buf = ng_realloc3(f_buf, f_size);
+	f_buf = ng_realloc3(f_buf, f_size + 1);
 	if (!read(f, f_buf, f_size)) {
 		printf("Warning: read() failed: %s\n", strerror(errno));
 	}
