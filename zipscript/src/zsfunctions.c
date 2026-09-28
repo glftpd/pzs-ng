@@ -2175,6 +2175,28 @@ _err_file_banned(const char *fn, struct VARS *v) {
 }
 
 
+/*
+ * Append a formatted string at p without writing past end, the last usable
+ * byte (kept for the terminating NUL). Returns how far p may advance, so
+ * `p += bappend(p, end, ...)` stops at end and truncates instead of
+ * overflowing.
+ */
+int
+bappend(char *p, const char *end, const char *format, ...)
+{
+	va_list		args;
+	int		n;
+
+	if (p >= end)
+		return 0;
+	va_start(args, format);
+	n = vsnprintf(p, end - p + 1, format, args);
+	va_end(args);
+	if (n < 0)
+		return 0;
+	return n > end - p ? (int)(end - p) : n;
+}
+
 void
 safe_snprintf(char *buffer, size_t size, const char *format, ...) {
     va_list args, args_copy;
