@@ -1008,7 +1008,8 @@ main(int argc, char **argv)
 				d_log("zipscript-c: SFV received after all files, and all files present.\n");
 				switch (g.v.misc.release_type) {
 				case RTYPE_RAR:
-					get_rar_info(filename, &g.v);
+					if (filename)
+						get_rar_info(filename, &g.v);
 					break;
 				case RTYPE_AUDIO:
 					get_audio_info(filename, &g.v.audio);
