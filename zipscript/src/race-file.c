@@ -911,7 +911,7 @@ remove_from_race(const char *path, const char *f, struct VARS *raceI)
 		return;
 	}
 
-	for (i = 0; (read(fd, &rd, sizeof(RACEDATA)));) {
+	for (i = 0; (read(fd, &rd, sizeof(RACEDATA)) == sizeof(RACEDATA));) {
 #if (sfv_cleanup_lowercase)
 		if (strcasecmp(rd.fname, f) != 0) {
 #else
