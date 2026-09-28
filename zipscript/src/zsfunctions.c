@@ -2144,6 +2144,7 @@ filebanned_match(const char *filename)
         char            buf[500];
         FILE            *fname_fd;
         char            fbuf[strlen(filename)+1];
+        int             matched = 0;
 
         strlcpy(fbuf, filename, sizeof(fbuf));
 
@@ -2153,6 +2154,7 @@ filebanned_match(const char *filename)
         }
         if ((fname_fd = fdopen(fd, "r")) == NULL) {
                 d_log("filebanned_match: failed to open banned_filelist - fdopen(%s): %s\n", banned_filelist, strerror(errno));
+                close(fd);
                 return 0;
         }
         strtolower(fbuf);
@@ -2162,12 +2164,14 @@ filebanned_match(const char *filename)
                         continue;
                 strtolower(buf);
                 if (!fnmatch(buf, fbuf, 0)) {
-                        close(fd);
                         d_log("filebanned_match: found match: %s\n", fbuf);
-                        return 1;
+                        matched = 1;
+                        break;
                 }
         }
-        return 0;
+        /* single exit: fclose() releases the underlying fd too, on every path */
+        fclose(fname_fd);
+        return matched;
 }
 
 
