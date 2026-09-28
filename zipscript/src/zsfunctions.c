@@ -56,7 +56,8 @@ vd_log(const char *fmt, va_list ap)
 	timenow = time(NULL);
 
 #if ( debug_altlog == TRUE )
-	getcwd(debugpath, PATH_MAX);
+	if (getcwd(debugpath, PATH_MAX) == NULL)
+		debugpath[0] = '\0';
 	safe_snprintf(debugname, PATH_MAX, "%s/%s/debug",
 	         storage, debugpath);
 #endif
@@ -116,6 +117,8 @@ d_log_ext(char *fname, char *fmt, ...)
 
 	vd_log(new_fmt, ap);
 	va_end(ap);
+#else
+	(void)fname;
 #endif
 }
 /*
@@ -644,6 +647,8 @@ findfile(DIR *dir, char *filename)
 {
 	struct dirent	*dp;
 
+	if (dir == NULL)
+		return 0;
 	rewinddir(dir);
 	while ((dp = readdir(dir))) {
 //#if (sfv_cleanup_lowercase)
@@ -675,11 +680,12 @@ findfilename(char *filename, char *dest, struct VARS *raceI)
 	DIR		*dir;
 	struct dirent 	*dp;
 
-	dir = opendir(".");
+	if ((dir = opendir(".")) == NULL)
+		return dest;
 	while ((dp = readdir(dir))) {
 		if ((int)strlen(dp->d_name) && !strcasecmp(dp->d_name, filename)) {
 			dest = ng_realloc(dest, (int)sizeof(dp->d_name) + 1, 1, 1, raceI, 0);
-			strncpy(dest, dp->d_name, sizeof(dp->d_name));
+			strlcpy(dest, dp->d_name, sizeof(dp->d_name) + 1);
 			break;
 		}
 	}
@@ -702,7 +708,7 @@ check_nocase_linkname(char *dirname, char *linkname)
 		if ((int)strlen(dp->d_name) == namelength && !strcasecmp(dp->d_name, linkname)) {
 			d_log("check_nocase_linkname: found match: %s ~= %s\n", dp->d_name, linkname);
 			linkname = ng_realloc2(linkname, (int)sizeof(dp->d_name) + 1, 1, 1, 1);
-			strncpy(linkname, dp->d_name, sizeof(dp->d_name));
+			strlcpy(linkname, dp->d_name, sizeof(dp->d_name) + 1);
 			break;
 		}
 	}
@@ -1187,7 +1193,8 @@ readsfv_ffile(struct VARS *raceI)
 		raceI->total.files_missing = 0;
 	}
 	ng_free(buf);
-	closedir(dir);
+	if (dir)
+		closedir(dir);
 }
 
 /*
@@ -1564,7 +1571,8 @@ sfv_compare_size(char *fileext, off_t fsize)
 	DIR *dir;
 	struct dirent *dp;
 
-	dir = opendir(".");
+	if ((dir = opendir(".")) == NULL)
+		return 0;
 
 	while ((dp = readdir(dir))) {
 		if ((k = NAMLEN(dp)) < 4)
@@ -2061,7 +2069,7 @@ insampledir(char *dirname)
 		t = dirname;
 	else
 		t++;
-	strncpy(sample, sample_list, sizeof(sample_list));
+	strlcpy(sample, sample_list, sizeof(sample));
 	while (p != sample) {
 		p = strrchr(sample, ',');
 		if (p != NULL) {
@@ -2135,8 +2143,7 @@ filebanned_match(const char *filename)
         FILE            *fname_fd;
         char            fbuf[strlen(filename)+1];
 
-        bzero(fbuf, sizeof(fbuf));
-        strncpy(fbuf, filename, sizeof(fbuf) - 1);
+        strlcpy(fbuf, filename, sizeof(fbuf));
 
         if ((fd = open(banned_filelist, O_RDONLY)) == -1) {
                 d_log("filebanned_match: failed to open banned_filelist - open(%s): %s\n", banned_filelist, strerror(errno));
