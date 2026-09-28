@@ -2047,6 +2047,8 @@ match_lenient(DIR *dir, char *fname)
 	unsigned int		crc = 0;
 	static struct dirent   *dp;
 
+	if (dir == NULL)
+		return 0;
 	rewinddir(dir);
 	while ((dp = readdir(dir))) {
 		if (lenient_compare(dp->d_name, fname)) {
