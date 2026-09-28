@@ -161,7 +161,7 @@ get_preset(char vbr_header[4])
 void
 get_audio_info(char *f, struct audio *audio)
 {
-	char *ext;
+	char *ext, *p;
 
 	if (!f || !audio)
 		return;
@@ -207,9 +207,12 @@ get_audio_info(char *f, struct audio *audio)
 		/* remove prefixing whitespace chars (space, formfeed,
 		 * newline, carriage return, horizontal and vertical tab)
 		 */
-		strcpy(audio->id3_artist, prestrip_chars(audio->id3_artist, WHITESPACE_STR));
-		strcpy(audio->id3_title, prestrip_chars(audio->id3_title, WHITESPACE_STR));
-		strcpy(audio->id3_album, prestrip_chars(audio->id3_album, WHITESPACE_STR));
+		p = prestrip_chars(audio->id3_artist, WHITESPACE_STR);
+		memmove(audio->id3_artist, p, strlen(p) + 1);
+		p = prestrip_chars(audio->id3_title, WHITESPACE_STR);
+		memmove(audio->id3_title, p, strlen(p) + 1);
+		p = prestrip_chars(audio->id3_album, WHITESPACE_STR);
+		memmove(audio->id3_album, p, strlen(p) + 1);
 		/* remove trailing whitespace chars (same as prefixing) */
 		tailstrip_chars(audio->id3_artist, WHITESPACE_STR);
 		tailstrip_chars(audio->id3_title, WHITESPACE_STR);
