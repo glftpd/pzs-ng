@@ -1116,26 +1116,40 @@ createlink(char *factor1, char *factor2, char *source, char *ltarget)
 }
 
 
+/* an sfv is a short text file; readsfv_ffile() refuses anything larger */
+#define MAX_SFV_SIZE	(16 * 1024 * 1024)
+
 void 
 readsfv_ffile(struct VARS *raceI)
 {
 	int		fd, line_start = 0, index_start,
-			ext_start, n;
+			ext_start, n, len;
 	char		*buf = NULL, *fname;
 
 	DIR		*dir;
 
 	fd = open(raceI->file.name, O_RDONLY);
+	if (fd == -1) {
+		d_log("readsfv_ffile: Failed to open() %s: %s\n", raceI->file.name, strerror(errno));
+		return;
+	}
+	/* an sfv is a short text file; refuse sizes that cannot be one */
+	if (raceI->file.size < 0 || raceI->file.size > MAX_SFV_SIZE) {
+		d_log("readsfv_ffile: %s is too large to be an sfv (%lld bytes)\n", raceI->file.name, (long long)raceI->file.size);
+		close(fd);
+		return;
+	}
 	buf = ng_realloc(buf, raceI->file.size + 2, 1, 1, raceI, 1);
-	if (read(fd, buf, raceI->file.size) == -1) {
+	if ((len = read(fd, buf, raceI->file.size)) == -1) {
 		d_log("readsfv_ffile: Failed to read() %s: %s\n", raceI->file.name, strerror(errno));
+		len = 0;
 	}
 	close(fd);
 
 	dir = opendir(".");
 
-	for (n = 0; n <= raceI->file.size; n++) {
-		if (buf[n] == '\n' || n == raceI->file.size) {
+	for (n = 0; n <= len; n++) {
+		if (buf[n] == '\n' || n == len) {
 			index_start = n - line_start;
 			if (buf[line_start] != ';') {
 				while (buf[index_start + line_start] != ' ' && index_start--);
@@ -1852,7 +1866,7 @@ remove_pattern(param, pattern, op)
 #endif
 
 void *
-ng_realloc(void *mempointer, int memsize, int zero_it, int exit_on_error, struct VARS *raceI, int zero_pointer)
+ng_realloc(void *mempointer, size_t memsize, int zero_it, int exit_on_error, struct VARS *raceI, int zero_pointer)
 {
 	if (zero_pointer)
 		mempointer = malloc(memsize);
@@ -1887,7 +1901,7 @@ ng_malloc(int memsize, int zero_it, int exit_on_error)
 
 
 void *
-ng_realloc2(void *mempointer, int memsize, int zero_it, int exit_on_error, int zero_pointer)
+ng_realloc2(void *mempointer, size_t memsize, int zero_it, int exit_on_error, int zero_pointer)
 {
 	if (zero_pointer)
 		mempointer = malloc(memsize);
