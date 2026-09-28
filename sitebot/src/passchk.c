@@ -35,43 +35,45 @@ struct passwd *
 fgetpwent(FILE * fp)
 {
 	char           *data[10], tmp;
-	int		charcnt    [10], fieldcnt = 0, varsize = 0;
+	int		charcnt    [10], fieldcnt = 0, varsize = 0, n;
+	struct passwd  *ret = NULL;
 
 	charcnt[0] = 0;
+	data[0] = NULL;
 
 	while (fread(&tmp, 1, 1, fp) > 0) {
 		charcnt[fieldcnt]++;
 
 		if (varsize < charcnt[fieldcnt]) {
 			varsize += 20;
-			if (varsize == 20)
-				data[fieldcnt] = malloc(varsize);
-			else
-				data[fieldcnt] = realloc(data[fieldcnt], varsize);
+			if ((data[fieldcnt] = realloc(data[fieldcnt], varsize)) == NULL)
+				goto out;
 		}
 		if (tmp == '\n') {
 			data[fieldcnt][charcnt[fieldcnt] - 1] = 0;
 			break;
-		} else if (tmp == ':') {
+		} else if (tmp == ':' && fieldcnt < 9) {	/* a 10th ':' stays in the last field */
 			data[fieldcnt][charcnt[fieldcnt] - 1] = 0;
 			fieldcnt++;
 			charcnt[fieldcnt] = varsize = 0;
+			data[fieldcnt] = NULL;
 		} else {
 			data[fieldcnt][charcnt[fieldcnt] - 1] = tmp;
 		}
 	}
 
+	/* a passwd line has 7 fields; name, passwd and gecos are ':'-terminated */
 	if (fieldcnt == 6) {
-		pwd.pw_name = malloc(charcnt[0]);
-		pwd.pw_passwd = malloc(charcnt[1]);
-		pwd.pw_gecos = malloc(charcnt[4]);
-		strcpy(pwd.pw_name, data[0]);
-		strcpy(pwd.pw_passwd, data[1]);
-		strcpy(pwd.pw_gecos, data[4]);
-	} else
-		return NULL;
-
-	return &pwd;
+		pwd.pw_name = strdup(data[0]);
+		pwd.pw_passwd = strdup(data[1]);
+		pwd.pw_gecos = strdup(data[4]);
+		if (pwd.pw_name && pwd.pw_passwd && pwd.pw_gecos)
+			ret = &pwd;
+	}
+out:
+	for (n = 0; n <= fieldcnt; n++)
+		free(data[n]);
+	return ret;
 }
 #endif
 
@@ -96,7 +98,7 @@ pbkdf2(const unsigned char *pw, unsigned int pwlen,
 	r = dklen % HLEN;
 
 	for (i = 1; i <= l; i++) {
-		sprintf((char *)txt, "%04u", (unsigned int)i);
+		sprintf((char *)txt, "%04u", (unsigned int)(i % 10000));	/* always 4 digits: i is 1 or 2 */
 		HMAC(EVP_sha1(), pw, pwlen, txt, 4, hash, &outlen);
 		lhix = hash;
 		hix = hash + HLEN;
@@ -117,7 +119,7 @@ pbkdf2(const unsigned char *pw, unsigned int pwlen,
 		}
 	}
 	if (r) {
-		sprintf((char *)txt, "%04u", (unsigned int)i);
+		sprintf((char *)txt, "%04u", (unsigned int)(i % 10000));	/* always 4 digits: i is 1 or 2 */
 		HMAC(EVP_sha1(), pw, pwlen, txt, 4, hash, &outlen);
 		lhix = hash;
 		hix = hash + HLEN;
@@ -213,10 +215,8 @@ get_cuftpd_passwd(FILE * fp)
 
 		if (varsize < length) {
 			varsize += 20;
-			if (varsize == 20)
-				data = malloc(varsize);
-			else
-				data = realloc(data, varsize);
+			if ((data = realloc(data, varsize)) == NULL)
+				return NULL;
 		}
 
 		if (tmp == '\n' || tmp == '\r') {
@@ -225,24 +225,24 @@ get_cuftpd_passwd(FILE * fp)
 				value[0] = '\0';
 				value++;
 				if (strcasecmp(data, "username") == 0) {
-					pwd.pw_name = malloc(strlen(value));
-					strcpy(pwd.pw_name, value);
-					check |= 0x01;
+					if ((pwd.pw_name = strdup(value)) != NULL)
+						check |= 0x01;
 				} else if (strcasecmp(data, "password") == 0) {
-					pwd.pw_passwd = malloc(strlen(value));
-					strcpy(pwd.pw_passwd, value);
-					check |= 0x02;
+					if ((pwd.pw_passwd = strdup(value)) != NULL)
+						check |= 0x02;
 				}
 				/* printf("data: %s value: %s\n", data, value); */
 			}
 
 			free(data);
+			data = NULL;
 			length = varsize = 0;
 		} else {
 			data[length-1] = tmp;
 		}
 	}
 
+	free(data);
 	if (check != 0x03)
 		return NULL;
 
