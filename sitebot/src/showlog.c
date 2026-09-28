@@ -233,9 +233,9 @@ matchpath(char *instr, char *path)
                 switch (*instr) {
                 case 0:
                 case ' ':
-			if ((int)strlen(path) == pos - 1 && *(path + pos - 2) != '/' && *(instr - 1) == '/')
+			if (pos > 0 && (int)strlen(path) == pos - 1 && *(path + pos - 2) != '/' && *(instr - 1) == '/')
 				c = 1;
-                        if (!strncmp(instr - pos, path, pos - c)) {
+                        if (pos > 0 && !strncmp(instr - pos, path, pos - c)) {
                                 if (*(instr - 1) == '/')
                                         return 1;
                                 if ((int)strlen(path) >= pos) {
@@ -288,7 +288,7 @@ void load_sysconfig(const char *config_file)
 
 		/* Parse lvalue */
 		y = 0;
-		for(x = 0; x < (signed)strlen(work_buff) && work_buff[x] != ' '; x++) {
+		for(x = 0; x < (signed)strlen(work_buff) && work_buff[x] != ' ' && y < (signed)sizeof(lvalue) - 1; x++) {
 			if (isprint(work_buff[x])) {
 				lvalue[y++] = work_buff[x];
 			}
@@ -297,7 +297,7 @@ void load_sysconfig(const char *config_file)
 		/* Parse rvalue */
 		y = 0;
 		x++;
-		for (; x < (signed)strlen(work_buff); x++) {
+		for (; x < (signed)strlen(work_buff) && y < (signed)sizeof(rvalue) - 1; x++) {
 			if (isprint(work_buff[x])) {
 				rvalue[y++] = work_buff[x];
 			}
