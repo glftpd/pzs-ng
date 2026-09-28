@@ -253,6 +253,7 @@ get_stats(struct VARS *raceI, struct USERINFO **userI)
 	char		*p_buf = 0, *eof = 0;
 	char		t_buf[PATH_MAX], *f_buf = 0; /* target buf, file buf */
 	char		*arg[46]; /* Enough to hold 15 sections (glftpd has max 10, others?) */
+	int		col = raceI->section * 3 + 2; /* this section's bytes column */
 	struct userdata	*user = 0;
 	struct stat	fileinfo;
 
@@ -285,6 +286,7 @@ get_stats(struct VARS *raceI, struct USERINFO **userI)
 		fileinfo.st_mode = 0;
 		if (fstat(fd, &fileinfo) == -1) {
 			d_log("get_stats: fstat(%i): %s\n", fd, strerror(errno));
+			close(fd);
 			continue;
 		}
 
@@ -322,14 +324,14 @@ get_stats(struct VARS *raceI, struct USERINFO **userI)
 				switch (*p_buf) {
 					case '\n':
 						*p_buf = 0;
-						if ((!memcmp(arg[0], "DAYUP", 5)) && (args >= raceI->section * 3 + 2))
-							user[n].dayup_bytes = strtoull(arg[raceI->section * 3 + 2], NULL, 10);
-						else if ((!memcmp(arg[0], "WKUP", 4)) && (args >= raceI->section * 3 + 2))
-							user[n].wkup_bytes = strtoull(arg[raceI->section * 3 + 2], NULL, 10);
-						else if ((!memcmp(arg[0], "MONTHUP", 7)) && (args >= raceI->section * 3 + 2))
-							user[n].monthup_bytes = strtoull(arg[raceI->section * 3 + 2], NULL, 10);
-						else if ((!memcmp(arg[0], "ALLUP", 5)) && (args >= raceI->section * 3 + 2))
-							user[n].allup_bytes = strtoull(arg[raceI->section * 3 + 2], NULL, 10);
+						if (args > col && !strncmp(arg[0], "DAYUP", 5))
+							user[n].dayup_bytes = strtoull(arg[col], NULL, 10);
+						else if (args > col && !strncmp(arg[0], "WKUP", 4))
+							user[n].wkup_bytes = strtoull(arg[col], NULL, 10);
+						else if (args > col && !strncmp(arg[0], "MONTHUP", 7))
+							user[n].monthup_bytes = strtoull(arg[col], NULL, 10);
+						else if (args > col && !strncmp(arg[0], "ALLUP", 5))
+							user[n].allup_bytes = strtoull(arg[col], NULL, 10);
 						args = 0;
 						space = 1;
 						break;
@@ -362,7 +364,8 @@ get_stats(struct VARS *raceI, struct USERINFO **userI)
 				break;
 			}
 			n++;
-		}
+		} else
+			close(fd);
 	}
 	closedir(dir);
 
