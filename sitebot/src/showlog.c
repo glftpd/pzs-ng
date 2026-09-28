@@ -346,7 +346,10 @@ void show_newdirs(const char *pattern)
 {
 	FILE *fp;
 	char dirlog_path[MAXPATHLEN+1];
-	snprintf(dirlog_path, sizeof(dirlog_path), "%s%s/logs/dirlog", rootpath, datapath);
+	if (snprintf(dirlog_path, sizeof(dirlog_path), "%s%s/logs/dirlog", rootpath, datapath) >= (int)sizeof(dirlog_path)) {
+		printf("Path to dirlog is too long.\n");
+		exit(1);
+	}
 
     if ((fp = fopen(dirlog_path, "rb")) == NULL) {
         printf("Failed to open dirlog (%s): %s\n", dirlog_path, strerror(errno));
@@ -415,7 +418,10 @@ void show_nukes(const ushort status, const char *pattern)
 {
 	FILE *fp;
 	char nukelog_path[MAXPATHLEN+1];
-	snprintf(nukelog_path, sizeof(nukelog_path), "%s%s/logs/nukelog", rootpath, datapath);
+	if (snprintf(nukelog_path, sizeof(nukelog_path), "%s%s/logs/nukelog", rootpath, datapath) >= (int)sizeof(nukelog_path)) {
+		printf("Path to nukelog is too long.\n");
+		exit(1);
+	}
 
     if ((fp = fopen(nukelog_path, "rb")) == NULL) {
         printf("Failed to open nukelog (%s): %s\n", nukelog_path, strerror(errno));
