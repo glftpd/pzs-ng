@@ -342,6 +342,11 @@ main(int argc, char *argv[])
 
 	dir = opendir(".");
 	parent = opendir("..");
+	if (!dir || !parent) {
+		printf("rescan: Failed to open the release dir or its parent: %s\n", strerror(errno));
+		remove_lock(&g.v);
+		exit(EXIT_FAILURE);
+	}
 
 	if (!((rescan_quick && findfileext(dir, ".sfv")) || *one_name)) {
 		if (g.l.sfv)
