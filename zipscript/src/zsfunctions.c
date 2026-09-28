@@ -1595,7 +1595,10 @@ mark_as_bad(char *filename)
 		d_log("mark_as_bad: \"%s\" doesn't exist\n", filename);
 		return;
 	}
-	sprintf(newname, "%s.bad", filename);
+	if (snprintf(newname, sizeof(newname), "%s.bad", filename) >= (int)sizeof(newname)) {
+		d_log("mark_as_bad: %s: name too long to add .bad\n", filename);
+		return;
+	}
 	if (rename(filename, newname)) {
 		d_log("mark_as_bad: Error - failed to rename %s to %s\n", filename, newname);
 	} else {
