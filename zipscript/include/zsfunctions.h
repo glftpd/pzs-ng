@@ -51,7 +51,7 @@
 #include <stdarg.h>
 #endif
 
-#define createzerofile(filename) fclose(fopen(filename, "a+"))
+#define createzerofile(filename) do { FILE *zf_ = fopen(filename, "a+"); if (zf_) fclose(zf_); } while (0)
 
 /*
  * Remove the portion of PARAM matched by PATTERN according to OP, where OP
