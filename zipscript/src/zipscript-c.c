@@ -634,7 +634,7 @@ main(int argc, char **argv)
 	/* Test to see if we are in a speedtest dir */
 	if (matchpath(speedtest_dirs, g.l.path)) {
 		d_log("zipscript-c: Dir matched speedtest_dirs\n");
-		sprintf(g.v.misc.error_msg, SPEEDTEST, ((double)g.v.file.size/1024./1024.), ((double)g.v.file.size/1000./1000.), ((double)g.v.file.speed*8/1000./1000.), ((double)g.v.file.speed/1000./1000.));
+		snprintf(g.v.misc.error_msg, sizeof(g.v.misc.error_msg), SPEEDTEST, ((double)g.v.file.size/1024./1024.), ((double)g.v.file.size/1000./1000.), ((double)g.v.file.speed*8/1000./1000.), ((double)g.v.file.speed/1000./1000.));
 		write_log = g.v.misc.write_log;
 		g.v.misc.write_log = TRUE;
 		//mark_as_bad(g.v.file.name);
