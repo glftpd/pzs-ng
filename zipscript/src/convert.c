@@ -854,7 +854,7 @@ char		sfv_buf		[FILE_MAX];
 char           *
 incomplete(char *instr, char path[2][PATH_MAX], struct VARS *raceI, int l_type)
 {
-	char	*buf_p;
+	char	*buf_p, *buf_end;
 	char	sectiondir[PATH_MAX];
 	int	c, len, n;
 
@@ -870,8 +870,12 @@ incomplete(char *instr, char path[2][PATH_MAX], struct VARS *raceI, int l_type)
 		return NULL;
 
 	bzero(buf_p, FILE_MAX);
+	buf_end = buf_p + FILE_MAX - 1;	/* leave room for the terminator */
 
-	for (; *instr; instr++)
+	/* every field is bounded against buf_end and truncates instead of
+	 * overflowing - the last two path components (%0/%1) are uploader-
+	 * chosen directory names up to NAME_MAX bytes (same class as 0002) */
+	for (; *instr && buf_p < buf_end; instr++)
 		if (*instr == '%') {
 			instr++;
 			switch (*instr) {
@@ -880,29 +884,29 @@ incomplete(char *instr, char path[2][PATH_MAX], struct VARS *raceI, int l_type)
 				c = strlen(sitepath_dir);
 				len = strlen(raceI->misc.basepath);
 				if (len > c && raceI->misc.basepath[c] == '/') ++c;
-				while (len > c && raceI->misc.basepath[c] != '/') {
+				while (len > c && raceI->misc.basepath[c] != '/' && n < (int)sizeof(sectiondir) - 1) {
 					sectiondir[n] = raceI->misc.basepath[c];
 					++c;
 					++n;
 				}
 				sectiondir[n] = '\0';
-				buf_p += sprintf(buf_p, "%s", sectiondir);
+				buf_p += bappend(buf_p, buf_end, "%s", sectiondir);
 				break;
 			case '2':
-				buf_p += sprintf(buf_p, "%s", raceI->sectionname);
+				buf_p += bappend(buf_p, buf_end, "%s", raceI->sectionname);
 				break;
 			case '1':
-				buf_p += sprintf(buf_p, "%s", path[0]);
+				buf_p += bappend(buf_p, buf_end, "%s", path[0]);
 				break;
 			case '0':
-				buf_p += sprintf(buf_p, "%s", path[1]);
+				buf_p += bappend(buf_p, buf_end, "%s", path[1]);
 				break;
 			case '%':
-				*buf_p++ = '%';
+				BAPPEND_PUTC(buf_p, buf_end, '%');
 				break;
 			}
 		} else {
-			*buf_p++ = *instr;
+			BAPPEND_PUTC(buf_p, buf_end, *instr);
 		}
 	*buf_p = 0;
 	if (l_type == INCOMPLETE_NORMAL)
