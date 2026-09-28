@@ -173,4 +173,6 @@ extern unsigned int insampledir(char *);
 
 extern int _err_file_banned(const char *fn, struct VARS *v);
 extern void safe_snprintf(char *buffer, size_t size, const char *format, ...);
+extern int bappend(char *, const char *, const char *, ...);
+#define BAPPEND_PUTC(p, end, c) do { if ((p) < (end)) *(p)++ = (c); } while (0)
 extern bool is_process_running(pid_t pid);

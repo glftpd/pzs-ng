@@ -55,10 +55,12 @@ convert_user(struct VARS *raceI, struct USERINFO *userI, struct GROUPINFO **grou
 	int		val1;
 	int		val2;
 	char           *out_p;
+	char		*out_end;
 	char           *m;
 	char		ctrl      [255];
 
 	out_p = output2;
+	out_end = output2 + sizeof(output2) - 1;
 	bzero(out_p, (int)sizeof(out_p));
 	bzero(ctrl, (int)sizeof(ctrl));
 
@@ -94,80 +96,80 @@ convert_user(struct VARS *raceI, struct USERINFO *userI, struct GROUPINFO **grou
 
 				switch (*instr) {
 /*				case 'B':
- *					out_p += sprintf(out_p, "\\002");
+ *					out_p += bappend(out_p, out_end, "\\002");
  *					break;
  */				case 'K':
-					out_p += sprintf(out_p, "%s", raceI->user.tagline);
+					out_p += bappend(out_p, out_end, "%s", raceI->user.tagline);
 					break;
 				case 'F':
-					out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->misc.fastest_user[0] / 1024.));
+					out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->misc.fastest_user[0] / 1024.));
 					break;
 				case 'n':
-					out_p += sprintf(out_p, "%*i", val1, (int)userpos + 1);
+					out_p += bappend(out_p, out_end, "%*i", val1, (int)userpos + 1);
 					break;
 				case 'N':
 					if ((int)userpos == 0) {
-						out_p += sprintf(out_p, winner);
+						out_p += bappend(out_p, out_end, winner);
 					} else {
-						out_p += sprintf(out_p, loser);
+						out_p += bappend(out_p, out_end, loser);
 					}
 					break;
 				case 'u':
-					out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)userI->name);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)userI->name);
 					break;
 				case 'g':
-					out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)groupI[userI->group]->name);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)groupI[userI->group]->name);
 					break;
 				case 'U':
 					sprintf(ctrl, "%s/%s", userI->name, groupI[userI->group]->name);
-					out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)ctrl);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)ctrl);
 					break;
 				case 'b':
-					out_p += sprintf(out_p, "%*f", val1, (double)userI->bytes);
+					out_p += bappend(out_p, out_end, "%*f", val1, (double)userI->bytes);
 					break;
 				case 'k':
-					out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(userI->bytes / 1024.));
+					out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(userI->bytes / 1024.));
 					break;
 				case 'm':
-					out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((userI->bytes >> 10) / 1024.));
+					out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((userI->bytes >> 10) / 1024.));
 					break;
 				case 'p':
-					out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(userI->bytes * 100. / raceI->total.size));
+					out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(userI->bytes * 100. / raceI->total.size));
 					break;
 				case 'f':
-					out_p += sprintf(out_p, "%*i", val1, (int)userI->files);
+					out_p += bappend(out_p, out_end, "%*i", val1, (int)userI->files);
 					break;
 				case 'S':
-					out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->misc.slowest_user[0] / 1024.));
+					out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->misc.slowest_user[0] / 1024.));
 					break;
 				case 's':
-					out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(userI->speed / 1024. / userI->files));
+					out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(userI->speed / 1024. / userI->files));
 					break;
 
 				case 'D':
-					out_p += sprintf(out_p, "%*llu", val1, (unsigned long long)userI->dayup);
+					out_p += bappend(out_p, out_end, "%*llu", val1, (unsigned long long)userI->dayup);
 					break;
 				case 'W':
-					out_p += sprintf(out_p, "%*llu", val1, (unsigned long long)userI->wkup);
+					out_p += bappend(out_p, out_end, "%*llu", val1, (unsigned long long)userI->wkup);
 					break;
 				case 'M':
-					out_p += sprintf(out_p, "%*llu", val1, (unsigned long long)userI->monthup);
+					out_p += bappend(out_p, out_end, "%*llu", val1, (unsigned long long)userI->monthup);
 					break;
 				case 'A':
-					out_p += sprintf(out_p, "%*llu", val1, (unsigned long long)userI->allup);
+					out_p += bappend(out_p, out_end, "%*llu", val1, (unsigned long long)userI->allup);
 					break;
 				case '%':
-					*out_p++ = *instr;
+					BAPPEND_PUTC(out_p, out_end, *instr);
 					break;
 				case '~':
-					out_p += sprintf(out_p, "%*s", val1, raceI->misc.current_path);
+					out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.current_path);
 					break;
 				case '^':
-					out_p += sprintf(out_p, "%*s", val1, raceI->misc.basepath);
+					out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.basepath);
 					break;
 				}
 			} else {
-				*out_p++ = *instr;
+				BAPPEND_PUTC(out_p, out_end, *instr);
 			}
 		}
 	}
@@ -187,10 +189,12 @@ convert_group(struct VARS *raceI, struct GROUPINFO *groupI, char *instr, short i
 	int		val1;
 	int		val2;
 	char           *out_p;
+	char		*out_end;
 	char           *m;
 	char		ctrl      [15];
 
 	out_p = output2;
+	out_end = output2 + sizeof(output2) - 1;
 
 	bzero(out_p, (int)sizeof(out_p));
 	bzero(ctrl, (int)sizeof(ctrl));
@@ -229,57 +233,57 @@ convert_group(struct VARS *raceI, struct GROUPINFO *groupI, char *instr, short i
 
 			switch (*instr) {
 /*			case 'B':
- *				out_p += sprintf(out_p, "\\002");
+ *				out_p += bappend(out_p, out_end, "\\002");
  *				break;
  */			case 'K':
-				out_p += sprintf(out_p, "%s", raceI->user.tagline);
+				out_p += bappend(out_p, out_end, "%s", raceI->user.tagline);
 				break;
 			case 'n':
-				out_p += sprintf(out_p, "%*i", val1, (int)grouppos + 1);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)grouppos + 1);
 				break;
 			case 'N':
 				if ((int)grouppos == 0) {
-					out_p += sprintf(out_p, winner);
+					out_p += bappend(out_p, out_end, winner);
 				} else {
-					out_p += sprintf(out_p, loser);
+					out_p += bappend(out_p, out_end, loser);
 				}
 				break;
 			case 'g':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)groupI->name);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)groupI->name);
 				break;
 			case 'b':
-				out_p += sprintf(out_p, "%*i", val1, (int)groupI->bytes);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)groupI->bytes);
 				break;
 			case 'k':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(groupI->bytes / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(groupI->bytes / 1024.));
 				break;
 			case 'm':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((groupI->bytes >> 10) / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((groupI->bytes >> 10) / 1024.));
 				break;
 			case 'p':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(groupI->bytes * 100.0 / raceI->total.size));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(groupI->bytes * 100.0 / raceI->total.size));
 				break;
 			case 'f':
-				out_p += sprintf(out_p, "%*i", val1, (int)groupI->files);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)groupI->files);
 				break;
 			case 's':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(groupI->speed / 1024. / groupI->files));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(groupI->speed / 1024. / groupI->files));
 				break;
 			case 'u':
-				out_p += sprintf(out_p, "%*i", val1, (int)groupI->users);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)groupI->users);
 				break;
 			case '%':
-				*out_p++ = *instr;
+				BAPPEND_PUTC(out_p, out_end, *instr);
 				break;
 			case '~':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.current_path);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.current_path);
 				break;
 			case '^':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.basepath);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.basepath);
 				break;
 			}
 		} else
-			*out_p++ = *instr;
+			BAPPEND_PUTC(out_p, out_end, *instr);
 	*out_p = 0;
 	return output2;
 }
@@ -289,10 +293,12 @@ convert_audio(struct VARS *raceI, char *instr)
 {
 	int		val1      , val2;
 	char           *out_p;
+	char		*out_end;
 	char           *m;
 	char		ctrl      [15];
 
 	out_p = output2;
+	out_end = output2 + sizeof(output2) - 1;
 
 	bzero(out_p, (int)sizeof(out_p));
 	bzero(ctrl, (int)sizeof(ctrl));
@@ -330,74 +336,74 @@ convert_audio(struct VARS *raceI, char *instr)
 
 			switch (*instr) {
 			case 'w':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.id3_genre == NULL)?"Unknown":(char *)raceI->audio.id3_genre);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.id3_genre == NULL)?"Unknown":(char *)raceI->audio.id3_genre);
 				break;
 			case 'W':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_album);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_album);
 				break;
 			case 'x':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_artist);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_artist);
 				break;
 			case 'y':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_title);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_title);
 				break;
 			case 'Y':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_year);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_year);
 				break;
 			case 'X':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.bitrate);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.bitrate);
 				break;
 			case 'z':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.samplingrate);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.samplingrate);
 				break;
 			case 'h':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.codec == NULL)?"Unknown":(char *)raceI->audio.codec);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.codec == NULL)?"Unknown":(char *)raceI->audio.codec);
 				break;
 			case '@':
 				if (raceI->audio.vbr_oldnew == 1)
-					out_p += sprintf(out_p, "%*.*s", val1, val2, vbrnew);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, vbrnew);
 				else
-					out_p += sprintf(out_p, "%*.*s", val1, val2, vbrold);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, vbrold);
 				break;
 			case '_':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->audio.vbr_quality);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->audio.vbr_quality);
 				break;
 			case '/':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->audio.vbr_minimum_bitrate);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->audio.vbr_minimum_bitrate);
 				break;
 			case '\\':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->audio.vbr_noiseshaping);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->audio.vbr_noiseshaping);
 				break;
 			case '(':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_stereo_mode);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_stereo_mode);
 				break;
 			case ')':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_unwise);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_unwise);
 				break;
 			case '|':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_source);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_source);
 				break;
 			case 'q':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.layer == NULL)?"Unknown":(char *)raceI->audio.layer);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.layer == NULL)?"Unknown":(char *)raceI->audio.layer);
 				break;
 			case 'Q':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.channelmode == NULL)?"Unknown":(char *)raceI->audio.channelmode);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.channelmode == NULL)?"Unknown":(char *)raceI->audio.channelmode);
 				break;
 			case 'i':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_version_string);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_version_string);
 				break;
 			case 'I':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_preset);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_preset);
 				break;
 			case '~':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.current_path);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.current_path);
 				break;
 			case '^':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.basepath);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.basepath);
 				break;
 			}
 		} else
-			*out_p++ = *instr;
+			BAPPEND_PUTC(out_p, out_end, *instr);
 	*out_p = 0;
 	return output2;
 }
@@ -407,10 +413,12 @@ convert_sitename(char *instr)
 {
 	int		val1;
 	char  *out_p;
+	char		*out_end;
 	char      *m;
 	char ctrl[15];
 
 	out_p = output2;
+	out_end = output2 + sizeof(output2) - 1;
 
 	bzero(out_p, (int)sizeof(out_p));
 	bzero(ctrl, (int)sizeof(ctrl));
@@ -443,14 +451,14 @@ convert_sitename(char *instr)
 
 			switch (*instr) {
 			case 'Z':
-				out_p += sprintf(out_p, "%*s", val1, short_sitename);
+				out_p += bappend(out_p, out_end, "%*s", val1, short_sitename);
 				break;
 			case '%':
-				*out_p++ = *instr;
+				BAPPEND_PUTC(out_p, out_end, *instr);
 				break;
 			}
 		} else
-			*out_p++ = *instr;
+			BAPPEND_PUTC(out_p, out_end, *instr);
 	*out_p = 0;
 	return output2;
 }
@@ -465,10 +473,12 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 	int		val1, val2, n;
 	int		from, to, reverse;
 	char		*out_p;
+	char		*out_end;
 	char		*m;
 	char		ttime[40], ctrl[15];
 
 	out_p = output;
+	out_end = output + sizeof(output) - 1;
 
 	bzero(out_p, (int)sizeof(out_p));
 	bzero(ctrl, (int)sizeof(ctrl));
@@ -507,23 +517,23 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 
 			switch (*instr) {
 			case 'a':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->total.speed / 1024. / raceI->total.files));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->total.speed / 1024. / raceI->total.files));
 				break;
 			case 'A':
 			{
 				double duration_sec = (raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) +
 					(raceI->total.stop_time.tv_usec - raceI->total.start_time.tv_usec) / 1000000.0;
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.size / duration_sec) / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->total.size / duration_sec) / 1024.));
 			}
 				break;
 			case 'b':
-				out_p += sprintf(out_p, "%*u", val1, (unsigned int)raceI->total.size);
+				out_p += bappend(out_p, out_end, "%*u", val1, (unsigned int)raceI->total.size);
 				break;	/* what about files bigger than 4gb? */
 /*			case 'B':
- *				out_p += sprintf(out_p, "\\002");
+ *				out_p += bappend(out_p, out_end, "\\002");
  *				break;
  */			case 'K':
-				out_p += sprintf(out_p, "%s", raceI->user.tagline);
+				out_p += bappend(out_p, out_end, "%s", raceI->user.tagline);
 				break;
 			case 'c':
 				from = to = reverse = 0;
@@ -560,7 +570,7 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 					to = -1;
 				}
 				for (n = from; n <= to; n++) {
-					out_p += sprintf(out_p, "%*.*s", val1, val2, convert_group(raceI, groupI[groupI[n]->pos], group_info, n));
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, convert_group(raceI, groupI[groupI[n]->pos], group_info, n));
 				}
 				instr--;
 				break;
@@ -598,7 +608,7 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 					to = -1;
 				}
 				for (n = from; n <= to; n++) {
-					out_p += sprintf(out_p, "%*.*s", val1, val2, convert_user(raceI, userI[userI[n]->pos], groupI, user_info, n));
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, convert_user(raceI, userI[userI[n]->pos], groupI, user_info, n));
 				}
 				instr--;
 				break;
@@ -607,9 +617,9 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 				double duration_sec = (raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) +
 					(raceI->total.stop_time.tv_usec - raceI->total.start_time.tv_usec) / 1000000.0;
 #if ( time_format_seconds_only == TRUE )
-				out_p += sprintf(out_p, "%*.*f", val1, val2, duration_sec);
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, duration_sec);
 #else
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)hms(ttime, duration_sec));
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)hms(ttime, duration_sec));
 #endif
 			}
 				break;
@@ -618,222 +628,222 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 				double duration_sec = (raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) +
 					(raceI->total.stop_time.tv_usec - raceI->total.start_time.tv_usec) / 1000000.0;
 				double eta_sec = ((((duration_sec + (raceI->total.files - raceI->total.files_missing) > 0 ? duration_sec + (raceI->total.files - raceI->total.files_missing) : 1)) / (raceI->total.files - raceI->total.files_missing)) * raceI->total.files) - duration_sec;
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)hms(ttime, eta_sec));
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)hms(ttime, eta_sec));
 			}
 				break;
 			case '&':
-				out_p += sprintf(out_p, "%llu", (unsigned long long)time(0));
+				out_p += bappend(out_p, out_end, "%llu", (unsigned long long)time(0));
 				break;
 			case 'e':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->file.size * raceI->total.files >> 10) / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->file.size * raceI->total.files >> 10) / 1024.));
 				break;
 			case 'f':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->total.files);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->total.files);
 				break;
 			case 'F':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->total.files - (int)raceI->total.files_missing);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->total.files - (int)raceI->total.files_missing);
 				break;
 			case 'g':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->total.groups);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->total.groups);
 				break;
 			case 'G':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->user.group);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->user.group);
 				break;
 			case 'k':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.size > 0 ? raceI->total.size : 1) / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->total.size > 0 ? raceI->total.size : 1) / 1024.));
 				break;
 			case 'l':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)convert_user(raceI, userI[raceI->misc.slowest_user[1]], groupI, slowestfile, 0));
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)convert_user(raceI, userI[raceI->misc.slowest_user[1]], groupI, slowestfile, 0));
 				break;
 			case 'L':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)convert_user(raceI, userI[raceI->misc.fastest_user[1]], groupI, fastestfile, 0));
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)convert_user(raceI, userI[raceI->misc.fastest_user[1]], groupI, fastestfile, 0));
 				break;
 			case 'm':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.size >> 10) / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->total.size >> 10) / 1024.));
 				break;
 			case 'N':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.size >> 10) * 1024. / 1000. /1000.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->total.size >> 10) * 1024. / 1000. /1000.));
 				break;
 			case 'M':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->total.files_missing);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->total.files_missing);
 				break;
 			case 'n':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->file.name);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->file.name);
 				break;
 			case 'o':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->total.files_bad);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->total.files_bad);
 				break;
 			case 'O':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.bad_size >> 10) / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->total.bad_size >> 10) / 1024.));
 				break;
 			case 'p':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)((raceI->total.files - raceI->total.files_missing) * 100. / raceI->total.files));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)((raceI->total.files - raceI->total.files_missing) * 100. / raceI->total.files));
 				break;
 			case 'P':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->total.bad_size / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->total.bad_size / 1024.));
 				break;
 			case 'S':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->file.speed / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->file.speed / 1024.));
 				break;	/* KB/s */
 			case '#':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->file.speed / 1024. / 1024.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->file.speed / 1024. / 1024.));
 				break;	/* MB/s */
 			case 's':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)(raceI->file.speed * 8 / 1000. / 1000.));
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->file.speed * 8 / 1000. / 1000.));
 				break;	/* Mbps */
 			case 'r':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.release_name);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.release_name);
 				break;
 			case 'R':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.racer_list);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.racer_list);
 				break;
 			case 'B':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.total_racer_list);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.total_racer_list);
 				break;
 			case 't':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.top_messages[1]);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.top_messages[1]);
 				break;
 			case 'T':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.top_messages[0]);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.top_messages[0]);
 				break;
 			case 'u':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->total.users);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->total.users);
 				break;
 			case 'U':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->user.name);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->user.name);
 				break;
 			case 'v':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.error_msg);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.error_msg);
 				break;
 			case 'V':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->misc.progress_bar);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->misc.progress_bar);
 				break;
 
 				/* Audio */
 
 			case 'w':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.id3_genre == NULL)?"Unknown":(char *)raceI->audio.id3_genre);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.id3_genre == NULL)?"Unknown":(char *)raceI->audio.id3_genre);
 				break;
 			case 'W':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_album);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_album);
 				break;
 			case 'x':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_artist);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_artist);
 				break;
 			case 'y':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_title);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_title);
 				break;
 			case 'Y':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.id3_year);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.id3_year);
 				break;
 			case 'X':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.bitrate);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.bitrate);
 				break;
 			case 'z':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.samplingrate);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.samplingrate);
 				break;
 			case 'h':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.codec == NULL)?"Unknown":(char *)raceI->audio.codec);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.codec == NULL)?"Unknown":(char *)raceI->audio.codec);
 				break;
 			case 'q':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.layer == NULL)?"Unknown":(char *)raceI->audio.layer);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.layer == NULL)?"Unknown":(char *)raceI->audio.layer);
 				break;
 			case 'Q':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (raceI->audio.channelmode == NULL)?"Unknown":(char *)raceI->audio.channelmode);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.channelmode == NULL)?"Unknown":(char *)raceI->audio.channelmode);
 				break;
 			case '@':
 				if (raceI->audio.vbr_oldnew == 1)
-					out_p += sprintf(out_p, "%*.*s", val1, val2, vbrnew);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, vbrnew);
 				else
-					out_p += sprintf(out_p, "%*.*s", val1, val2, vbrold);
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, vbrold);
 				break;
 			case '_':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->audio.vbr_quality);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->audio.vbr_quality);
 				break;
 			case '/':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->audio.vbr_minimum_bitrate);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->audio.vbr_minimum_bitrate);
 				break;
 			case '\\':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->audio.vbr_noiseshaping);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->audio.vbr_noiseshaping);
 				break;
 			case '(':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_stereo_mode);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_stereo_mode);
 				break;
 			case ')':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_unwise);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_unwise);
 				break;
 			case '|':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_source);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_source);
 				break;
 			case 'j':
 				if (raceI->audio.is_vbr == 1)
-					out_p += sprintf(out_p, "%*.*s", val1, val2, convert_audio(raceI, audio_vbr));
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, convert_audio(raceI, audio_vbr));
 				else
-					out_p += sprintf(out_p, "%*.*s", val1, val2, convert_audio(raceI, audio_cbr));
+					out_p += bappend(out_p, out_end, "%*.*s", val1, val2, convert_audio(raceI, audio_cbr));
 				break;
 			case 'i':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_version_string);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_version_string);
 				break;
 			case 'I':
-				out_p += sprintf(out_p, "%*.*s", val1, val2, (char *)raceI->audio.vbr_preset);
+				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (char *)raceI->audio.vbr_preset);
 				break;
 
 				/* Video */
 
 			case 'D':
-				out_p += sprintf(out_p, "%*i", val1, raceI->avinfo.width);
+				out_p += bappend(out_p, out_end, "%*i", val1, raceI->avinfo.width);
 				break;
 			case 'E':
-				out_p += sprintf(out_p, "%*i", val1, raceI->avinfo.height);
+				out_p += bappend(out_p, out_end, "%*i", val1, raceI->avinfo.height);
 				break;
 			case 'H':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, raceI->avinfo.fps);
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, raceI->avinfo.fps);
 				break;
 			case ';':
-				out_p += sprintf(out_p, "%*.*f", val1, val2, (double)raceI->avinfo.width/raceI->avinfo.height);
+				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)raceI->avinfo.width/raceI->avinfo.height);
 				break;
 			case ':':
-				out_p += sprintf(out_p, "%*s", val1, raceI->avinfo.vids);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->avinfo.vids);
 				break;
 			case ',':
-				out_p += sprintf(out_p, "%*s", val1, raceI->avinfo.fourcc);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->avinfo.fourcc);
 				break;
 			case '`':
-				out_p += sprintf(out_p, "%*lu", val1, raceI->avinfo.hz);
+				out_p += bappend(out_p, out_end, "%*lu", val1, raceI->avinfo.hz);
 				break;
 			case '=':
-				out_p += sprintf(out_p, "%*i", val1, (int)raceI->avinfo.ch);
+				out_p += bappend(out_p, out_end, "%*i", val1, (int)raceI->avinfo.ch);
 				break;
 			case '>':
-				out_p += sprintf(out_p, "%*s", val1, raceI->avinfo.audio);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->avinfo.audio);
 				break;
 			case '<':
-				out_p += sprintf(out_p, "%*s", val1, raceI->avinfo.audiotype);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->avinfo.audiotype);
 				break;
 
 				/* Other */
 
 			case 'J':
-				*out_p++ = raceI->file.compression_method;
+				BAPPEND_PUTC(out_p, out_end, raceI->file.compression_method);
 				break;
 			case 'Z':
-				out_p += sprintf(out_p, "%*s", val1, short_sitename);
+				out_p += bappend(out_p, out_end, "%*s", val1, short_sitename);
 				break;
 			case '%':
-				*out_p++ = *instr;
+				BAPPEND_PUTC(out_p, out_end, *instr);
 				break;
 			case '?':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.current_path);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.current_path);
 				break;
 			case '~':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.current_path);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.current_path);
 				break;
 			case '^':
-				out_p += sprintf(out_p, "%*s", val1, raceI->misc.basepath);
+				out_p += bappend(out_p, out_end, "%*s", val1, raceI->misc.basepath);
 				break;
 			}
 		} else
-			*out_p++ = *instr;
+			BAPPEND_PUTC(out_p, out_end, *instr);
 	*out_p = 0;
 	return output;
 }

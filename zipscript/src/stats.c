@@ -129,13 +129,16 @@ sortstats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI
 	int            *p_array = NULL;
 	char           *r_list;
 	char           *t_list;
+	char           *r_end, *t_end;
 
 	p_array = (int *)ng_realloc(p_array, raceI->total.users * sizeof(int), 1, 1, raceI, 1);
 	r_list = raceI->misc.racer_list;
 	t_list = raceI->misc.total_racer_list;
+	r_end = r_list + sizeof(raceI->misc.racer_list) - 1;
+	t_end = t_list + sizeof(raceI->misc.total_racer_list) - 1;
 
 #if ( get_competitor_list == TRUE )
-        r_list += sprintf(r_list, "%s", racersplit_prefix);
+        r_list += bappend(r_list, r_end, "%s", racersplit_prefix);
 #endif
 	for (n = 0; n < raceI->total.users; n++) {
 		int t = p_array[n];
@@ -150,8 +153,8 @@ sortstats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI
 #if ( get_competitor_list == TRUE )
 		if ( (strncmp(raceI->user.name, userI[n]->name, (int)strlen(raceI->user.name) < (int)strlen(userI[n]->name) ? (int)strlen(raceI->user.name) : (int)strlen(userI[n]->name))) || (((int)strlen(raceI->user.name) != (int)strlen(userI[n]->name)) && (!strncmp(raceI->user.name, userI[n]->name, (int)strlen(raceI->user.name) < (int)strlen(userI[n]->name) ? (int)strlen(raceI->user.name) : (int)strlen(userI[n]->name))))) {
                     if (n != 0)
-                        r_list += sprintf(r_list, "%s", racersplit);
-                    r_list += sprintf(r_list, "%s",
+                        r_list += bappend(r_list, r_end, "%s", racersplit);
+                    r_list += bappend(r_list, r_end, "%s",
                             convert_user(raceI, userI[n], groupI, racersmsg, t));
 		} else {
 			raceI->user.pos = n;
@@ -162,17 +165,17 @@ sortstats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI
 #endif
 	}
 #if ( get_competitor_list == TRUE )
-        r_list += sprintf(r_list, "%s", racersplit_postfix);
+        r_list += bappend(r_list, r_end, "%s", racersplit_postfix);
 #endif
         
-        t_list += sprintf(t_list, "%s", racersplit_prefix);
+        t_list += bappend(t_list, t_end, "%s", racersplit_prefix);
 	for (n = 1; n < raceI->total.users; n++) {
                 if (n != 1)
-                    t_list += sprintf(t_list, "%s", racersplit);
-                t_list += sprintf(t_list, "%s",
+                    t_list += bappend(t_list, t_end, "%s", racersplit);
+                t_list += bappend(t_list, t_end, "%s",
                         convert_user(raceI, userI[userI[n]->pos], groupI, racersmsg, n));
 	}
-        t_list += sprintf(t_list, "%s", racersplit_postfix);
+        t_list += bappend(t_list, t_end, "%s", racersplit_postfix);
 
 	bzero(p_array, raceI->total.groups * sizeof(int));
 
