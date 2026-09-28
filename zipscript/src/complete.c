@@ -128,13 +128,15 @@ complete(GLOBAL *g, int completetype)
 		if (user_top != NULL && max_users_in_top > 0) {
                         user_p += sprintf(user_p, "%s", racersplit_prefix);
 			for (cnt = first_entry; cnt < max_users_in_top && cnt < g->v.total.users; ++cnt) {
-				topsize = sprintf(topbuf, "%s", convert_user(&g->v, g->ui[g->ui[cnt]->pos], g->gi, user_top, cnt));
+				topsize = snprintf(topbuf, sizeof(topbuf), "%s", convert_user(&g->v, g->ui[g->ui[cnt]->pos], g->gi, user_top, cnt));
+				if (topsize >= (int)sizeof(topbuf))
+					topsize = sizeof(topbuf) - 1;
 
 				/* only add next pos if we're not going out of bounds,
 				 * otherwise the sprintf outside the for-loop takes
 				 * care of writing the \0 on the correct spot
 				 */
-				if (user_p + topsize + sizeof(racersplit_postfix) < g->v.misc.top_messages[0] + sizeof(g->v.misc.top_messages[0])) {
+				if (user_p + topsize + (cnt != first_entry ? (int)sizeof(racersplit) - 1 : 0) + sizeof(racersplit_postfix) < g->v.misc.top_messages[0] + sizeof(g->v.misc.top_messages[0])) {
 	                                if (cnt != first_entry) {
         	                            user_p += sprintf(user_p, "%s", racersplit);
 					}
@@ -150,13 +152,15 @@ complete(GLOBAL *g, int completetype)
 			topsize = 0;
                         group_p += sprintf(group_p, "%s", racersplit_prefix);
 			for (cnt = first_entry; cnt < max_groups_in_top && cnt < g->v.total.groups; ++cnt) {
-				topsize = sprintf(topbuf, "%s", convert_group(&g->v, g->gi[g->gi[cnt]->pos], group_top, cnt));
+				topsize = snprintf(topbuf, sizeof(topbuf), "%s", convert_group(&g->v, g->gi[g->gi[cnt]->pos], group_top, cnt));
+				if (topsize >= (int)sizeof(topbuf))
+					topsize = sizeof(topbuf) - 1;
 
 				/* only add next pos if we're not going out of bounds,
 				 * otherwise the sprintf outside the for-loop takes
 				 * care of writing the \0 on the correct spot
 				 */
-				if (group_p + topsize + sizeof(racersplit_postfix) < g->v.misc.top_messages[1] + sizeof(g->v.misc.top_messages[1])) {
+				if (group_p + topsize + (cnt != first_entry ? (int)sizeof(racersplit) - 1 : 0) + sizeof(racersplit_postfix) < g->v.misc.top_messages[1] + sizeof(g->v.misc.top_messages[1])) {
                 	                if (cnt != first_entry) {
         	                            group_p += sprintf(group_p, "%s", racersplit);
 					}
