@@ -1430,12 +1430,13 @@ namespace eval ::ngBot {
 	proc themereplace {targetString section} {
 		variable theme
 
-		## Escape any "$" characters so they aren't interpreted as variables in the final "subst".
-		set targetString [string map {$ \\$} $targetString]
-
-		# We need to escape [] for the final "subst" due to how we do casealtering.
-		regsub -all {\[} $targetString {\[} targetString
-		regsub -all {\]} $targetString {\]} targetString
+		## Escape everything the final "subst" would interpret: "$" (variables),
+		## "[]" (commands, needed because of how we do casealtering), "\\" and '"'.
+		## The %T{}/%U{}/%L{} handling below wraps field text in
+		## [string totitle "..."], so an unescaped '"' in an uploader-controlled
+		## field (ID3 tag etc.) could close that argument and inject a command.
+		## One "string map" pass, so no escape is escaped twice.
+		set targetString [string map {\\ \\\\ $ \\$ [ \\[ ] \\] \" \\\"} $targetString]
 
 		# We replace %cX{string}, %b{string} and %u{string} with their coloured, bolded and underlined equivilants ;)
 		# We also do the justification and padding that is required for %r / %l / %m to work.
