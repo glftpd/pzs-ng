@@ -610,7 +610,10 @@ readconfig(char *arg)
 		printf("Failed to open %s: %s\n", tmp, strerror(errno));
 		exit(0);
 	}
-	buf = malloc(filestat.st_size);
+	if ((buf = malloc(filestat.st_size)) == NULL) {
+		printf("Out of memory reading %s\n", tmp);
+		exit(0);
+	}
 	*buf = 0;
 	if (!fread(buf, 1, filestat.st_size, cfgfile)) {
 		printf("Failed to fread() %s: %s\n", tmp, strerror(errno));

@@ -77,8 +77,8 @@ main(int argc, char *argv[])
 #endif
 
 	d_log("ng-post_unnuke: Allocating memory for variables\n");
-	g.ui = ng_realloc2(g.ui, sizeof(struct USERINFO *) * 30, 1, 1, 1);
-	g.gi = ng_realloc2(g.gi, sizeof(struct GROUPINFO *) * 30, 1, 1, 1);
+	g.ui = ng_realloc2(NULL, sizeof(struct USERINFO *) * 30, 1, 1, 1);
+	g.gi = ng_realloc2(NULL, sizeof(struct GROUPINFO *) * 30, 1, 1, 1);
 
 #ifdef USING_GLFTPD
         if (argc < 4)
