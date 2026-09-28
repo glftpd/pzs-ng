@@ -520,7 +520,7 @@ showusers(int n, int mode, char *ucomp, char raw)
 			if ((!noshow && !mask && !(maskchar == '*')) || chidden) {
 				onlineusers++;
 			}
-		} else if (user[x].username && !strcmp(ucomp, user[x].username)) {
+		} else if (!strcmp(ucomp, user[x].username)) {
 #ifdef _WITH_ALTWHO
 			if (!raw && (showall || (!noshow && !mask && !(maskchar == '*')))) {
 				if (mb_xfered)
@@ -606,14 +606,17 @@ readconfig(char *arg)
 		printf("Config file does not exist (%s)\n", tmp);
 		exit(0);
 	}
-	cfgfile = fopen(tmp, "r");
-	free(tmp);
+	if ((cfgfile = fopen(tmp, "r")) == NULL) {
+		printf("Failed to open %s: %s\n", tmp, strerror(errno));
+		exit(0);
+	}
 	buf = malloc(filestat.st_size);
 	*buf = 0;
 	if (!fread(buf, 1, filestat.st_size, cfgfile)) {
 		printf("Failed to fread() %s: %s\n", tmp, strerror(errno));
 	}
 	fclose(cfgfile);
+	free(tmp);
 
 	for (n = 0; n < filestat.st_size; n++) {
 		switch (*(buf + n)) {
