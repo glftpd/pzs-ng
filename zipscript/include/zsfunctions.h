@@ -160,8 +160,9 @@ extern unsigned char get_filetype(GLOBAL *, char *);
 #if ( audio_group_sort == TRUE )
 extern char *remove_pattern(char *, char *, int);
 #endif
-extern void    *ng_realloc(void *, int, int, int, struct VARS *, int);
-extern void    *ng_realloc2(void *, int, int, int, int);
+extern void    *ng_realloc(void *, size_t, int, int, struct VARS *, int);
+extern void    *ng_realloc2(void *, size_t, int, int, int);
+
 extern void    *ng_malloc(int, int, int);
 extern void    *ng_free(void *);
 extern int	copyfile(char *, char *);
