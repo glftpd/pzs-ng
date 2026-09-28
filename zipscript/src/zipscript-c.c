@@ -227,7 +227,6 @@ main(int argc, char **argv)
 	char           *complete_announce = 0;
 	int		cnt, cnt2, n = 0, m = 0;
 	int		write_log = 0;
-	long		loc;
 #if ( enable_complete_script || enable_accept_script )
 	int		nfofound = 0;
 	int		accept_has_run = 0;
@@ -811,11 +810,9 @@ main(int argc, char **argv)
 				if (execute_argv(unzip_diz_args) != 0)
 					d_log("zipscript-c: No file_id.diz found (#%d): %s\n", errno, strerror(errno));
 				else {
-					if ((loc = findfile(dir, "file_id.diz.bad"))) {
-						seekdir(dir, loc);
-						dp = readdir(dir);
-						unlink(dp->d_name);
-					}
+					char *fdiz = findfile(dir, "file_id.diz.bad");
+					if (fdiz)
+						unlink(fdiz);
 					if (chmod("file_id.diz", 0666))
 						d_log("zipscript-c: Failed to chmod %s: %s\n", "file_id.diz", strerror(errno));
 				}

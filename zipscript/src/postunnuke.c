@@ -56,7 +56,6 @@ main(int argc, char *argv[])
 
 	DIR		*dir, *parent;
 	struct dirent	*dp;
-	long		loc;
 	time_t		timenow;
 
 	char		*temp_p = NULL, *temp_p2 = NULL;
@@ -294,11 +293,9 @@ main(int argc, char *argv[])
 					if (execute_argv(unzip_diz_args) != 0) {
 						d_log("ng-post_unnuke: No file_id.diz found (#%d): %s\n", errno, strerror(errno));
 					} else {
-						if ((loc = findfile(dir, "file_id.diz.bad"))) {
-							seekdir(dir, loc);
-							dp = readdir(dir);
-							unlink(dp->d_name);
-						}
+						char *fdiz = findfile(dir, "file_id.diz.bad");
+						if (fdiz)
+							unlink(fdiz);
 						if (chmod("file_id.diz", 0666))
 							d_log("ng-post_unnuke: Failed to chmod %s: %s\n", "file_id.diz", strerror(errno));
 					}
