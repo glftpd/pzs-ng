@@ -159,9 +159,9 @@ AC_ARG_ENABLE(glftpd-specific,
 
 dnl fluffer
 AC_ARG_ENABLE(fluffer,
-        AS_HELP_STRING([--enable-fluffer], [Build for the fluffer ftpd (single-uid): glftpd-compatible hooks, but no suid helpers and no binary-log tools. Point --with-glpath at the fluffer chroot.]),
+        AS_HELP_STRING([--enable-fluffer], [Build for the fluffer ftpd (single-uid): glftpd-compatible hooks, but no suid helpers and no binary-log tools. Point --with-glpath at the fluffer chroot. Enabled automatically when the glpath has etc/fluffer.conf or conf/fluffer.conf and no bin/glftpd.]),
         [FLUFFER="$enableval"],
-        [FLUFFER="no"]
+        [FLUFFER="auto"]
 )
 
 dnl noformat
@@ -251,31 +251,30 @@ if [[ "x$GLFTPD_SPECIFIC" = "xyes" ]]; then
       fi
     fi
 
+    if [[ "x$FLUFFER" = "xauto" ]]; then
+      FLUFFER="no"
+      for flconf in etc/fluffer.conf conf/fluffer.conf; do
+        if [[ -f "${INSTALLPATH}/$flconf" ]]; then
+          if [[ -x "${INSTALLPATH}/bin/glftpd" ]]; then
+            AC_MSG_RESULT([NOTICE: found ${INSTALLPATH}/$flconf next to bin/glftpd - building for glftpd. Use --enable-fluffer to build for fluffer.])
+          else
+            FLUFFER="yes"
+            AC_MSG_RESULT([NOTICE: found ${INSTALLPATH}/$flconf - building for fluffer (--disable-fluffer to override).])
+          fi
+          break
+        fi
+      done
+    fi
     if [[ "x$FLUFFER" = "xyes" ] && [ "$GLVERSION" = "detect" ]]; then
       GLVERSION="-DGLVERSION=20264"
-      AC_MSG_RESULT([NOTICE: fluffer mode (--enable-fluffer): treating as glftpd 2.02-compatible (64bit).])
+      AC_MSG_RESULT([NOTICE: fluffer mode: treating as glftpd 2.02-compatible (64bit).])
     fi
     if [[ "$GLVERSION" = "detect" ]]; then
-      GLBIN="${INSTALLPATH}/bin/glftpd"
-      if [[ ! -x "$GLBIN" ] && [ -x "${INSTALLPATH}/bin/fluffer" ]]; then
-        GLBIN="${INSTALLPATH}/bin/fluffer"
-      fi
-      if [[ ! -x "$GLBIN" ] && [ -x "/usr/local/bin/fluffer" ]]; then
-        GLBIN="/usr/local/bin/fluffer"
-      fi
-      if [[ ! -d "$INSTALLPATH" ] || [ ! -x "$GLBIN" ]]; then
-        AC_MSG_ERROR([Invalid glpath "$INSTALLPATH" - no bin/glftpd or fluffer binary found. Use ./configure --with-install-path=PATH with a valid path! (or --enable-gl(132|200|201|201-64|202-32|202-64) to disable autodetect).
+      if [[ ! -d "$INSTALLPATH" ] || [ ! -x "${INSTALLPATH}/bin/glftpd" ]]; then
+        AC_MSG_ERROR([Invalid glpath "$INSTALLPATH". Use ./configure --with-install-path=PATH with a valid path! (or --enable-gl(132|200|201|201-64|202-32|202-64) to disable autodetect).
                If you're NOT using glftpd, use --disable-glftpd-specific. Quitting!])
       fi
-      if [[ -n "`$STRINGS $GLBIN | $GREP -i '^glftpd '`" ]]; then
-        glversion="`$STRINGS $GLBIN | $GREP -i '^glftpd ' | $CUT -c8-11 | $TR -d '.'``$FILE $GLBIN | $CUT -d':' -f2 | $CUT -c6,7`"
-      else
-        if [[ -n "`$STRINGS $GLBIN | $GREP -i fluffer`" ]]; then
-          AC_MSG_ERROR([fluffer detected at $GLBIN - rerun with --enable-fluffer. Quitting!])
-        else
-          glversion=""
-        fi
-      fi
+      glversion="`$STRINGS $INSTALLPATH/bin/glftpd | $GREP -i '^glftpd ' | $CUT -c8-11 | $TR -d '.'``$FILE $INSTALLPATH/bin/glftpd | $CUT -d':' -f2 | $CUT -c6,7`"
       if [[ `echo "$glversion" | $EGREP "^(13232|20032|(2(0[1-9]|[1-9][0-9])(32|64)))$"` ]]; then
         glusevers="$glversion"
         if [[ `echo "$glversion" | $EGREP "^2(0[2-9]|[1-9][0-9])32$"` ]]; then

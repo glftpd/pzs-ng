@@ -5017,7 +5017,7 @@ if test ${enable_fluffer+y}
 then :
   enableval=$enable_fluffer; FLUFFER="$enableval"
 else case e in #(
-  e) FLUFFER="no"
+  e) FLUFFER="auto"
  ;;
 esac
 fi
@@ -5202,32 +5202,33 @@ fi
       fi
     fi
 
+    if [ "x$FLUFFER" = "xauto" ]; then
+      FLUFFER="no"
+      for flconf in etc/fluffer.conf conf/fluffer.conf; do
+        if [ -f "${INSTALLPATH}/$flconf" ]; then
+          if [ -x "${INSTALLPATH}/bin/glftpd" ]; then
+            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: found ${INSTALLPATH}/$flconf next to bin/glftpd - building for glftpd. Use --enable-fluffer to build for fluffer." >&5
+printf "%s\n" "NOTICE: found ${INSTALLPATH}/$flconf next to bin/glftpd - building for glftpd. Use --enable-fluffer to build for fluffer." >&6; }
+          else
+            FLUFFER="yes"
+            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: found ${INSTALLPATH}/$flconf - building for fluffer (--disable-fluffer to override)." >&5
+printf "%s\n" "NOTICE: found ${INSTALLPATH}/$flconf - building for fluffer (--disable-fluffer to override)." >&6; }
+          fi
+          break
+        fi
+      done
+    fi
     if [ "x$FLUFFER" = "xyes" ] && [ "$GLVERSION" = "detect" ]; then
       GLVERSION="-DGLVERSION=20264"
-      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: fluffer mode (--enable-fluffer): treating as glftpd 2.02-compatible (64bit)." >&5
-printf "%s\n" "NOTICE: fluffer mode (--enable-fluffer): treating as glftpd 2.02-compatible (64bit)." >&6; }
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: NOTICE: fluffer mode: treating as glftpd 2.02-compatible (64bit)." >&5
+printf "%s\n" "NOTICE: fluffer mode: treating as glftpd 2.02-compatible (64bit)." >&6; }
     fi
     if [ "$GLVERSION" = "detect" ]; then
-      GLBIN="${INSTALLPATH}/bin/glftpd"
-      if [ ! -x "$GLBIN" ] && [ -x "${INSTALLPATH}/bin/fluffer" ]; then
-        GLBIN="${INSTALLPATH}/bin/fluffer"
-      fi
-      if [ ! -x "$GLBIN" ] && [ -x "/usr/local/bin/fluffer" ]; then
-        GLBIN="/usr/local/bin/fluffer"
-      fi
-      if [ ! -d "$INSTALLPATH" ] || [ ! -x "$GLBIN" ]; then
-        as_fn_error $? "Invalid glpath \"$INSTALLPATH\" - no bin/glftpd or fluffer binary found. Use ./configure --with-install-path=PATH with a valid path! (or --enable-gl(132|200|201|201-64|202-32|202-64) to disable autodetect).
+      if [ ! -d "$INSTALLPATH" ] || [ ! -x "${INSTALLPATH}/bin/glftpd" ]; then
+        as_fn_error $? "Invalid glpath \"$INSTALLPATH\". Use ./configure --with-install-path=PATH with a valid path! (or --enable-gl(132|200|201|201-64|202-32|202-64) to disable autodetect).
                If you're NOT using glftpd, use --disable-glftpd-specific. Quitting!" "$LINENO" 5
       fi
-      if [ -n "`$STRINGS $GLBIN | $GREP -i '^glftpd '`" ]; then
-        glversion="`$STRINGS $GLBIN | $GREP -i '^glftpd ' | $CUT -c8-11 | $TR -d '.'``$FILE $GLBIN | $CUT -d':' -f2 | $CUT -c6,7`"
-      else
-        if [ -n "`$STRINGS $GLBIN | $GREP -i fluffer`" ]; then
-          as_fn_error $? "fluffer detected at $GLBIN - rerun with --enable-fluffer. Quitting!" "$LINENO" 5
-        else
-          glversion=""
-        fi
-      fi
+      glversion="`$STRINGS $INSTALLPATH/bin/glftpd | $GREP -i '^glftpd ' | $CUT -c8-11 | $TR -d '.'``$FILE $INSTALLPATH/bin/glftpd | $CUT -d':' -f2 | $CUT -c6,7`"
       if [ `echo "$glversion" | $EGREP "^(13232|20032|(2(0[1-9]|[1-9][0-9])(32|64)))$"` ]; then
         glusevers="$glversion"
         if [ `echo "$glversion" | $EGREP "^2(0[2-9]|[1-9][0-9])32$"` ]; then
