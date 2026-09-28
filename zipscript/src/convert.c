@@ -34,9 +34,7 @@ hms(char *ttime, double secs)
 	if (remaining_secs || (!hours && !mins)) {
 		tmp += sprintf(ttime + tmp, "%i", remaining_secs);
 		if (time_precision > 0 && fractional > 0) {
-			char format[16];
-			sprintf(format, ".%%0%dd", time_precision);
-			tmp += sprintf(ttime + tmp, format, (int)(fractional * pow(10, time_precision)));
+			tmp += sprintf(ttime + tmp, ".%0*d", time_precision, (int)(fractional * pow(10, time_precision)));
 		}
 		tmp += sprintf(ttime + tmp, "s");
 	}
@@ -74,7 +72,7 @@ convert_user(struct VARS *raceI, struct USERINFO *userI, struct GROUPINFO **grou
 				while (isdigit(*instr))
 					instr++;
 				if (m != instr && instr-m < (int)sizeof(ctrl)) {
-					sprintf(ctrl, "%.*s", (int)(instr - m), m);
+					snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 					val1 = strtol(ctrl, NULL, 10);
 				} else
 					val1 = 0;
@@ -86,7 +84,7 @@ convert_user(struct VARS *raceI, struct USERINFO *userI, struct GROUPINFO **grou
 					while (isdigit(*instr))
 						instr++;
 					if (m != instr && instr-m < (int)sizeof(ctrl)) {
-						sprintf(ctrl, "%.*s", (int)(instr - m), m);
+						snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 						val2 = strtol(ctrl, NULL, 10);
 					} else
 						val2 = 0;
@@ -208,7 +206,7 @@ convert_group(struct VARS *raceI, struct GROUPINFO *groupI, char *instr, short i
 			while (isdigit(*instr))
 				instr++;
 			if (m != instr && instr-m < (int)sizeof(ctrl)) {
-				sprintf(ctrl, "%.*s", (int)(instr - m), m);
+				snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 				val1 = strtol(ctrl, NULL, 10);
 			} else {
 				val1 = 0;
@@ -222,7 +220,7 @@ convert_group(struct VARS *raceI, struct GROUPINFO *groupI, char *instr, short i
 				while (isdigit(*instr))
 					instr++;
 				if (m != instr && instr-m < (int)sizeof(ctrl)) {
-					sprintf(ctrl, "%.*s", (int)(instr - m), m);
+					snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 					val2 = strtol(ctrl, NULL, 10);
 				} else {
 					val2 = 0;
@@ -312,7 +310,7 @@ convert_audio(struct VARS *raceI, char *instr)
 			while (isdigit(*instr))
 				instr++;
 			if (m != instr && instr-m < (int)sizeof(ctrl)) {
-				sprintf(ctrl, "%.*s", (int)(instr - m), m);
+				snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 				val1 = strtol(ctrl, NULL, 10);
 			} else {
 				val1 = 0;
@@ -325,7 +323,7 @@ convert_audio(struct VARS *raceI, char *instr)
 				while (isdigit(*instr))
 					instr++;
 				if (m != instr && instr-m < (int)sizeof(ctrl)) {
-					sprintf(ctrl, "%.*s", (int)(instr - m), m);
+					snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 					val2 = strtol(ctrl, NULL, 10);
 				} else {
 					val2 = 0;
@@ -432,7 +430,7 @@ convert_sitename(char *instr)
 			while (isdigit(*instr))
 				instr++;
 			if (m != instr && instr-m < (int)sizeof(ctrl)) {
-				sprintf(ctrl, "%.*s", (int)(instr - m), m);
+				snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 				val1 = strtol(ctrl, NULL, 10);
 			} else {
 				val1 = 0;
@@ -445,7 +443,7 @@ convert_sitename(char *instr)
 				while (isdigit(*instr))
 					instr++;
 				if (m != instr && instr-m < (int)sizeof(ctrl)) {
-					sprintf(ctrl, "%.*s", (int)(instr - m), m);
+					snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 				}
 			}
 
@@ -492,7 +490,7 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 			while (isdigit(*instr))
 				instr++;
 			if (m != instr && instr-m < (int)sizeof(ctrl)) {
-				sprintf(ctrl, "%.*s", (int)(instr - m), m);
+				snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 				val1 = strtol(ctrl, NULL, 10);
 			} else {
 				val1 = 0;
@@ -506,7 +504,7 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 				while (isdigit(*instr))
 					instr++;
 				if (m != instr && instr-m < (int)sizeof(ctrl)) {
-					sprintf(ctrl, "%.*s", (int)(instr - m), m);
+					snprintf(ctrl, sizeof(ctrl), "%.*s", (int)(instr - m), m);
 					val2 = strtol(ctrl, NULL, 10);
 				} else {
 					val2 = 0;
