@@ -153,6 +153,14 @@ main(int argc, char *argv[])
 		} else if (!strncasecmp(argv[argnum], "--chroot=", 9) && (strlen(argv[argnum]) > 10) && chdir_allowed) {
 			if (temp_p == NULL) {
 				temp_p = argv[argnum] + 9;
+				/* gate chroot() by the same directory allow-list --dir= uses;
+				 * without it the caller picks an arbitrary chroot target */
+				if ((matchpath(nocheck_dirs, temp_p)) || !(matchpath(zip_dirs, temp_p) || matchpath(sfv_dirs, temp_p)) || matchpath(group_dirs, temp_p)) {
+					printf("Not allowed to chroot() to %s\n", temp_p);
+					ng_free(g.ui);
+					ng_free(g.gi);
+					return 1;
+				}
 				if (chroot(temp_p) == -1) {
 					d_log("rescan: Failed to chroot() to %s : %s\n", temp_p, strerror(errno));
 					not_allowed = 1;
@@ -176,7 +184,7 @@ main(int argc, char *argv[])
 			strlcpy(one_name, argv[argnum], sizeof(one_name));
 			rescan_quick = FALSE;
 			printf("PZS-NG Rescan %s: Rescanning in FILE mode\n", NG_VERSION);
-			if (one_name[strlen(one_name) - 1] == '*') {
+			if (one_name[0] != '\0' && one_name[strlen(one_name) - 1] == '*') {
 				one_name[strlen(one_name) - 1] = '\0';
 			} else if (!fileexists(one_name)) {
 				d_log("PZS-NG Rescan: No file named '%s' exists.\n", one_name);
