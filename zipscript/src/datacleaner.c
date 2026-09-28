@@ -145,7 +145,7 @@ remove_dir_loop(char *path)
 	}
 	while ((dp = readdir(dir))) {
 		if (dp->d_name[0] != '.' || (dp->d_name[0] == '.' && strlen(dp->d_name) > 2)) {
-			if (stat(dp->d_name, &sb) == -1)
+			if (lstat(dp->d_name, &sb) == -1)
 				continue;
 			if (S_ISDIR(sb.st_mode)) {
 				if (snprintf(target, sizeof(target), "%s/%s", path, dp->d_name) >= (int)sizeof(target))
@@ -183,7 +183,7 @@ check_dir_loop(char *path, int zd_length)
 	}
 	while ((dp = readdir(dir1))) {
 		if (dp->d_name[0] != '.') {
-			if (stat(dp->d_name, &sb) == -1)
+			if (lstat(dp->d_name, &sb) == -1)
 				continue;
 			if (S_ISDIR(sb.st_mode)) {
 				if (snprintf(target, sizeof(target), "%s/%s", path, dp->d_name) >= (int)sizeof(target))
