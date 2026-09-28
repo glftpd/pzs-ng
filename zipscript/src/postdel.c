@@ -82,8 +82,14 @@ main(int argc, char **argv)
 		// fname does not contain a path, use the current directory
 		strcpy(dirname, "./");
 	} else {
-		// Extract the directory and file name
-		strlcpy(dirname, fname, basename - fname + 1);
+		// Extract the directory and file name.  The strlcpy size must be
+		// clamped to sizeof(dirname): it is otherwise derived only from the
+		// position of '/' in the untrusted argument, so a directory portion
+		// >= PATH_MAX would write past dirname.
+		size_t dirlen = (size_t)(basename - fname) + 1;
+		if (dirlen > sizeof(dirname))
+			dirlen = sizeof(dirname);
+		strlcpy(dirname, fname, dirlen);
 		fname = basename + 1;
 	}
 
@@ -117,7 +123,10 @@ main(int argc, char **argv)
         }
         else
         {
-            strlcpy(dirname, argv[5], fname - argv[5] + 1);
+            size_t dirlen = (size_t)(fname - argv[5]) + 1;
+            if (dirlen > sizeof(dirname))
+                dirlen = sizeof(dirname);
+            strlcpy(dirname, argv[5], dirlen);
             fname++;
         }
 
@@ -335,7 +344,6 @@ main(int argc, char **argv)
 		d_log("postdel: Got: %s\n", temp_p);
 		temp_p++;
 	}
-	name_p++;
 
 	if (temp_p) {
 		while ((signed)strlen(temp_p) - 4 > 0)
