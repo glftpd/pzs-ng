@@ -263,7 +263,6 @@ get_mpeg_audio_info(char *f, struct audio *audio)
 	unsigned char	fraunhofer_header[4];
 	unsigned char	version;
 	unsigned char	layer;
-	unsigned char	protected = 1;
 	unsigned char	t_bitrate;
 	unsigned char	t_samplingrate;
 	unsigned char	channelmode;
@@ -337,7 +336,6 @@ get_mpeg_audio_info(char *f, struct audio *audio)
 								 * in 'layer'. (layer =
 								 * (*(header + 1) -
 								 * (version << 3)) >> 1) */
-		protected = (*(header + 1)) & 1;
 		t_bitrate = (*(header + 2)) >> 4;
 		t_samplingrate = (*(header + 2) >> 2) & ((1 << 2) - 1);	/* Nasty code, keeps FF
 									 * in 't_samplingrate'.
@@ -349,6 +347,7 @@ get_mpeg_audio_info(char *f, struct audio *audio)
 		switch (version) {
 		case 0:
 			samplingrate = sr_v25[t_samplingrate];
+			/* FALLTHROUGH - MPEG 2.5 uses the MPEG 2 bitrate tables */
 		case 2:
 			if (!samplingrate)
 				samplingrate = sr_v2[t_samplingrate];
@@ -379,8 +378,8 @@ get_mpeg_audio_info(char *f, struct audio *audio)
 		}
 		channelmode = (*(header + 3)) >> 6;
 
-		sprintf(audio->samplingrate, "%i", samplingrate);
-		sprintf(audio->bitrate, "%i", bitrate);
+		snprintf(audio->samplingrate, sizeof(audio->samplingrate), "%i", samplingrate);
+		snprintf(audio->bitrate, sizeof(audio->bitrate), "%i", bitrate);
 		audio->codec = codec_s[version];
 		audio->layer = layer_s[layer];
 		audio->channelmode = chanmode_s[channelmode];
