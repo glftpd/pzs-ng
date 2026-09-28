@@ -46,8 +46,11 @@ fgetpwent(FILE * fp)
 
 		if (varsize < charcnt[fieldcnt]) {
 			varsize += 20;
-			if ((data[fieldcnt] = realloc(data[fieldcnt], varsize)) == NULL)
+			char *nb = realloc(data[fieldcnt], varsize);
+
+			if (nb == NULL)
 				goto out;
+			data[fieldcnt] = nb;
 		}
 		if (tmp == '\n') {
 			data[fieldcnt][charcnt[fieldcnt] - 1] = 0;

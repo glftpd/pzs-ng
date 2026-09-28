@@ -86,8 +86,8 @@ main(int argc, char *argv[])
 #endif
 
 	d_log("rescan: Allocating memory for variables\n");
-	g.ui = ng_realloc2(g.ui, sizeof(*g.ui) * 30, 1, 1, 1);
-	g.gi = ng_realloc2(g.gi, sizeof(*g.gi) * 30, 1, 1, 1);
+	g.ui = ng_realloc2(NULL, sizeof(*g.ui) * 30, 1, 1, 1);
+	g.gi = ng_realloc2(NULL, sizeof(*g.gi) * 30, 1, 1, 1);
 
 	bzero(one_name, NAME_MAX);
 
