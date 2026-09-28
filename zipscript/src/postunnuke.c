@@ -233,6 +233,11 @@ main(int argc, char *argv[])
 
 	dir = opendir(".");
 	parent = opendir("..");
+	if (!dir || !parent) {
+		d_log("ng-post_unnuke: Failed to open the release dir or its parent: %s\n", strerror(errno));
+		remove_lock(&g.v);
+		exit(EXIT_FAILURE);
+	}
 
 	if (!findfileext(dir, ".sfv")) {
 		if (g.l.sfv)
