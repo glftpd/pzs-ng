@@ -389,14 +389,14 @@ showusers(int n, int mode, char *ucomp, char raw)
 				if (!raw)
 					if (speed > threshold) {
 						speed = (speed / 1024.0);
-						sprintf(status, "Up: %7.2fMB/s", speed);
+						snprintf(status, sizeof(status), "Up: %7.2fMB/s", speed);
 					} else {
-						sprintf(status, "Up: %7.0fKB/s", speed);
+						snprintf(status, sizeof(status), "Up: %7.0fKB/s", speed);
 					}
 				else if (raw == 1)
-					sprintf(status, "\"UP\" \"%.0f\"", speed);
+					snprintf(status, sizeof(status), "\"UP\" \"%.0f\"", speed);
 				else
-					sprintf(status, "upld|%.0f", speed);
+					snprintf(status, sizeof(status), "upld|%.0f", speed);
 
 				mb_xfered = user[x].bytes_xfer * 1.0 / 1024 / 1024;
 			}
@@ -448,14 +448,14 @@ showusers(int n, int mode, char *ucomp, char raw)
 				if (!raw)
 					if (speed > threshold) {
 						speed = (speed / 1024.0);
-						sprintf(status, "Dn: %7.2fMB/s", speed);
+						snprintf(status, sizeof(status), "Dn: %7.2fMB/s", speed);
 					} else {
-						sprintf(status, "Dn: %7.0fKB/s", speed);
+						snprintf(status, sizeof(status), "Dn: %7.0fKB/s", speed);
 					}
 				else if (raw == 1)
-					sprintf(status, "\"DN\" \"%.1f\"", speed);
+					snprintf(status, sizeof(status), "\"DN\" \"%.1f\"", speed);
 				else
-					sprintf(status, "dnld|%.1f", speed);
+					snprintf(status, sizeof(status), "dnld|%.1f", speed);
 			}
 		} else {
 			pct = *bar = *filename = hours = minutes = mb_xfered = 0;
@@ -475,11 +475,11 @@ showusers(int n, int mode, char *ucomp, char raw)
 					browsers++;
 			}
 			if (!raw)
-				sprintf(status, "Idle: %02d:%02d:%02d", hours, minutes, seconds);
+				snprintf(status, sizeof(status), "Idle: %02d:%02d:%02d", hours, minutes, seconds);
 			else if (raw == 1)
-				sprintf(status, "\"ID\" \"%d\"", (hours * 60 * 60) + (minutes * 60) + seconds);
+				snprintf(status, sizeof(status), "\"ID\" \"%d\"", (hours * 60 * 60) + (minutes * 60) + seconds);
 			else
-				sprintf(status, "idle|%02d:%02d:%02d", hours, minutes, seconds);
+				snprintf(status, sizeof(status), "idle|%02d:%02d:%02d", hours, minutes, seconds);
 		}
 
 		hours = minutes = 0;
