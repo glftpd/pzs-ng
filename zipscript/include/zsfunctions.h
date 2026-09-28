@@ -111,7 +111,7 @@ extern char	israr(char *);
 extern void	buffer_progress_bar(struct VARS *);
 extern void	move_progress_bar(unsigned char, struct VARS *, struct USERINFO **, struct GROUPINFO **);
 extern int	check_dupefile(DIR *, char *);
-extern long	findfile(DIR *, char *);
+extern char    *findfile(DIR *, char *);
 extern char    *findfilename(char *, char *, struct VARS *);
 extern char    *check_nocase_linkname(char *, char *);
 extern void	removedotfiles(DIR *);

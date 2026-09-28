@@ -56,7 +56,6 @@ main(int argc, char *argv[])
 
 	DIR		*dir, *parent;
 	struct dirent	*dp;
-	long		loc;
 	time_t		timenow;
 #if (test_for_password || extract_nfo || zip_clean)
 	off_t		tempstream;
@@ -451,10 +450,9 @@ main(int argc, char *argv[])
 							d_log("rescan: No file_id.diz found (#%d): %s\n", errno, strerror(errno));
 						} else {
 							if (fileexists("file_id.diz.bad")) {
-								loc = findfile(dir, "file_id.diz.bad");
-								seekdir(dir, loc);
-								dp = readdir(dir);
-								unlink(dp->d_name);
+								char *fdiz = findfile(dir, "file_id.diz.bad");
+								if (fdiz)
+									unlink(fdiz);
 							}
 							if (chmod("file_id.diz", 0666))
 								d_log("rescan: Failed to chmod %s: %s\n", "file_id.diz", strerror(errno));

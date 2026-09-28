@@ -468,9 +468,8 @@ void
 unlink_missing(char *s)
 {
 	char		t[NAME_MAX];
-	long		loc;
+	char		*match;
 	DIR		*dir;
-	struct dirent	*dp;
 
 	snprintf(t, NAME_MAX, "%s-missing", s);
 	unlink(t);
@@ -479,11 +478,8 @@ unlink_missing(char *s)
 	unlink(t);
 #endif
 	dir = opendir(".");
-	if ((loc = findfile(dir, t))) {
-		seekdir(dir, loc);
-		dp = readdir(dir);
-		unlink(dp->d_name);
-	}
+	if ((match = findfile(dir, t)))
+		unlink(match);
 
 	snprintf(t, NAME_MAX, "%s.bad", s);
 	unlink(t);
@@ -491,12 +487,8 @@ unlink_missing(char *s)
 	strtolower(t);
 	unlink(t);
 #endif
-	rewinddir(dir);
-	if ((loc = findfile(dir, t))) {
-		seekdir(dir, loc);
-		dp = readdir(dir);
-		unlink(dp->d_name);
-	}
+	if ((match = findfile(dir, t)))
+		unlink(match);
 	closedir(dir);
 }
 
@@ -642,13 +634,14 @@ move_progress_bar(unsigned char delete, struct VARS *raceI, struct USERINFO **us
 /*
  * Modified: Unknown
  */
-long
+char *
 findfile(DIR *dir, char *filename)
 {
+	static char	matched[NAME_MAX + 1];
 	struct dirent	*dp;
 
 	if (dir == NULL)
-		return 0;
+		return NULL;
 	rewinddir(dir);
 	while ((dp = readdir(dir))) {
 //#if (sfv_cleanup_lowercase)
@@ -656,10 +649,15 @@ findfile(DIR *dir, char *filename)
 //#else
 //		if (!strcmp(dp->d_name, filename))
 //#endif
-		if (lenient_compare(dp->d_name, filename))
-			return telldir(dir);
+		if (lenient_compare(dp->d_name, filename)) {
+			/* return the matched name directly; telldir()/seekdir()
+			 * round-trips to the *next* entry (or end-of-stream),
+			 * making callers unlink the wrong file or deref NULL */
+			strlcpy(matched, dp->d_name, sizeof(matched));
+			return matched;
+		}
 	}
-	return 0;
+	return NULL;
 }
 
 void
