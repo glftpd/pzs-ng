@@ -6,7 +6,7 @@
 ######################
 #
 # This small script (ripped from glinstall.sh ;) will copy libs used by files
-# in glftpd's bin dir.
+# in glftpd's (or fluffer's) bin dir.
 # The script should be run after the zipscript is installed.
 # You should also use this script any time there is changes in your bin dir, or
 # you upgrade your system.
@@ -14,7 +14,7 @@
 ###############################################################################
 
 # a list of possible paths to glroot
-possible_glroot_paths="/glftpd /jail/glftpd /usr/glftpd /usr/jail/glftpd /usr/local/glftpd /usr/local/jail/glftpd /$HOME/glftpd /glftpd/glftpd /opt/glftpd"
+possible_glroot_paths="/glftpd /jail/glftpd /usr/glftpd /usr/jail/glftpd /usr/local/glftpd /usr/local/jail/glftpd /$HOME/glftpd /glftpd/glftpd /opt/glftpd /fluffer"
 
 # bins needed for pzs-ng to run
 needed_bins="sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip"
@@ -25,6 +25,12 @@ zs_bins="zipscript-c postdel postunnuke racestats cleanup datacleaner rescan ng-
 ###################################
 
 version="1.6 (pzs-ng version)"
+
+# a glftpd root has bin/glftpd; a fluffer chroot has etc/fluffer.conf or
+# conf/fluffer.conf (the daemon binary lives outside the chroot)
+is_root() {
+  [ -e "$1/bin/glftpd" ] || [ -e "$1/etc/fluffer.conf" ] || [ -e "$1/conf/fluffer.conf" ]
+}
 
 # Set system type
 case $(uname -s) in
@@ -59,7 +65,7 @@ PATH="$PATH:/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin:\
 
 if [ $# -eq 0 ]; then
 	for possible_glroot in $possible_glroot_paths; do
-		if [ -e ${possible_glroot}/bin/glftpd ]; then
+		if is_root "${possible_glroot}"; then
 		glroot=${possible_glroot}
 		break
 		fi
@@ -68,20 +74,28 @@ if [ $# -eq 0 ]; then
 	if [ -z ${glroot} ]; then
 		echo ""
 		echo "This util will try to copy the necessary libs into your"
-		echo "glftpd environment."
+		echo "glftpd or fluffer environment."
 		echo ""
-		echo "Usage: $0 /path/to/glftpd-root-dir"
+		echo "Usage: $0 /path/to/glftpd-root-dir (or fluffer chroot)"
 		echo ""
 		exit 0
 	fi
 else
 	glroot=$1
-	if [ ! -e /$glroot/bin/glftpd ]; then
+	if ! is_root "/$glroot"; then
 		echo ""
 		echo "Oops! I think you wrote wrong path. I can't find"
-		echo "$glroot/bin/glftpd - Exiting."
+		echo "$glroot/bin/glftpd or $glroot/{etc,conf}/fluffer.conf - Exiting."
 		exit 0
 	fi
+fi
+
+# fluffer: no suid helpers are built, and the chroot's ld.so.conf also
+# lists fluffer's own library dirs, so keep it instead of rebuilding it
+fluffer=""
+if [ ! -e "$glroot/bin/glftpd" ]; then
+  fluffer=1
+  zs_bins="zipscript-c postdel postunnuke racestats cleanup datacleaner rescan audiosort"
 fi
 
 lddsequence() {
@@ -158,7 +172,11 @@ for bin in $zs_bins; do
 done
 
 echo -e "\n\nCopying required shared library files:"
-echo -n "" > "$glroot/etc/ld.so.conf"
+if [ -n "$fluffer" ]; then
+  touch "$glroot/etc/ld.so.conf"
+else
+  echo -n "" > "$glroot/etc/ld.so.conf"
+fi
 case $os in
     openbsd)
       openrel=`uname -r | tr -cd '0-9' | cut -b 1-2`
