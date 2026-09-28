@@ -83,7 +83,7 @@ pbkdf2(const unsigned char *pw, unsigned int pwlen,
        unsigned int ic, unsigned char *dk, unsigned long long dklen)
 {
 	unsigned long	l, r, i, j;
-	unsigned char	txt[4], hash[HLEN * 2], tmp[HLEN], *p =
+	unsigned char	txt[5], hash[HLEN * 2], tmp[HLEN], *p =
 	dk,            *lhix, *hix, *swap;
 	unsigned short	k;
 	unsigned int	outlen;
