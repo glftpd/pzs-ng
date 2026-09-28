@@ -116,7 +116,8 @@ readsfv(const char *path, struct VARS *raceI, int getfcount)
 			raceI->total.files_missing--;
 	}
 
-	closedir(dir);
+	if (dir)
+		closedir(dir);
 	fclose(sfvfile);
 
 	raceI->total.files_missing += raceI->total.files;
@@ -462,7 +463,8 @@ copysfv(const char *source, const char *target, struct VARS *raceI)
 	if (!update_lock(raceI, 1, 0)) {
 		d_log("copysfv: Lock is suggested removed. Will comply and exit\n");
 		fclose(insfv);
-		closedir(dir);
+		if (dir)
+			closedir(dir);
 #if ( sfv_cleanup == TRUE )
 		close(tmpfd);
 		unlink(".tmpsfv");
@@ -669,7 +671,8 @@ END:
 	}
 #endif
 
-	closedir(dir);
+	if (dir)
+		closedir(dir);
 	close(outfd);
 	fclose(insfv);
 	if (!update_lock(raceI, 1, type)) {
