@@ -489,7 +489,8 @@ unlink_missing(char *s)
 #endif
 	if ((match = findfile(dir, t)))
 		unlink(match);
-	closedir(dir);
+	if (dir)
+		closedir(dir);
 }
 
 /*
