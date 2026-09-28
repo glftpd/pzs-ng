@@ -109,7 +109,7 @@ readsfv(const char *path, struct VARS *raceI, int getfcount)
 		if (lenient_compare(raceI->file.name, sd.fname)) {
 			d_log("readsfv: crc read from sfv-file (%s): %.8x\n", sd.fname, (unsigned int)sd.crc32);
 			crc = (unsigned int)sd.crc32;
-			strncpy(raceI->file.unlink, sd.fname, sizeof(raceI->file.unlink));
+			strlcpy(raceI->file.unlink, sd.fname, sizeof(raceI->file.unlink));
 		}
 
 		if (getfcount && findfile(dir, sd.fname))
@@ -144,7 +144,11 @@ get_first_filename_from_sfvdata(const char *sfvdatafile)
 		return 0;
 	}
 
-	fread(&sd, sizeof(SFVDATA), 1, sfvfile);
+	if (fread(&sd, sizeof(SFVDATA), 1, sfvfile) != 1) {
+		d_log("readsfv: No entries in sfv (%s)\n", sfvdatafile);
+		fclose(sfvfile);
+		return 0;
+	}
 	fclose(sfvfile);
 
 	firstfile = ng_malloc((strlen(sd.fname) + 1), 0, 1);
