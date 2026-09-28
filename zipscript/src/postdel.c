@@ -89,7 +89,7 @@ main(int argc, char **argv)
 
 	// Prefix the directory with '/site'
 	char prefixed_dirname[PATH_MAX];
-	if (snprintf(prefixed_dirname, sizeof(prefixed_dirname), "/site%s", dirname) >= sizeof(prefixed_dirname)) {
+	if ((size_t)snprintf(prefixed_dirname, sizeof(prefixed_dirname), "/site%s", dirname) >= sizeof(prefixed_dirname)) {
 		d_log("postdel: Directory name too long after prefixing '/site'\n");
 		return 0;
 	}
@@ -157,6 +157,10 @@ main(int argc, char **argv)
 
 	dir = opendir(".");
 	parent = opendir("..");
+	if (!dir || !parent) {
+		d_log("postdel: Failed to open the release dir or its parent: %s\n", strerror(errno));
+		return 0;
+	}
 
 	if (fileexists(fname)) {
 		d_log("postdel: File (%s) still exists\n", fname);
