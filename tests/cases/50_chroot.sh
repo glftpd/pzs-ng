@@ -2,6 +2,7 @@
 # rescan --chroot=: only directories on the zip/sfv allow-list may become the root.
 # Needs root in a user namespace (run.sh uses 'unshare -Urn' when available).
 . "$TESTDIR/lib.sh"
+skip_if_mode cuftpd "the ftpd helpers take a different, cuftpd-specific argv contract; validate on a live cuftpd/wzd"
 if [ "$(id -u)" != 0 ]; then skip "not root in a user namespace ('unshare -Urn' unavailable)"; summary; exit 0; fi
 if ! python3 -c 'import os; os.chroot("/")' 2>/dev/null; then skip "chroot() not permitted here"; summary; exit 0; fi
 

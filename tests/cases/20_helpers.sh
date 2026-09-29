@@ -2,6 +2,7 @@
 # The ftpd helpers on a real release: postdel (DELE), rescan, postunnuke (SITE UNNUKE),
 # datacleaner (RMD).
 . "$TESTDIR/lib.sh"
+skip_if_mode cuftpd "the ftpd helpers take a different, cuftpd-specific argv contract; validate on a live cuftpd/wzd"
 RS=$BIN/rescan; PD=$BIN/postdel; DC=$BIN/datacleaner; PU=$BIN/postunnuke
 
 d=$(mkrel test Helper.Release-GRP)

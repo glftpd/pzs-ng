@@ -15,6 +15,8 @@ _ok(){ pass=$((pass+1)); echo "  ok   - $1"; }
 _no(){ fail=$((fail+1)); failed_checks="$failed_checks$1
 "; echo "  FAIL - $1"; [ -n "${2:-}" ] && echo "         $2"; return 0; }
 skip(){ skipped=$((skipped+1)); echo "  skip - $1"; }
+# skip_if_mode "m1 m2" REASON: skip the whole group (write a skip result) on those modes
+skip_if_mode(){ local m; for m in $1; do [ "$MODE" = "$m" ] && { skip "$2"; summary; exit 0; }; done; }
 ok(){ if eval "$1"; then _ok "$2"; else _no "$2" "[$1]"; fi; }
 # noasan DESC CMD...: the command must not trip ASan/UBSan, die from a signal, or (for
 # the C harnesses) print RESULT:FAIL.  Its output is left in $WORK/_out.
@@ -28,10 +30,15 @@ crc32hex(){ python3 -c "import zlib,sys;print('%08X'%(zlib.crc32(open(sys.argv[1
 # mkrel SECTION NAME: a fresh, empty release dir under $SITE
 mkrel(){ local d="$SITE/$1/$2"; rm -rf "$d" "$STORAGE$d"; mkdir -p "$d" "$STORAGE" "$USERFILES" \
 	"$(dirname "$LOGF")" "$WORK/ftp-data/misc"; echo "$d"; }
-# run_zs FILE DIR CRC: invoke zipscript-c the way the ftpd does after an upload
-run_zs(){ ( cd "$2" && env -i PATH=/usr/bin:/bin USER="${U:-tester}" GROUP="${G:-testgrp}" \
+# run_zs FILE DIR CRC: invoke zipscript-c the way the ftpd does after an upload.
+# glftpd/fluffer/ss5 take <file> <dir> <crc> + env; cuftpd/wzd take a different,
+# positional contract: <absolute filepath> <crc> <user> <group> <tagline> <speed> <section>.
+run_zs(){ if [ "$MODE" = cuftpd ]; then ( cd "$2" && env -i PATH=/usr/bin:/bin \
+	ASAN_OPTIONS="$ASAN_OPTIONS" UBSAN_OPTIONS="$UBSAN_OPTIONS" \
+	"$BIN/zipscript-c" "$2/$1" "$3" "${U:-tester}" "${G:-testgrp}" "$TAGLINE" 1000 "${SEC:-DEFAULT}" )
+	else ( cd "$2" && env -i PATH=/usr/bin:/bin USER="${U:-tester}" GROUP="${G:-testgrp}" \
 	TAGLINE="$TAGLINE" SPEED=1000 SECTION="${SEC:-DEFAULT}" ASAN_OPTIONS="$ASAN_OPTIONS" \
-	UBSAN_OPTIONS="$UBSAN_OPTIONS" "$BIN/zipscript-c" "$1" "$2" "$3" 0 ); }
+	UBSAN_OPTIONS="$UBSAN_OPTIONS" "$BIN/zipscript-c" "$1" "$2" "$3" 0 ); fi; }
 # upload DIR FILE: run_zs with the file's real CRC
 upload(){ run_zs "$2" "$1" "$(crc32hex "$1/$2")"; }
 # link_harness SRC OUT [EXTRA-CFLAGS...]: build a C harness against the zipscript
