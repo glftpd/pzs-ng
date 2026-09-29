@@ -7,9 +7,10 @@ arguments, same environment, same `/site` and `/ftp-data` layout. It doesn't nee
 running ftpd.
 
 cuftpd/wzd mode (`--disable-glftpd-specific`) uses a different, positional argv
-contract, which the suite handles for the upload path; its ftpd-helper groups
-(`20_helpers`, `50_chroot`) skip because those helpers' cuftpd invocation differs and
-can only be checked against a live cuftpd.
+contract, which the suite handles for zipscript-c and for the helper calls in
+`32_hardening`. The full helper workflow groups (`20_helpers`, `50_chroot`) skip there,
+because the cuftpd side of SITE UNNUKE, RMD and chroot can only be checked against a
+live cuftpd.
 
 Everything happens inside one work directory. At build time the compiled-in `/site`,
 `/ftp-data` and `/bin` paths are pointed into it, so nothing on the system is touched.
@@ -41,8 +42,8 @@ Run it as a normal user, not root.
 
 A full run takes a couple of minutes, most of it the builds (each mode plain and with
 ASan/UBSan). `00_build` fails a mode if its **plain** build emits any compiler warning
-(the glftpd family ships warning-clean; the ASan builds' one glibc FORTIFY warning and
-cuftpd's pre-existing suid-helper warnings are exempt). The exit status is 0 only if
+(the ASan builds aren't gated: gcc's sanitizer instrumentation raises one known false
+positive). The exit status is 0 only if
 every build and every group passed, and it ends with a table like this:
 
     ┌──────────────┬──────────┬──────────┬──────────┐

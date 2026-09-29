@@ -33,6 +33,10 @@ for p in sfv diz mp3 stats passwd; do
 		timeout $((SECS+20)) afl-fuzz -V "$SECS" -i "$fz/in_$p" -o "$fz/out_$p" -- "$fz/h" "$p" @@ >"$fz/afl_$p.log" 2>&1 || true
 	nc=$(ls "$fz/out_$p/default/crashes" 2>/dev/null | grep -c '^id:' || true)
 	nh=$(ls "$fz/out_$p/default/hangs"   2>/dev/null | grep -c '^id:' || true)
-	ok "[ '${nc:-0}' = 0 ] && [ '${nh:-0}' = 0 ]" "fuzz $p: ${SECS}s, ${nc:-0} crashes ${nh:-0} hangs"
+	ex=$(sed -n 's/^execs_done *: *//p' "$fz/out_$p/default/fuzzer_stats" 2>/dev/null)
+	# "no crashes" only counts if AFL really ran the target
+	ok "[ '${ex:-0}' -gt 0 ] && [ '${nc:-0}' = 0 ] && [ '${nh:-0}' = 0 ]" \
+		"fuzz $p: ${SECS}s, ${ex:-0} execs, ${nc:-0} crashes, ${nh:-0} hangs"
 done
+rm -f "$USERFILES/fz"	# the stats harness writes its input there
 summary
