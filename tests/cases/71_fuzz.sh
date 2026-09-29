@@ -29,7 +29,7 @@ seed passwd 'glftpd:x:0:0:0:/site:/bin/false\nu:x:1:2::/s:/b\n'
 
 for p in sfv diz mp3 stats passwd; do
 	AFL_SKIP_CPUFREQ=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 AFL_NO_UI=1 AFL_NO_AFFINITY=1 AFL_BENCH_UNTIL_CRASH=1 \
-	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1 \
+	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=0 UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1 \
 		timeout $((SECS+20)) afl-fuzz -V "$SECS" -i "$fz/in_$p" -o "$fz/out_$p" -- "$fz/h" "$p" @@ >"$fz/afl_$p.log" 2>&1 || true
 	nc=$(ls "$fz/out_$p/default/crashes" 2>/dev/null | grep -c '^id:' || true)
 	nh=$(ls "$fz/out_$p/default/hangs"   2>/dev/null | grep -c '^id:' || true)
