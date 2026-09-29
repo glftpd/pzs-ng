@@ -2,8 +2,14 @@
 
 Functional and regression tests for the zipscript, the ftpd helpers (rescan, postdel,
 postunnuke, datacleaner) and the sitebot. The suite builds the tree itself in fluffer,
-glftpd and ss5 modes, then drives the binaries the way the ftpd does: same arguments,
-same environment, same `/site` and `/ftp-data` layout. It doesn't need a running ftpd.
+glftpd, ss5 and cuftpd modes, then drives the binaries the way the ftpd does: same
+arguments, same environment, same `/site` and `/ftp-data` layout. It doesn't need a
+running ftpd.
+
+cuftpd/wzd mode (`--disable-glftpd-specific`) uses a different, positional argv
+contract, which the suite handles for the upload path; its ftpd-helper groups
+(`20_helpers`, `50_chroot`) skip because those helpers' cuftpd invocation differs and
+can only be checked against a live cuftpd.
 
 Everything happens inside one work directory. At build time the compiled-in `/site`,
 `/ftp-data` and `/bin` paths are pointed into it, so nothing on the system is touched.
@@ -30,11 +36,14 @@ Run it as a normal user, not root.
     tests/run.sh /tmp/zs             # keep the work dir for inspection
     tests/run.sh /tmp/zs 30          # only groups whose name contains "30"
     NOBUILD=1 tests/run.sh /tmp/zs   # reuse the builds already in /tmp/zs
-    MODES=fluffer tests/run.sh       # only some of: fluffer glftpd ss5
+    MODES=fluffer tests/run.sh       # only some of: fluffer glftpd ss5 cuftpd
+    SLOW=1 tests/run.sh              # also run the slow lane (valgrind + AFL++ fuzzing)
 
-A full run takes about a minute, most of it the six builds (each mode plain and with
-ASan/UBSan). The exit status is 0 only if every build and every group passed, and it
-ends with a table like this:
+A full run takes a couple of minutes, most of it the builds (each mode plain and with
+ASan/UBSan). `00_build` fails a mode if its **plain** build emits any compiler warning
+(the glftpd family ships warning-clean; the ASan builds' one glibc FORTIFY warning and
+cuftpd's pre-existing suid-helper warnings are exempt). The exit status is 0 only if
+every build and every group passed, and it ends with a table like this:
 
     ┌──────────────┬──────────┬──────────┬──────────┐
     │              │ fluffer  │ glftpd   │ ss5      │
@@ -70,17 +79,24 @@ Per-group output is in `WORKDIR/logs/<group>@<mode>.log`. The builds are in
 | 50 chroot | rescan `--chroot=` refuses a directory outside the zip/sfv allow-list (needs `unshare`) |
 | 60 sitebot | ngBot `themereplace()`: quotes, brackets and `$` in announce fields can't run Tcl or expand variables; backslashes, case markers and bold/underline render correctly |
 | 61 passchk | passchk against a glftpd passwd (correct/wrong password, hash unchanged), a line with too many fields, a cuftpd userfile |
+| 70 valgrind | *(SLOW)* representative uploads (sfv, matching file, mp3/id3) through the **plain** build under valgrind memcheck — catches invalid reads/writes and uninitialised values ASan can miss |
+| 71 fuzz | *(SLOW)* AFL++ + ASan coverage-guided fuzzing of the parsers (sfv, diz, mp3, stats, passwd); runs once under fluffer since parsers are ftpd-mode-independent |
 
 Every group runs against the ASan/UBSan build of each mode, so the functional checks
 also catch memory errors in the code they exercise. Each regression test was checked to
 fail on the code from before its fix.
+
+The slow lane (`70_valgrind`, `71_fuzz`) runs only with `SLOW=1`; otherwise both skip.
+`71_fuzz` also skips unless `afl-fuzz` and `afl-clang-fast` are installed. `FUZZ_SECS`
+(default 25) sets the time per parser.
 
 ## Known limits
 
 - **No live ftpd.** The binaries get the ftpd's arguments and environment directly.
   Anything that depends on the daemon itself, such as how it passes a real upload, its
   timing, or SITE commands through a real session, needs a test on a real install.
-- **cuftpd/wzd builds aren't made.** Only passchk's cuftpd mode is tested.
+- **cuftpd/wzd:** the upload path is tested, but the ftpd helpers (`20_helpers`,
+  `50_chroot`) skip — their cuftpd argv contract differs and needs a live cuftpd.
 - **sitewho and the suid helpers aren't built in fluffer mode** and aren't tested.
 - **The stock `zsconfig.h.dist` is used for each mode.** Options that are off there get
   unit coverage in `31_memory` where it matters (for example `mark_file_as_bad`), not an
