@@ -28,8 +28,8 @@ else ISO=""; echo "NOTE: 'unshare -Urn' unavailable - running without isolation;
 # /site /ftp-data /bin paths under $WORK, configure and make.
 build(){ mode=$1 tree=$2 san=${3:-}; d="$WORK/$tree"
 	say "build $tree"
-	if [ -n "${NOBUILD:-}" ] && [ -x "$d/zipscript/src/zipscript-c" ]; then \
-		LAST_WARN=$(grep -c 'warning:' "$d/b.log" 2>/dev/null || echo 0); echo "reused"; return 0; fi
+	if [ -n "${NOBUILD:-}" ] && [ -x "$d/zipscript/src/zipscript-c" ]; then
+		LAST_WARN=$(grep -c 'warning:' "$d/b.log" 2>/dev/null); LAST_WARN=${LAST_WARN:-0}; echo "reused"; return 0; fi
 	rm -rf "$d"; mkdir -p "$d"
 	( cd "$REPO" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf - ) | tar xf - -C "$d"
 	case "$mode" in
@@ -53,15 +53,15 @@ build(){ mode=$1 tree=$2 san=${3:-}; d="$WORK/$tree"
 mkdir -p "$WORK/site" "$WORK/ftp-data/pzs-ng" "$WORK/ftp-data/logs" "$WORK/ftp-data/users" "$WORK/ftp-data/misc" "$WORK/bin"
 for b in zip unzip; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$WORK/bin/$b"; done
 
-# ASan builds carry a known glibc FORTIFY-under-ASan warning (stdio2.h null dest), and
-# cuftpd's suid-helper sources have pre-existing warnings; so the zero-warning invariant
-# is asserted only on the plain builds of the glftpd-family modes.
+# Every plain build must be warning-free.  The ASan builds aren't gated: gcc's
+# sanitizer instrumentation produces a known false positive (a FORTIFY "null
+# destination" warning in zipscript-c.c).
 for m in $MODES; do
 	pw=-1; build "$m" "$m" && pw=$LAST_WARN
 	build "$m" "$m-asan" asan; ab=$?
 	if [ "$pw" -lt 0 ] || [ "$ab" -ne 0 ]; then
 		printf '0 1 0\nbuild failed (see %s)\n' "$WORK/$m*/b.log" > "$RES/00_build@$m"
-	elif [ "$m" != cuftpd ] && [ "$pw" -gt 0 ]; then
+	elif [ "$pw" -gt 0 ]; then
 		printf '0 1 0\nplain %s build has %s compiler warning(s), expected 0 (see %s)\n' "$m" "$pw" "$WORK/$m/b.log" > "$RES/00_build@$m"
 	else
 		echo "0 0 0" > "$RES/00_build@$m"

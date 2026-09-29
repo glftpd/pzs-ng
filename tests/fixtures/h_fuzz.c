@@ -1,6 +1,6 @@
 /* One AFL++ harness for the zipscript parsers that eat uploader/ftpd bytes.
- * usage: harness MODE FILE   (cwd must be writable; run.sh sets it up)
- * Built by fuzz/run.sh against the real objects of a build.sh tree. */
+ * usage: h_fuzz MODE FILE   (run from a writable, scratch cwd)
+ * Built by tests/cases/71_fuzz.sh from a test tree's sources with afl-clang-fast. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,8 +44,9 @@ int main(int argc, char **argv)
 	else if (!strcmp(m, "rar")) check_rarfile(f);
 	else if (!strcmp(m, "passwd")) buffer_users((char *)f, 0);
 	else if (!strcmp(m, "group")) buffer_groups((char *)f, 0);
-	else if (!strcmp(m, "stats")) {	/* gl_userfiles is /tmp/ftp-data/users/ in a build.sh tree */
+	else if (!strcmp(m, "stats")) {	/* gl_userfiles is re-rooted under the test work dir */
 		mkdir(gl_userfiles, 0755); cp(f, gl_userfiles "/fz"); v.section = 0; get_stats(&v, ui);
+		unlink(gl_userfiles "/fz");
 	} else return 2;
 	return 0;
 }
