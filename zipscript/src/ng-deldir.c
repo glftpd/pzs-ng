@@ -23,6 +23,11 @@
 # include "strl/strl.h"
 #endif
 
+/* configure sets GLVERSION only for glftpd builds; others take the generic layout */
+#ifndef GLVERSION
+#define GLVERSION 0
+#endif
+
 /* Force structure alignment to 4 bytes (for 64bit support). */
 #if ( GLVERSION != 20164 )
 #pragma pack(push, 4)
