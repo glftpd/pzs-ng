@@ -38,6 +38,14 @@
 #include "../conf/zsconfig.h"
 #include "../include/zsconfig.defaults.h"
 
+/*
+ * Maximum distinct users/groups recorded per race.  updatestats() indexes the
+ * caller-allocated userI[]/groupI[] pointer arrays by this count, so every
+ * allocation site and updatestats() must agree on it or a release raced by more
+ * distinct uploaders than expected walks off the end of those arrays.
+ */
+#define ng_max_racers 100
+
 struct USERINFO {
 	char		name[24];	/* Username */
 	off_t		bytes;	/* Bytes uploaded */
