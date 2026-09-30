@@ -426,6 +426,8 @@ namespace eval ::ngBot::plugin::psxc-IMDb {
                 variable ns
                 variable psxc
 
+                # neutralise a word Tcl exec would read as a redirection/pipe
+                if {[regexp {^([<>|&]|\d*>)} $text]} { set text " $text" }
                 if {[catch {exec $psxc(FINDSCRIPT) $chan $text} psxcimdbfindlog] != 0} {
                         ${ns}::Error $psxcimdbfindlog
                         putserv "PRIVMSG $chan :Error..."
@@ -443,6 +445,8 @@ namespace eval ::ngBot::plugin::psxc-IMDb {
 
                 set psxcexec $psxc(FINDSCRIPT)
                 if {![string equal $text ""]} {
+                        # neutralise a word Tcl exec would read as a redirection/pipe
+                        if {[regexp {^([<>|&]|\d*>)} $text]} { set text " $text" }
                         #set result [catch {exec $psxcexec $nick $text -p -l1} psxcimdbfindlog]
                         set result [catch {exec $psxcexec $nick $text} psxcimdbfindlog]
                 } else {

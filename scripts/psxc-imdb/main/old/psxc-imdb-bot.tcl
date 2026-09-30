@@ -69,6 +69,7 @@ proc preimdb {} {
 
 proc psxc-imdbsearch {nick uhost hand chan args} {
    global psxc
+   if {[regexp {^([<>|&]|\d*>)} $args]} { set args " $args" }
    catch {exec $psxc(FINDSCRIPT) $chan $args} psxcimdbfindlog
    if { $psxcimdbfindlog == "child process exited abnormally" } { putserv "privmsg $chan :error..."; return }
    foreach psxcline [split $psxcimdbfindlog "\n" ] { putserv "PRIVMSG $chan :$psxcline" }
@@ -78,7 +79,7 @@ proc psxc-imdbsearchdcc {nick host hand args} {
    global psxc
    if { $args == "" } { catch {exec $psxc(FINDSCRIPT) } psxcimdbfindlog }
 #   if { $args != "" } { catch {exec $psxc(FINDSCRIPT) $nick $args -p -l1 } psxcimdbfindlog }
-   if { $args != "" } { catch {exec $psxc(FINDSCRIPT) $nick $args } psxcimdbfindlog }
+   if { $args != "" } { if {[regexp {^([<>|&]|\d*>)} $args]} { set args " $args" }; catch {exec $psxc(FINDSCRIPT) $nick $args } psxcimdbfindlog }
    if { $psxcimdbfindlog == "child process exited abnormally" } { putserv "privmsg $nick :error..."; return }
    foreach psxcline [split $psxcimdbfindlog "\n" ] { putserv "PRIVMSG $nick :$psxcline" }
 }
