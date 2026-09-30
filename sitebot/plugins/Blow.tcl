@@ -450,6 +450,10 @@ namespace eval ::ngBot::plugin::Blow {
 					if {[${ns}::keyx_generate $nick my_key_pub my_key_prv]} {
 						putquick2 "NOTICE $nick :DH1080_FINISH $my_key_pub"
 						set his_key_pub [lindex $text 1]
+						if {![regexp {^[A-Za-z0-9+/=]+$} $his_key_pub]} {
+							${ns}::Debug "keyx_bind: ignoring malformed DH1080 public key from $nick"
+							return 1
+						}
 
 						if {![string equal $blowso ""]} {
 							DH1080comp $my_key_prv $his_key_pub
@@ -469,6 +473,11 @@ namespace eval ::ngBot::plugin::Blow {
 				if { ($len > 178) || ($len < 182) } {
 					if {[info exists blowinit($nick)]} {
 						set his_key_pub [lindex $text 1]
+						if {![regexp {^[A-Za-z0-9+/=]+$} $his_key_pub]} {
+							${ns}::Debug "keyx_bind: ignoring malformed DH1080 public key from $nick"
+							unset blowinit($nick)
+							return 1
+						}
 						if {![string equal $blowso ""]} {
 							DH1080comp $blowinit($nick) $his_key_pub
 						} elseif {![string equal $fishpy ""]} {
@@ -542,7 +551,7 @@ namespace eval ::ngBot::plugin::Blow {
 		variable topicUsers
 		if {[string equal $text ""] } {
 			set topic [${ns}::GetTopic $channel]
-			${np}::sndall GETTOPIC DEFAULT [${np}::ng_format "GETTOPIC" "DEFAULT" \"$topic\"]
+			${np}::sndall GETTOPIC DEFAULT [${np}::ng_format "GETTOPIC" "DEFAULT" [list $topic]]
 		} else {
 			if {[${ns}::is_topicusers]} {
 				if {[IsTrue [${ns}::SetTopic $channel "$text"]]} {

@@ -685,9 +685,12 @@ namespace eval ::ngBot::module::glftpd {
 		}
 		set line ""
 		set argv [split $argv]
+		# neutralise a word Tcl exec would read as a redirection/pipe (>, >>, N>, <, |, &)
+		set who_arg [lindex $argv 0]
+		if {[regexp {^([<>|&]|\d*>)} $who_arg]} { set who_arg " $who_arg" }
 		if {$disable(ALTWHO) != 1} {
 			set output "$theme(PREFIX)$announce(SPEEDERROR)"
-			foreach line [split [exec $binary(WHO) --raw [lindex $argv 0]] "\n"] {
+			foreach line [split [exec $binary(WHO) --raw $who_arg] "\n"] {
 				set action [lindex $line 4]
 				if {$action == "DN"} {
 					set output "$theme(PREFIX)$announce(SPEEDDN)"
@@ -712,7 +715,7 @@ namespace eval ::ngBot::module::glftpd {
 			}
 		} else {
 			set base_output "$theme(PREFIX)$announce(DEFAULT)"
-			foreach line [split [exec $binary(WHO) [lindex $argv 0]] "\n"] {
+			foreach line [split [exec $binary(WHO) $who_arg] "\n"] {
 				set output [${np}::replacevar $base_output "%msg" $line]
 				${np}::sndone $rcvr [${np}::replacebasic $output "SPEED"]
 			}
@@ -924,6 +927,9 @@ namespace eval ::ngBot::module::glftpd {
 		if {[llength $argv] > 1} {
 			set user [lindex $argv 0]
 			set pass [lindex $argv 1]
+			# neutralise a word Tcl exec would read as a redirection/pipe
+			if {[regexp {^([<>|&]|\d*>)} $user]} { set user " $user" }
+			if {[regexp {^([<>|&]|\d*>)} $pass]} { set pass " $pass" }
 			set result [exec $binary(PASSCHK) $user $pass $location(PASSWD)]
 			set group ""; set flags ""
 
