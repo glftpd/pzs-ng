@@ -274,7 +274,7 @@ main(int argc, char *argv[])
 
 	int            ftpd, filelen, z = 0;
 	char           *crypted;
-	char           salt      [2];
+	char           salt      [3];
 	char           *filename;
 
 	if (argc > 1 && strcmp(argv[1], "-c") == 0) {
@@ -311,8 +311,14 @@ main(int argc, char *argv[])
 			continue;
 
 		if ((int)strlen(buf->pw_passwd) == 13) {
-			strncpy(salt, buf->pw_passwd, 2);
+			memcpy(salt, buf->pw_passwd, 2);
+			salt[2] = '\0';
 			crypted = crypt(argv[z+2], salt);
+			if (crypted == NULL) {
+				printf("NOMATCH\n");
+				fclose(fp);
+				return 0;
+			}
 		} else if ((int)strlen(buf->pw_passwd) == SHA_DIGEST_LENGTH * 2) {
 			crypted = malloc(SHA_DIGEST_LENGTH * 2 + 1);
 			if (!crypted) {
