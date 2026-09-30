@@ -135,12 +135,14 @@ if [ ! "$ARG" = "-r" ]; then
  proc_doscan
 else
  echo "Scanning recursively for iMDB info.."
- for REL_DIR in `ls -1F | grep -E "@$|/$" | grep -E -v "($EXCLUDES)" | tr ' ' '%'`; do
-  REL_DIR="`echo $REL_DIR | tr '%@' ' /'`"
+ for REL_DIR in */; do
+  [ -d "$REL_DIR" ] || continue
+  REL_DIR="${REL_DIR%/}"
+  if printf '%s\n' "$REL_DIR" | grep -E -q "($EXCLUDES)"; then continue; fi
   echo "$REL_DIR ..."
-  cd "$REL_DIR"
-  proc_doscan
-  cd ..
+  # run each scan in a subshell so a failed or unexpected cd can never move the
+  # loop's own working directory (a crafted name used to word-split and walk out)
+  ( cd "./$REL_DIR" 2>/dev/null && proc_doscan ) || echo "WARNING: could not enter $REL_DIR, skipping" >&2
  done
 fi
 
