@@ -327,8 +327,10 @@ get_mpeg_audio_info(char *f, struct audio *audio)
 	if (n == 0) {
 		*(header + 1) -= 224;
 
-		if (read(fd, header + 2, 2) == -1) {
-			d_log("multimedia.c: get_mpeg_audio_info() - read() failed - may lead to unexpected result.\n");
+		if (read(fd, header + 2, 2) != 2) {
+			d_log("multimedia.c: get_mpeg_audio_info() - short read on frame header, aborting parse.\n");
+			close(fd);
+			return;
 		}
 
 		version = (*(header + 1)) >> 3;
@@ -541,9 +543,10 @@ get_flac_audio_info(char *f, struct audio *audio)
 
 		d_log("multimedia.c: get_flac_audio_info() - read metadata -- vendor string length: %d, string: %s\n", temp_meta->data.vorbis_comment.vendor_string.length, temp_meta->data.vorbis_comment.vendor_string.entry);
 		if (temp_meta->data.vorbis_comment.vendor_string.length > 0) {
-			if (!strncmp((char *)temp_meta->data.vorbis_comment.vendor_string.entry, "reference libFLAC", 17))
+			if (temp_meta->data.vorbis_comment.vendor_string.length >= 17 &&
+			    !strncmp((char *)temp_meta->data.vorbis_comment.vendor_string.entry, "reference libFLAC", 17))
 				k = 10;
-			for (i = 0; i < NAME_MAX - 1 && i < temp_meta->data.vorbis_comment.vendor_string.length; ++i)
+			for (i = 0; i < NAME_MAX - 1 && i + k < temp_meta->data.vorbis_comment.vendor_string.length; ++i)
 				audio->vbr_version_string[i] = temp_meta->data.vorbis_comment.vendor_string.entry[i+k];
 			audio->vbr_version_string[i] = '\0';
 		}
@@ -789,12 +792,13 @@ int avinfo(char *filename, struct VIDEO *vinfo)
 		if (tag == MKTAG('a','v','i','h')) {
 			AVIMAINHEADER avih;
 
-			if (!fread(&avih, sizeof(avih), 1, f)) {
-				d_log("avinfo: Failed to fread()\n");
+			memset(&avih, 0, sizeof(avih));
+			if (fread(&avih, sizeof(avih), 1, f) == 1) {
+				width = avih.dwWidth;
+				height = avih.dwHeight;
+			} else {
+				d_log("avinfo: short read on avih, skipping\n");
 			}
-
-			width = avih.dwWidth;
-			height = avih.dwHeight;
 
 			fseek(f, -sizeof(avih), SEEK_CUR);
 		}
@@ -802,13 +806,14 @@ int avinfo(char *filename, struct VIDEO *vinfo)
 		if (tag == MKTAG('s','t','r','h')) {
 			AVISTREAMHEADER strh;
 
-			if (!fread(&strh, sizeof(strh), 1, f)) {
-				d_log("avinfo: Failed to fread()\n");
-			}
-			
-			if ((type = strh.fccType) == MKTAG('v','i','d','s')) {
-				vids = strh.fccHandler;
-				fps = (double) strh.dwRate / (double) strh.dwScale;
+			memset(&strh, 0, sizeof(strh));
+			if (fread(&strh, sizeof(strh), 1, f) == 1) {
+				if ((type = strh.fccType) == MKTAG('v','i','d','s')) {
+					vids = strh.fccHandler;
+					fps = (double) strh.dwRate / (double) strh.dwScale;
+				}
+			} else {
+				d_log("avinfo: short read on strh, skipping\n");
 			}
 
 			fseek(f, -sizeof(strh), SEEK_CUR);
@@ -818,26 +823,28 @@ int avinfo(char *filename, struct VIDEO *vinfo)
 			if (type == MKTAG('a','u','d','s')) {
 				WAVEFORMATEX wave;
 
-				if (!fread(&wave, sizeof(wave), 1, f)) {
-					d_log("avinfo: Failed to fread()\n");
+				memset(&wave, 0, sizeof(wave));
+				if (fread(&wave, sizeof(wave), 1, f) == 1) {
+					hz = wave.nSamplesPerSec;
+					ch = wave.nChannels;
+					auds = wave.wFormatTag;
+				} else {
+					d_log("avinfo: short read on wave, skipping\n");
 				}
 
-				hz = wave.nSamplesPerSec;
-				ch = wave.nChannels;
-				auds = wave.wFormatTag;
-				
 				fseek(f, -sizeof(wave), SEEK_CUR);
 			}
 			
 			if (type == MKTAG('v','i','d','s') && !vids) {
 				BITMAPINFOHEADER bm;
 
-				if (!fread(&bm, sizeof(bm), 1, f)) {
-					d_log("avinfo: Failed to fread()\n");
+				memset(&bm, 0, sizeof(bm));
+				if (fread(&bm, sizeof(bm), 1, f) == 1) {
+					vids = bm.biCompression;
+				} else {
+					d_log("avinfo: short read on bm, skipping\n");
 				}
 
-				vids = bm.biCompression;
-				
 				fseek(f, -sizeof(bm), SEEK_CUR);
 			}
 		}
