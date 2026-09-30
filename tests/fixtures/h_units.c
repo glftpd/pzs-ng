@@ -10,6 +10,7 @@
 #include "mp3info.h"
 #include "race-file.h"
 #include "complete.h"
+#include "multimedia.h"
 
 extern char output[2048];
 
@@ -190,6 +191,52 @@ static int t_writetop(void)
 	return check(1, "toplists written after buffer growth");
 }
 
+/* create_dirlist(): two group-dir names that fill the list to exactly limit-1 bytes */
+static int t_dirlist(void)
+{
+	char *list = malloc(64);
+	char name[40];
+
+	mkdir("gd", 0755);
+	memset(name, 'a', 31); name[31] = '\0';
+	snprintf(list, 64, "gd/%s", name); mkdir(list, 0755);
+	memset(name, 'b', 32); name[32] = '\0';
+	snprintf(list, 64, "gd/%s", name); mkdir(list, 0755);
+	memset(list, 0, 64);
+	create_dirlist("gd/", list, 64);
+	return check(strlen(list) < 64, "affil list terminated inside its buffer");
+}
+
+/* avinfo(): a short read of the avih header.  The old code seeked back and parsed on
+ * from earlier in the file; this layout makes that land on a "LIST movi" chunk, which
+ * ends the parse and reports whatever avih held - stack garbage.  Run it on a plain
+ * (non-ASan) build: ASan's stack layout hides the leak. */
+static void dirty_stack(void)
+{
+	volatile char junk[16384];
+
+	memset((char *)junk, 0x41, sizeof(junk));
+}
+
+static int t_avi(void)
+{
+	static struct VIDEO vi;
+	static const unsigned char avi[80] =
+		"RIFF\x48\x00\x00\x00" "AVI "
+		"JUNK\x28\x00\x00\x00" "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+		"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+		"avih\x2c\x00\x00\x00" "LIST\x04\x00\x00\x00" "movi";
+	FILE *f = fopen("short.avi", "wb");
+
+	fwrite(avi, 1, sizeof(avi), f);
+	fclose(f);
+	dirty_stack();
+	avinfo("short.avi", &vi);
+	unlink("short.avi");
+	printf("width=%d height=%d\n", vi.width, vi.height);
+	return check(vi.width == 0 && vi.height == 0, "short avih read reports no dimensions");
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "";
@@ -204,6 +251,8 @@ int main(int argc, char **argv)
 	if (!strcmp(t, "missing")) return t_missing();
 	if (!strcmp(t, "matchpath")) return t_matchpath();
 	if (!strcmp(t, "writetop")) return t_writetop();
+	if (!strcmp(t, "dirlist")) return t_dirlist();
+	if (!strcmp(t, "avi")) return t_avi();
 	fprintf(stderr, "unknown test %s\n", t);
 	return 2;
 }
