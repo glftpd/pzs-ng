@@ -1375,9 +1375,14 @@ fluffer_owner(const char *path, char *uname, size_t usize, char *gname, size_t g
 			return 0;
 		owner[n] = '\0';
 	}
-	if (*owner)
-		strlcpy(uname, owner, usize);
-	else
+	if (*owner) {
+		/* The race tables key users on a 24-byte name; a longer fluffer name
+		 * (up to 31) would be truncated and could merge two distinct users.
+		 * Don't do it silently. (Widening the on-disk RACEDATA.uname format is
+		 * the full fix if fluffer ever accepts >23-char names in production.) */
+		if (strlcpy(uname, owner, usize) >= usize)
+			d_log("fluffer_owner: owner name '%s' exceeds %zu bytes - distinct long names may merge in race stats\n", owner, usize - 1);
+	} else
 		strlcpy(uname, get_u_name(uid), usize);
 	if (*grp)
 		strlcpy(gname, grp, gsize);
