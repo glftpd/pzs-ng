@@ -717,7 +717,7 @@ create_indexfile(const char *racefile, struct VARS *raceI, char *f)
 
 	/* Read filenames from race file */
 	c = 0;
-	while ((read(fd, &rd, sizeof(RACEDATA)))) {
+	while (read(fd, &rd, sizeof(RACEDATA)) == sizeof(RACEDATA)) {
 		if (rd.status == F_CHECKED) {
 			strlcpy(fname[c], rd.fname, NAME_MAX);
 			t_pos[c] = 0;
@@ -870,6 +870,11 @@ writerace(const char *path, struct VARS *raceI, unsigned int crc, unsigned char 
 			remove_lock(raceI);
 			exit(EXIT_FAILURE);
 		}
+		if (ret != sizeof(RACEDATA)) {
+			d_log("writerace: short record at %d, realigning\n", count);
+			lseek(fd, sizeof(RACEDATA) * count, SEEK_SET);
+			break;
+		}
 #if (sfv_cleanup_lowercase)
 		if (strncasecmp(rd.fname, raceI->file.name, NAME_MAX) == 0) {
 #else
@@ -952,7 +957,7 @@ verify_racedata(const char *path, struct VARS *raceI)
 		return 0;
 	}
 
-	for (i = 0; (ret = read(fd, &rd, sizeof(RACEDATA)));) {
+	for (i = 0; (ret = read(fd, &rd, sizeof(RACEDATA))) == sizeof(RACEDATA);) {
 		d_log("  verify_racedata: Verifying %s..\n", rd.fname);
 		if (!strlen(rd.fname)) {
 			d_log("  verify_racedata: ERROR! Something is wrong with the racedata!\n");
@@ -965,6 +970,8 @@ verify_racedata(const char *path, struct VARS *raceI)
 			create_missing(rd.fname);
 		}
 	}
+	if (ret > 0)
+		d_log("verify_racedata: dropping short trailing record (%d of %zu bytes)\n", ret, sizeof(RACEDATA));
 
 	close(fd);
 
@@ -1595,7 +1602,7 @@ void create_dirlist(const char *dirnames, char *affillist, const int limit)
 				if (!strncmp(dp->d_name, ".", 1))
 					continue;
 				n = strlen(affillist);
-				if ((unsigned)(n + strlen(dp->d_name)) < (unsigned)limit) {
+				if ((unsigned)(n + strlen(dp->d_name) + 1) < (unsigned)limit) {
 					p = affillist + n;
 					if (n) {
 						*p = ',';
@@ -1610,6 +1617,7 @@ void create_dirlist(const char *dirnames, char *affillist, const int limit)
 				}
 			}
 			closedir(dir);
+			affillist[limit - 1] = '\0';
 			d_log("create_dirlist: List so far = '%s'\n", affillist);
 			s++;
 			t = s;
