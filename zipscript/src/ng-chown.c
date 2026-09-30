@@ -141,8 +141,9 @@ selector3(struct dirent *d)
 #endif
 {
 	struct stat st;
-	if ((stat(d->d_name, &st) < 0) ||
-	    S_ISDIR(st.st_mode))
+
+	/* regular files only: never follow a symlink the caller planted here */
+	if (lstat(d->d_name, &st) < 0 || !S_ISREG(st.st_mode))
 		return 0;
 	return 1;
 }
@@ -229,9 +230,9 @@ myscan(int my_result, int new_user, int new_group, int user_flag, int group_flag
 		if (!myscandir(my_path, my_name)) {
 			n = direntries;
 			while (n--) {
-				my_total += close(open(dirlist[n]->d_name, O_NONBLOCK));
+				my_total += close(open(dirlist[n]->d_name, O_NONBLOCK | O_NOFOLLOW));
 				if (new_user != 0 && new_group != 0) {
-					if (chown(dirlist[n]->d_name, new_user, new_group) == -1) {
+					if (lchown(dirlist[n]->d_name, new_user, new_group) == -1) {
 						printf("%s - Warning: Failed to chown() %s: %s\n", my_name, dirlist[n]->d_name, strerror(errno));
 					}
 				}
@@ -242,7 +243,7 @@ myscan(int my_result, int new_user, int new_group, int user_flag, int group_flag
 					return 1;
 				}
 				if (new_user != 0 && new_group != 0) {
-					if (chown(my_path, new_user, new_group) == -1) {
+					if (lchown(my_path, new_user, new_group) == -1) {
 						printf("%s - Warning: Failed to chown() %s: %s\n", my_name, my_path, strerror(errno));
 					}
 				}
@@ -257,10 +258,10 @@ myscan(int my_result, int new_user, int new_group, int user_flag, int group_flag
 				printf("%s - Error: %s is not in allowed paths or is a symlink.\n", my_name, my_path);
 				return 1;
 			}
-			my_result = close(open(my_path, O_NONBLOCK));
+			my_result = close(open(my_path, O_NONBLOCK | O_NOFOLLOW));
 			if (my_result == 0) {
 				if (new_user != 0 && new_group != 0) {
-					if (chown(my_path, new_user, new_group) == -1) {
+					if (lchown(my_path, new_user, new_group) == -1) {
 						printf("%s - Warning: Failed to chown() %s: %s\n", my_name, my_path, strerror(errno));
 					}
 				}
