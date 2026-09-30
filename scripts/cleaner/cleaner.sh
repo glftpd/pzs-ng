@@ -5,8 +5,8 @@ for file in * ; do
   echo "Removing $file..."
   rm -f "$file"
  fi
- if [ -d "$file" ]; then
-   cd "$file"
+ if [ -d "$file" ] && [ ! -L "$file" ]; then
+   cd "$file" || continue
    for underfile in * ; do
      if [ ! -e "$underfile" ] ; then
        echo "Removing $underfile..."
