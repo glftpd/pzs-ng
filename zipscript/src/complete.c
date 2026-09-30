@@ -47,9 +47,10 @@ complete(GLOBAL *g, int completetype)
 	else {
 		d_log("complete: Writing %s file ...\n", message_file_name);
 #if message_store_in_mirror
-		sprintf(message_mirror_name, storage "/%s/%s", g->l.path, message_file_name);
-		if (symlink(message_mirror_name, message_file_name) != 0)
-			d_log("complete: Couldn't create symlink %s in %s: %s\n", message_file_name, strerror(errno));
+		if (snprintf(message_mirror_name, sizeof(message_mirror_name), storage "/%s/%s", g->l.path, message_file_name) >= (int)sizeof(message_mirror_name))
+			d_log("complete: mirror path too long, skipping symlink for %s\n", message_file_name);
+		else if (symlink(message_mirror_name, message_file_name) != 0)
+			d_log("complete: Couldn't create symlink %s -> %s: %s\n", message_file_name, message_mirror_name, strerror(errno));
 #endif
 		if (!(msgfile = fopen(message_file_name, "w"))) {
 			d_log("complete: Couldn't fopen %s: %s\n", message_file_name, strerror(errno));
