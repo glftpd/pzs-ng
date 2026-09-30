@@ -85,8 +85,8 @@ main(int argc, char *argv[])
 #endif
 
 	d_log("rescan: Allocating memory for variables\n");
-	g.ui = ng_realloc2(NULL, sizeof(*g.ui) * 30, 1, 1, 1);
-	g.gi = ng_realloc2(NULL, sizeof(*g.gi) * 30, 1, 1, 1);
+	g.ui = ng_realloc2(NULL, sizeof(*g.ui) * ng_max_racers, 1, 1, 1);
+	g.gi = ng_realloc2(NULL, sizeof(*g.gi) * ng_max_racers, 1, 1, 1);
 
 	bzero(one_name, NAME_MAX);
 
@@ -414,18 +414,21 @@ main(int argc, char *argv[])
 #if (test_for_password || extract_nfo)
 					tempstream = telldir(dir);
 					if ((!findfileextcount(dir, ".nfo") || findfileextcount(dir, ".zip")) && !mkdir(".unzipped", 0777)) {
-						char *unzip_args[] = { unzip_bin, "-qqjo", g.v.file.name, "-d", ".unzipped", NULL };
+						char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+						char *unzip_args[] = { unzip_bin, "-qqjo", uzfn, "-d", ".unzipped", NULL };
 
 						zip_status = execute_argv(unzip_args);
 					} else {
-						char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+						char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+						char *unzip_args[] = { unzip_bin, "-qqt", uzfn, NULL };
 
 						zip_status = execute_argv(unzip_args);
 					}
 					seekdir(dir, tempstream);
 #else
 					{
-						char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+						char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+						char *unzip_args[] = { unzip_bin, "-qqt", uzfn, NULL };
 
 						zip_status = execute_argv(unzip_args);
 					}
@@ -452,7 +455,8 @@ main(int argc, char *argv[])
 					seekdir(dir, tempstream);
 #endif
 					if (!fileexists("file_id.diz")) {
-						char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", g.v.file.name, "file_id.diz", NULL };
+						char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+						char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", uzfn, "file_id.diz", NULL };
 
 						if (execute_argv(unzip_diz_args) != 0) {
 							d_log("rescan: No file_id.diz found (#%d): %s\n", errno, strerror(errno));

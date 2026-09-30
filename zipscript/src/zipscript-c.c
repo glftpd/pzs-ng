@@ -283,7 +283,7 @@ main(int argc, char **argv)
 			strlcpy(g.l.path, sitepath_dir, PATH_MAX);
 		temp_p = strrchr(g.l.path, '\0');
 		*temp_p = '/';
-		strlcpy(temp_p + 1, argv[1], PATH_MAX - strlen(argv[1]) + 1);
+		strlcpy(temp_p + 1, argv[1], sizeof(g.l.path) - (size_t)(temp_p + 1 - g.l.path));
 		temp_p = strrchr(g.l.path, '/');
 		*temp_p = '\0';
 		d_log("zipscript-c: combined path used - g.v.file.name='%s' - g.l.path='%s'\n", g.v.file.name, g.l.path);
@@ -450,8 +450,8 @@ main(int argc, char **argv)
 	g.l.sfv_incomplete = 0;
 	target = ng_realloc2(target, n + 256, 1, 1, 1);
 	vinfo = ng_realloc2(vinfo, sizeof(struct VIDEO *), 1, 1, 1);
-	g.ui = ng_realloc2(g.ui, sizeof(struct USERINFO *) * 100, 1, 1, 1);
-	g.gi = ng_realloc2(g.gi, sizeof(struct GROUPINFO *) * 100, 1, 1, 1);
+	g.ui = ng_realloc2(g.ui, sizeof(struct USERINFO *) * ng_max_racers, 1, 1, 1);
+	g.gi = ng_realloc2(g.gi, sizeof(struct GROUPINFO *) * ng_max_racers, 1, 1, 1);
 	d_log("zipscript-c: Copying data g.l into memory\n");
 	sprintf(g.l.sfv, storage "/%s/sfvdata", g.l.path);
 	sprintf(g.l.sfvbackup, storage "/%s/sfvbackup", g.l.path);
@@ -738,17 +738,20 @@ main(int argc, char **argv)
 #if (test_for_password || extract_nfo)
 				if ((!findfileextcount(dir, ".nfo") ||
 				  findfileextcount(dir, ".zip")) && !mkdir(".unzipped", 0777)) {
-					char *unzip_args[] = { unzip_bin, "-qqjo", g.v.file.name, "-d", ".unzipped", NULL };
+					char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+					char *unzip_args[] = { unzip_bin, "-qqjo", uzfn, "-d", ".unzipped", NULL };
 
 					zip_status = execute_argv(unzip_args);
 				} else {
-					char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+					char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+					char *unzip_args[] = { unzip_bin, "-qqt", uzfn, NULL };
 
 					zip_status = execute_argv(unzip_args);
 				}
 #else
 				{
-					char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+					char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+					char *unzip_args[] = { unzip_bin, "-qqt", uzfn, NULL };
 
 					zip_status = execute_argv(unzip_args);
 				}
@@ -804,7 +807,8 @@ main(int argc, char **argv)
 				}
 			}
 			if (!fileexists("file_id.diz")) {
-				char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", g.v.file.name, "file_id.diz", NULL };
+				char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+				char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", uzfn, "file_id.diz", NULL };
 
 				d_log("zipscript-c: file_id.diz does not exist, trying to extract it from %s\n", g.v.file.name);
 				if (execute_argv(unzip_diz_args) != 0)

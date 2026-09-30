@@ -76,8 +76,8 @@ main(int argc, char *argv[])
 #endif
 
 	d_log("ng-post_unnuke: Allocating memory for variables\n");
-	g.ui = ng_realloc2(NULL, sizeof(struct USERINFO *) * 30, 1, 1, 1);
-	g.gi = ng_realloc2(NULL, sizeof(struct GROUPINFO *) * 30, 1, 1, 1);
+	g.ui = ng_realloc2(NULL, sizeof(struct USERINFO *) * ng_max_racers, 1, 1, 1);
+	g.gi = ng_realloc2(NULL, sizeof(struct GROUPINFO *) * ng_max_racers, 1, 1, 1);
 
 #ifdef USING_GLFTPD
         if (argc < 4)
@@ -288,7 +288,8 @@ main(int argc, char *argv[])
 
 				_err_file_banned(g.v.file.name, &g.v);
 				if (!fileexists("file_id.diz")) {
-					char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", g.v.file.name, "file_id.diz", NULL };
+					char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+					char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", uzfn, "file_id.diz", NULL };
 
 					if (execute_argv(unzip_diz_args) != 0) {
 						d_log("ng-post_unnuke: No file_id.diz found (#%d): %s\n", errno, strerror(errno));
@@ -301,7 +302,8 @@ main(int argc, char *argv[])
 					}
 				}
 				{
-					char *unzip_args[] = { unzip_bin, "-qqt", g.v.file.name, NULL };
+					char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", g.v.file.name);
+					char *unzip_args[] = { unzip_bin, "-qqt", uzfn, NULL };
 
 					zip_status = execute_argv(unzip_args);
 				}

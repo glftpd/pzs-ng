@@ -53,10 +53,10 @@ main(int argc, char **argv)
 	g.l.race = malloc(PATH_MAX);
 	g.l.sfv = malloc(PATH_MAX);
 
-	g.ui = malloc(sizeof(struct USERINFO *) * 30);
-	memset(g.ui, 0, sizeof(struct USERINFO *) * 30);
-	g.gi = malloc(sizeof(struct GROUPINFO *) * 30);
-	memset(g.gi, 0, sizeof(struct GROUPINFO *) * 30);
+	g.ui = malloc(sizeof(struct USERINFO *) * ng_max_racers);
+	memset(g.ui, 0, sizeof(struct USERINFO *) * ng_max_racers);
+	g.gi = malloc(sizeof(struct GROUPINFO *) * ng_max_racers);
+	memset(g.gi, 0, sizeof(struct GROUPINFO *) * ng_max_racers);
 
 	g.v.misc.slowest_user[0] = ULONG_MAX;
 	g.v.misc.fastest_user[0] =
@@ -85,12 +85,18 @@ main(int argc, char **argv)
 
 	getrelname(&g);
 
-	sprintf(g.l.race, storage "/%s/racedata", argv[1]);
+	if (snprintf(g.l.race, PATH_MAX, storage "/%s/racedata", argv[1]) >= PATH_MAX) {
+		printf("%s: invalid path argument: %s\n", argv[0], argv[1]);
+		goto END;
+	}
 	if (!fileexists(g.l.race))
 		goto END;
 
 	readrace(g.l.race, &g.v, g.ui, g.gi);
-	sprintf(g.l.sfv, storage "/%s/sfvdata", argv[1]);
+	if (snprintf(g.l.sfv, PATH_MAX, storage "/%s/sfvdata", argv[1]) >= PATH_MAX) {
+		printf("%s: invalid path argument: %s\n", argv[0], argv[1]);
+		goto END;
+	}
 
 	if (!fileexists(g.l.sfv)) {
 		if (fileexists(g.l.sfv)) {

@@ -209,8 +209,8 @@ main(int argc, char **argv)
 
 	d_log("postdel: Allocating memory for variables\n");
 
-	g.ui = ng_realloc2(g.ui, sizeof(struct USERINFO *) * 30, 1, 1, 1);
-	g.gi = ng_realloc2(g.gi,sizeof(struct GROUPINFO *) * 30, 1, 1, 1);
+	g.ui = ng_realloc2(g.ui, sizeof(struct USERINFO *) * ng_max_racers, 1, 1, 1);
+	g.gi = ng_realloc2(g.gi,sizeof(struct GROUPINFO *) * ng_max_racers, 1, 1, 1);
 
 	if (!getcwd(g.l.path, PATH_MAX)) {
 		d_log("postdel: Failed to getcwd(): %s\n", strerror(errno));
@@ -375,7 +375,8 @@ main(int argc, char **argv)
 		if (!fileexists("file_id.diz")) {
 			temp_p = findfileext(dir, ".zip");
 			if (temp_p != NULL) {
-				char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", temp_p, "file_id.diz", NULL };
+				char uzfn[NAME_MAX + 3]; snprintf(uzfn, sizeof(uzfn), "./%s", temp_p);
+				char *unzip_diz_args[] = { unzip_bin, "-qqjnCLL", uzfn, "file_id.diz", NULL };
 
 				_err_file_banned(temp_p, &g.v);
 				d_log("postdel: file_id.diz does not exist, trying to extract it from %s\n", temp_p);

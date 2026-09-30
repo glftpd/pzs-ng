@@ -58,6 +58,10 @@ updatestats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **grou
 	}
 
 	if (u_no == -1) {
+		if (raceI->total.users >= ng_max_racers) {
+			d_log("updatestats: too many distinct users (>= %d) for '%s', not counted\n", ng_max_racers, usern);
+			return;
+		}
 		if (!raceI->total.users) {
 			raceI->total.start_time = start_time;
 			if ((raceI->total.stop_time.tv_sec - raceI->total.start_time.tv_sec) < 1) {
@@ -79,6 +83,8 @@ updatestats(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **grou
 		}
 
 		if (g_no == -1) {
+			/* groups can never exceed users (a new group is only added with a
+			 * new user, above), so the user-cap check already bounds g_no. */
 			g_no = raceI->total.groups++;
 			ng_free(groupI[g_no]);
 
