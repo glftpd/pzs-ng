@@ -369,6 +369,8 @@ void show_newdirs(const char *pattern)
 		} else {
 			fseek(fp, -(sizeof(struct dirlog)), SEEK_CUR);
 		}
+		/* glftpd-written field: treat as a fixed byte buffer, not a trusted C string */
+		buffer.dirname[sizeof(buffer.dirname) - 1] = '\0';
 
 		/* Only display newdirs unless search_mode is specified (-s) */
 		if (!search_mode && buffer.status != 0) {
@@ -441,6 +443,12 @@ void show_nukes(const ushort status, const char *pattern)
 			} else {
 				fseek(fp, -(sizeof(struct nukelog)), SEEK_CUR);
 			}
+			/* glftpd-written fields: treat as fixed byte buffers, not trusted C strings */
+			buffer.nuker[sizeof(buffer.nuker) - 1] = '\0';
+			buffer.unnuker[sizeof(buffer.unnuker) - 1] = '\0';
+			buffer.nukee[sizeof(buffer.nukee) - 1] = '\0';
+			buffer.reason[sizeof(buffer.reason) - 1] = '\0';
+			buffer.dirname[sizeof(buffer.dirname) - 1] = '\0';
 
 			/* Only display nukes/unnukes unless search_mode is specified (-s) */
 			if (!search_mode && buffer.status != status) {

@@ -341,37 +341,45 @@ showusers(int n, int mode, char *ucomp, char raw)
 		if (!user[x].procid)
 			continue;
 
+		/* glftpd-written shm is attached read-only; work on a writable copy and
+		 * terminate the string fields so a non-NUL-terminated field cannot over-read */
+		struct ONLINE u = user[x];
+		u.username[sizeof(u.username) - 1] = '\0';
+		u.tagline[sizeof(u.tagline) - 1] = '\0';
+		u.status[sizeof(u.status) - 1] = '\0';
+		u.currentdir[sizeof(u.currentdir) - 1] = '\0';
+
 		maskchar = ' ';
 		mask = noshow = 0;
 
-		if (strcomp(husers, user[x].username) || strcomp(hgroups, get_g_name(user[x].groupid))) {
+		if (strcomp(husers, u.username) || strcomp(hgroups, get_g_name(user[x].groupid))) {
 			if (showall)
 				maskchar = '*';
 			else
 				noshow++;
 		}
 		if (noshow == 0 && strlen(mpaths)) {
-			if (maskchar == ' ' && matchpath(mpaths, user[x].currentdir)) {
+			if (maskchar == ' ' && matchpath(mpaths, u.currentdir)) {
 				if (showall)
 					maskchar = '*';
 				else
 					mask++;
 			}
 		}
-		if (strplen(user[x].status) > 5)
-			filename = malloc(strplen(user[x].status) - 5 + 1);
+		if (strplen(u.status) > 5)
+			filename = malloc(strplen(u.status) - 5 + 1);
 		else
 			filename = malloc(1);
 
-		if ((!strncasecmp(user[x].status, "STOR ", 5) ||
-		     !strncasecmp(user[x].status, "APPE ", 5)) &&
+		if ((!strncasecmp(u.status, "STOR ", 5) ||
+		     !strncasecmp(u.status, "APPE ", 5)) &&
 		    user[x].bytes_xfer) {
 
 			speed = user[x].bytes_xfer / 1024. /
 				((tstop.tv_sec - user[x].tstart.tv_sec) * 1. + (tstop.tv_usec - user[x].tstart.tv_usec) / 1000000.);
 
 			if (debug) {
-				printf("DEBUG SPEED INFO: username   = %s\nDEBUG SPEED INFO: time spent = %.2f seconds\nDEBUG SPEED INFO: transfered = %.0f KB\nDEBUG SPEED INFO: speed      = %.2f KB/s\n", user[x].username, ((tstop.tv_sec - user[x].tstart.tv_sec) * 1. + (tstop.tv_usec - user[x].tstart.tv_usec) / 1000000.), (double)(user[x].bytes_xfer / 1024.), speed);
+				printf("DEBUG SPEED INFO: username   = %s\nDEBUG SPEED INFO: time spent = %.2f seconds\nDEBUG SPEED INFO: transfered = %.0f KB\nDEBUG SPEED INFO: speed      = %.2f KB/s\n", u.username, ((tstop.tv_sec - user[x].tstart.tv_sec) * 1. + (tstop.tv_usec - user[x].tstart.tv_usec) / 1000000.), (double)(user[x].bytes_xfer / 1024.), speed);
 				}
 			if ((!noshow && !mask && !(maskchar == '*')) || chidden) {
 				total_up_speed += speed;
@@ -379,11 +387,11 @@ showusers(int n, int mode, char *ucomp, char raw)
 			}
 			if (!mask) {
 				pct = -1;
-				m = strplen(user[x].status) - 5;
+				m = strplen(u.status) - 5;
 				if (m < 15 || raw)
-					sprintf(filename, "%.*s", m, user[x].status + 5);
+					sprintf(filename, "%.*s", m, u.status + 5);
 				else
-					sprintf(filename, "%.15s", user[x].status + m - 10);
+					sprintf(filename, "%.15s", u.status + m - 10);
 
 				strcpy(bar, "?->");
 				if (!raw)
@@ -400,16 +408,16 @@ showusers(int n, int mode, char *ucomp, char raw)
 
 				mb_xfered = user[x].bytes_xfer * 1.0 / 1024 / 1024;
 			}
-		} else if ((!strncasecmp(user[x].status, "RETR ", 5) && user[x].bytes_xfer)) {
+		} else if ((!strncasecmp(u.status, "RETR ", 5) && user[x].bytes_xfer)) {
 			mb_xfered = 0;
 
-			sprintf(realfile, "%s", user[x].currentdir);
+			sprintf(realfile, "%s", u.currentdir);
 
 			/*
 			 * Dirty way to get around the fact that the buffered
-			 * reading will change user[x].currentdir to not
+			 * reading will change u.currentdir to not
 			 * include filename once it's done reading the entire
-			 * file "to memory". This means user[x].currentdir in
+			 * file "to memory". This means u.currentdir in
 			 * fact will be _currentdir_ and this cannot tell us
 			 * a true filesize since it's calculated from
 			 * filesize(/site/incoming/path) - w/o filename :(
@@ -431,19 +439,19 @@ showusers(int n, int mode, char *ucomp, char raw)
 				(tstop.tv_usec - user[x].tstart.tv_usec) / 1000000.);
 
 			if (debug) {
-				printf("DEBUG SPEED INFO: username   = %s\nDEBUG SPEED INFO: time spent = %.2f seconds\nDEBUG SPEED INFO: transfered = %.0f KB\nDEBUG SPEED INFO: speed      = %.2f KB/s\n", user[x].username, ((tstop.tv_sec - user[x].tstart.tv_sec) * 1. + (tstop.tv_usec - user[x].tstart.tv_usec) / 1000000.), (double)(user[x].bytes_xfer / 1024.), speed);
+				printf("DEBUG SPEED INFO: username   = %s\nDEBUG SPEED INFO: time spent = %.2f seconds\nDEBUG SPEED INFO: transfered = %.0f KB\nDEBUG SPEED INFO: speed      = %.2f KB/s\n", u.username, ((tstop.tv_sec - user[x].tstart.tv_sec) * 1. + (tstop.tv_usec - user[x].tstart.tv_usec) / 1000000.), (double)(user[x].bytes_xfer / 1024.), speed);
 				}
 
 			if ((!noshow && !mask && !(maskchar == '*')) || chidden) {
 				total_dn_speed += speed;
 				downloads++;
 			}
-			m = strplen(user[x].status) - 5;
+			m = strplen(u.status) - 5;
 			if (!mask) {
 				if (m < 15 || raw)
-					sprintf(filename, "%.*s", m, user[x].status + 5);
+					sprintf(filename, "%.*s", m, u.status + 5);
 				else
-					sprintf(filename, "%.15s", user[x].status + m - 10);
+					sprintf(filename, "%.15s", u.status + m - 10);
 
 				if (!raw)
 					if (speed > threshold) {
@@ -497,11 +505,11 @@ showusers(int n, int mode, char *ucomp, char raw)
 		if (mode == 0 && raw != 3 ) {
 			if (!raw && (showall || (!noshow && !mask && !(maskchar == '*')))) {
 				if (mb_xfered)
-					printf("|%1c%-16.16s/%-10.10s | %-15s | XFER: %13.1fMB |\n", maskchar, user[x].username, get_g_name(user[x].groupid), status, mb_xfered);
+					printf("|%1c%-16.16s/%-10.10s | %-15s | XFER: %13.1fMB |\n", maskchar, u.username, get_g_name(user[x].groupid), status, mb_xfered);
 				else
-					printf("|%1c%-16.16s/%-10.10s | %-15s | %3.0f%%: %-15.15s |\n", maskchar, user[x].username, get_g_name(user[x].groupid), status, pct, bar);
+					printf("|%1c%-16.16s/%-10.10s | %-15s | %3.0f%%: %-15.15s |\n", maskchar, u.username, get_g_name(user[x].groupid), status, pct, bar);
 
-				printf("| %-27.27s | since %8.8s  | file: %-15.15s |\n", user[x].tagline, online, filename);
+				printf("| %-27.27s | since %8.8s  | file: %-15.15s |\n", u.tagline, online, filename);
 				printf("+-----------------------------------------------------------------------+\n");
 			} else if (raw == 1 && (showall || (!noshow && !mask && !(maskchar == '*')))) {
 				/*
@@ -509,9 +517,9 @@ showusers(int n, int mode, char *ucomp, char raw)
 				 * / TagLine / Online / Filename / Part
 				 * up/down-loaded / Current dir / PID
 				 */
-				printf("\"USER\" \"%1c\" \"%s\" \"%s\" %s \"%s\" \"%s\" \"%s\" \"%.1f%s\" \"%s\" \"%d\"\n", maskchar, user[x].username, get_g_name(user[x].groupid), status, user[x].tagline, online, filename, (pct >= 0 ? pct : mb_xfered), (pct >= 0 ? "%" : "MB"), user[x].currentdir, user[x].procid);
+				printf("\"USER\" \"%1c\" \"%s\" \"%s\" %s \"%s\" \"%s\" \"%s\" \"%.1f%s\" \"%s\" \"%d\"\n", maskchar, u.username, get_g_name(user[x].groupid), status, u.tagline, online, filename, (pct >= 0 ? pct : mb_xfered), (pct >= 0 ? "%" : "MB"), u.currentdir, user[x].procid);
 			} else if (showall || (!noshow && !mask && !(maskchar == '*'))) {
-				printf("%s|%s|%s|%s|%s\n", user[x].username, get_g_name(user[x].groupid), user[x].tagline, status, filename);
+				printf("%s|%s|%s|%s|%s\n", u.username, get_g_name(user[x].groupid), u.tagline, status, filename);
 			}
 			if ((!noshow && !mask && !(maskchar == '*')) || chidden) {
 				onlineusers++;
@@ -520,28 +528,28 @@ showusers(int n, int mode, char *ucomp, char raw)
 			if ((!noshow && !mask && !(maskchar == '*')) || chidden) {
 				onlineusers++;
 			}
-		} else if (!strcmp(ucomp, user[x].username)) {
+		} else if (!strcmp(ucomp, u.username)) {
 #ifdef _WITH_ALTWHO
 			if (!raw && (showall || (!noshow && !mask && !(maskchar == '*')))) {
 				if (mb_xfered)
-					printf("%s : %1c%s/%s has xfered %.1fMB of %s and has been online for %8.8s.\n", status, maskchar, user[x].username, get_g_name(user[x].groupid), mb_xfered, filename, online);
+					printf("%s : %1c%s/%s has xfered %.1fMB of %s and has been online for %8.8s.\n", status, maskchar, u.username, get_g_name(user[x].groupid), mb_xfered, filename, online);
 				else if (strcmp(filename, ""))
-					printf("%s : %1c%s/%s has xfered %.0f%% of %s and has been online for %8.8s.\n", status, maskchar, user[x].username, get_g_name(user[x].groupid), pct, filename, online);
+					printf("%s : %1c%s/%s has xfered %.0f%% of %s and has been online for %8.8s.\n", status, maskchar, u.username, get_g_name(user[x].groupid), pct, filename, online);
 				else
-					printf("%s : %1c%s/%s has been online for %8.8s.\n", status, maskchar, user[x].username, get_g_name(user[x].groupid), online);
+					printf("%s : %1c%s/%s has been online for %8.8s.\n", status, maskchar, u.username, get_g_name(user[x].groupid), online);
 			} else if (raw == 1 && (showall || (!noshow && !mask && !(maskchar == '*')))) {
-				printf("\"USER\" \"%1c\" \"%s\" \"%s\" %s \"%s\" \"%s\" \"%s\" \"%.1f%s\" \"%s\" \"%d\"\n", maskchar, user[x].username, get_g_name(user[x].groupid), status, user[x].tagline, online, filename, (pct >= 0 ? pct : mb_xfered), (pct >= 0 ? "%" : "MB"), user[x].currentdir, user[x].procid);
+				printf("\"USER\" \"%1c\" \"%s\" \"%s\" %s \"%s\" \"%s\" \"%s\" \"%.1f%s\" \"%s\" \"%d\"\n", maskchar, u.username, get_g_name(user[x].groupid), status, u.tagline, online, filename, (pct >= 0 ? pct : mb_xfered), (pct >= 0 ? "%" : "MB"), u.currentdir, user[x].procid);
 			} else if (showall || (!noshow && !mask && !(maskchar == '*'))) {
-				printf("%s|%s|%s|%s|%s\n", user[x].username, get_g_name(user[x].groupid), user[x].tagline, status, filename);
+				printf("%s|%s|%s|%s|%s\n", u.username, get_g_name(user[x].groupid), u.tagline, status, filename);
 			}
 #else
 			if (!onlineusers) {
 				if (!raw && (showall || (!noshow && !mask && !(maskchar == '*'))))
-					printf("\002%s\002 - %s", user[x].username, status);
+					printf("\002%s\002 - %s", u.username, status);
 				else if (raw == 1 && (showall || (!noshow && !mask && !(maskchar == '*'))))
-					printf("\"USER\" \"%s\" %s", user[x].username, status);
+					printf("\"USER\" \"%s\" %s", u.username, status);
 				else if (showall || (!noshow && !mask && !(maskchar == '*')))
-					printf("\002%s\002 - %s", user[x].username, status);
+					printf("\002%s\002 - %s", u.username, status);
 			} else {
 				if (!raw && (showall || (!noshow && !mask && !(maskchar == '*'))))
 					printf(" - %s", status);
