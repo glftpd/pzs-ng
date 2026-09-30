@@ -76,8 +76,8 @@ postunnuke: $(PU-OBJECTS)
 install:
 	if [ "x$(using_glftpd)" != "x" ] && [ ! -e "$(bindir)" ]; then exit 1; fi
 	if [ ! -e "$(bindir)" ]; then mkdir -p -m755 "$(bindir)"; fi
-	if [ "x$(using_glftpd)" != "x" ] && [ ! -e "$(prefix)$(storage)" ]; then mkdir -p -m777 "$(prefix)$(storage)"; fi
-	-if [ "x$(using_fluffer)" = "x" ]; then chown 0:0 $(prefix)$(storage); chmod 4777 $(prefix)$(storage); fi
+	if [ "x$(using_glftpd)" != "x" ] && [ ! -e "$(prefix)$(storage)" ]; then mkdir -p -m1777 "$(prefix)$(storage)"; fi
+	-if [ "x$(using_fluffer)" = "x" ]; then chown 0:0 $(prefix)$(storage); chmod 1777 $(prefix)$(storage); fi
 	if [ "x$(using_fluffer)" = "x" ] && [ -e $(prefix)$(datapath)/logs/glftpd.log ]; then chmod 666 $(prefix)$(datapath)/logs/glftpd.log; fi
 	install -m0755 zipscript-c "$(bindir)"
 	install -m0755 postdel "$(bindir)"

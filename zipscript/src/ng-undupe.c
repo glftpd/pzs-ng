@@ -12,6 +12,8 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <string.h>
@@ -75,16 +77,33 @@ main(int argc, char *argv[])
 
 	strlcpy(dupefile, dupepath, 1024);
 	strlcpy(dupename, argv[1], 1024);
-	sprintf(data2, "%s/dupefile.%d", storage, (int)getuid());
+	/* Unpredictable, exclusively-created temp file in the same directory, so a
+	 * local user cannot pre-plant a symlink at a guessable path and have this
+	 * setuid-root helper follow it (fopen "w+b" followed a planted symlink). */
+	snprintf(data2, sizeof(data2), "%s/dupefile.XXXXXX", storage);
 
 	if (!(fp = fopen(dupefile, "r+b"))) {
 		printf("FATAL ERROR: Unable to open dupefile (%s)\n", dupefile);
 		return 1;
 	}
-	if (!(fp2 = fopen(data2, "w+b"))) {
-		printf("FATAL ERROR: Unable to write to tempfile (%s)\n", data2);
-		fclose(fp);
-		return 1;
+	{
+		int tfd = mkstemp(data2);
+		struct stat tst;
+		if (tfd < 0 || fstat(tfd, &tst) != 0 ||
+		    !S_ISREG(tst.st_mode) || tst.st_nlink != 1) {
+			printf("FATAL ERROR: Unable to create tempfile (%s)\n", data2);
+			if (tfd >= 0) { unlink(data2); close(tfd); }
+			fclose(fp);
+			return 1;
+		}
+		/* keep the mode the daemon's readers expect (mkstemp creates 0600) */
+		if (fchmod(tfd, 0666))
+			printf("WARNING: Failed to chmod tempfile %s: %s\n", data2, strerror(errno));
+		if (!(fp2 = fdopen(tfd, "w+b"))) {
+			printf("FATAL ERROR: Unable to write to tempfile (%s)\n", data2);
+			unlink(data2); close(tfd); fclose(fp);
+			return 1;
+		}
 	}
 
 	while (!feof(fp)) {
