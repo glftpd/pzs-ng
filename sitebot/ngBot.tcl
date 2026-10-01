@@ -239,7 +239,7 @@ namespace eval ::ngBot {
 			putlog "\[ngBot\] Warning :: Unable to kill log timer ($error)."
 			putlog "\[ngBot\] Warning :: You should .restart the bot to be safe."
 		}
-		set ng_timer [utimer 1 ${ns}::readlogtimer]
+		if {[lindex $::version 1] < 1080000} { set ng_timer [utimer 1 ${ns}::readlogtimer] } else { set ng_timer [utimer 1 ${ns}::readlogtimer 0] }
 	}
 
 	proc init_plugins {} {
@@ -377,7 +377,11 @@ namespace eval ::ngBot {
 			putlog "\[ngBot\] Error :: Unhandled error, please report to developers:"
 			${ns}::cmd_error
 		}
-		set ng_timer [utimer 1 ${ns}::readlogtimer]
+		if {[lindex $::version 1] < 1080000} {
+			if { ![string match "*${ns}::readlogtimer*" [utimers]] } {
+				set ng_timer [utimer 1 ${ns}::readlogtimer]
+			}
+		}
 	}
 
 	proc readlog {} {
