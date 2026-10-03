@@ -281,9 +281,14 @@ main(int argc, char **argv)
 			strlcpy(g.l.path, argv[2], PATH_MAX);
 		else
 			strlcpy(g.l.path, sitepath_dir, PATH_MAX);
+		/* one '/' between the parts: sitepath_dir ends in '/' and an
+		 * absolute argv[1] starts with one ("/site///dir" fails matchpath) */
 		temp_p = strrchr(g.l.path, '\0');
-		*temp_p = '/';
-		strlcpy(temp_p + 1, argv[1], sizeof(g.l.path) - (size_t)(temp_p + 1 - g.l.path));
+		while (temp_p > g.l.path + 1 && temp_p[-1] == '/')
+			*--temp_p = '\0';
+		if (*argv[1] != '/' && (temp_p == g.l.path || temp_p[-1] != '/'))
+			*temp_p++ = '/';
+		strlcpy(temp_p, argv[1], sizeof(g.l.path) - (size_t)(temp_p - g.l.path));
 		temp_p = strrchr(g.l.path, '/');
 		*temp_p = '\0';
 		d_log("zipscript-c: combined path used - g.v.file.name='%s' - g.l.path='%s'\n", g.v.file.name, g.l.path);

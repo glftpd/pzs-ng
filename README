@@ -186,9 +186,10 @@ scripts. Here's a short description of each compiled binary:
                  /bin/postunnuke "site UNNUKE some.release-here sorry.erroneus.nuke"
  
   - dl_speedtest - used to measure download speeds. It will write the output
-    to glftpd.log only.
+    to glftpd.log only. The file's own dir decides, so RETR /speedtest/file
+    counts from any cwd (relative, ftp-absolute and /site/ paths all work).
     How to test: chroot /glftpd
-		 cd /site/speedtest
+		 cd /site
 		 export USER=something; export GROUP=something; export SPEED=2011
 		 /bin/dl_speedtest "RETR /site/speedtest/file"
 
