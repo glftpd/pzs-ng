@@ -237,6 +237,70 @@ static int t_avi(void)
 	return check(vi.width == 0 && vi.height == 0, "short avih read reports no dimensions");
 }
 
+/* lenient_compare(): '.' vs '_' in either name are equivalent (b[0] was tested as a[0]) */
+static int t_lenient(void)
+{
+	char a[] = "rel.r00", b[] = "rel_r00";
+
+	return check(lenient_compare(a, b) && lenient_compare(b, a), "lenient sfv match treats . and _ alike");
+}
+
+/* unpad(): an empty ID3 field used to read string[-1] */
+static int t_unpad(void)
+{
+	char e[] = "", t[] = "abc  \t";
+
+	unpad(e);
+	unpad(t);
+	return check(!*e && !strcmp(t, "abc"), "unpad on empty and padded strings");
+}
+
+/* convert(): a reverse range wider than the group list, and a trailing '%' */
+static int t_convrange(void)
+{
+	static struct VARS v;
+	static struct USERINFO u[2], *ui[2];
+	static struct GROUPINFO g[2], *gi[2];
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		ui[i] = &u[i]; gi[i] = &g[i]; g[i].pos = i;
+		snprintf(u[i].name, sizeof(u[i].name), "u%d", i);
+		snprintf(g[i].name, sizeof(g[i].name), "G%d", i);
+	}
+	v.total.users = 2; v.total.groups = 2;
+	convert(&v, ui, gi, "%c-5|%C-5|");
+	if (check(strlen(output) < sizeof(output), "reverse range wider than the list stays in bounds"))
+		return 1;
+	return check(!strcmp(convert(&v, ui, gi, "end%"), "end"), "trailing % stops at the terminator");
+}
+
+/* filebanned_match(): CRLF lists and a last line without a newline */
+static int t_banned(void)
+{
+	char old[4096] = "";
+	size_t n = 0;
+	FILE *f = fopen(banned_filelist, "r");
+	int r;
+
+	if (f) { n = fread(old, 1, sizeof(old), f); fclose(f); }
+	put(banned_filelist, "*.crlf\r\n*.last");
+	r = filebanned_match("a.crlf") && filebanned_match("a.last") && !filebanned_match("a.las");
+	f = fopen(banned_filelist, "w");
+	fwrite(old, 1, n, f);
+	fclose(f);
+	return check(r, "banned list with CRLF and no trailing newline");
+}
+
+/* extractDirname(): a root-level path used to leave dirname unset */
+static int t_dirname(void)
+{
+	char d[64] = "unset";
+
+	extractDirname(d, "/foo");
+	return check(!strcmp(d, "foo"), "extractDirname(\"/foo\") gives foo");
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "";
@@ -253,6 +317,11 @@ int main(int argc, char **argv)
 	if (!strcmp(t, "writetop")) return t_writetop();
 	if (!strcmp(t, "dirlist")) return t_dirlist();
 	if (!strcmp(t, "avi")) return t_avi();
+	if (!strcmp(t, "lenient")) return t_lenient();
+	if (!strcmp(t, "unpad")) return t_unpad();
+	if (!strcmp(t, "convrange")) return t_convrange();
+	if (!strcmp(t, "banned")) return t_banned();
+	if (!strcmp(t, "dirname")) return t_dirname();
 	fprintf(stderr, "unknown test %s\n", t);
 	return 2;
 }

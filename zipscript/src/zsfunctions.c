@@ -1988,17 +1988,11 @@ copyfile(char *from_name, char *to_name)
 int
 extractDirname(char *dirname, char *absoluteDirname)
 {
-        int cnt, n = 0;
-        for (cnt = strlen(absoluteDirname); cnt; cnt--) {
-                if (absoluteDirname[cnt] == '/') {
-                        strncpy(dirname, absoluteDirname + cnt + 1, n + 1);
-                        dirname[n] = 0;
-                        break;
-                } else {
-                        n++;
-                }
-        }
-        return cnt;
+        char *slash = strrchr(absoluteDirname, '/');
+
+        /* index 0 counts too: "/foo" -> "foo" */
+        strcpy(dirname, slash ? slash + 1 : absoluteDirname);
+        return slash ? (int)(slash - absoluteDirname) : 0;
 }
 
 int make_sfv(char *reldir) {
@@ -2165,7 +2159,7 @@ filebanned_match(const char *filename)
         }
         strtolower(fbuf);
         while ((fgets(buf, sizeof(buf), fname_fd))) {
-                buf[strlen(buf) - 1] = '\0';
+                buf[strcspn(buf, "\r\n")] = '\0';
                 if ( *buf == '\0' || *buf == ' ' || *buf == '\t' || *buf == '#' )
                         continue;
                 strtolower(buf);

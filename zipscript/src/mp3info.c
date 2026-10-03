@@ -293,9 +293,10 @@ get_id3(mp3info * mp3, struct audio *audio)
 char           *
 unpad(char *string)
 {
-	char           *pos = string + (int)strlen(string) - 1;
-	while (isspace(pos[0]))
-		(pos--)[0] = 0;
+	size_t		len = strlen(string);
+
+	while (len && isspace((unsigned char)string[len - 1]))
+		string[--len] = 0;
 	return string;
 }
 

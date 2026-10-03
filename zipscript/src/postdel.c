@@ -284,6 +284,17 @@ main(int argc, char **argv)
 			break;
 	}
 
+	/* The file may have been uploaded again while this postdel waited. */
+	if (fileexists(fname)) {
+		d_log("postdel: File (%s) exists after acquiring the release lock; ignoring stale deletion event\n", fname);
+		closedir(dir);
+		closedir(parent);
+		remove_lock(&g.v);
+		ng_free(g.ui);
+		ng_free(g.gi);
+		return 0;
+	}
+
 	g.l.race = ng_realloc(g.l.race, n = (int)strlen(g.l.path) + 12 + sizeof(storage), 1, 1, &g.v, 1);
 	g.l.sfv = ng_realloc(g.l.sfv, n, 1, 1, &g.v, 1);
 	g.l.sfvbackup = ng_realloc(g.l.sfvbackup, n, 1, 1, &g.v, 1);

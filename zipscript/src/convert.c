@@ -92,6 +92,8 @@ convert_user(struct VARS *raceI, struct USERINFO *userI, struct GROUPINFO **grou
 					val2 = -1;
 				}
 
+				if (!*instr)	/* trailing % - stop at the terminator */
+					break;
 				switch (*instr) {
 /*				case 'B':
  *					out_p += bappend(out_p, out_end, "\\002");
@@ -229,6 +231,8 @@ convert_group(struct VARS *raceI, struct GROUPINFO *groupI, char *instr, short i
 				val2 = -1;
 			}
 
+			if (!*instr)	/* trailing % - stop at the terminator */
+				break;
 			switch (*instr) {
 /*			case 'B':
  *				out_p += bappend(out_p, out_end, "\\002");
@@ -332,6 +336,8 @@ convert_audio(struct VARS *raceI, char *instr)
 				val2 = -1;
 			}
 
+			if (!*instr)	/* trailing % - stop at the terminator */
+				break;
 			switch (*instr) {
 			case 'w':
 				out_p += bappend(out_p, out_end, "%*.*s", val1, val2, (raceI->audio.id3_genre == NULL)?"Unknown":(char *)raceI->audio.id3_genre);
@@ -447,6 +453,8 @@ convert_sitename(char *instr)
 				}
 			}
 
+			if (!*instr)	/* trailing % - stop at the terminator */
+				break;
 			switch (*instr) {
 			case 'Z':
 				out_p += bappend(out_p, out_end, "%*s", val1, short_sitename);
@@ -513,6 +521,8 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 				val2 = -1;
 			}
 
+			if (!*instr)	/* trailing % - stop at the terminator */
+				break;
 			switch (*instr) {
 			case 'a':
 				out_p += bappend(out_p, out_end, "%*.*f", val1, val2, (double)(raceI->total.speed / 1024. / raceI->total.files));
@@ -564,6 +574,8 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 					from = raceI->total.groups - 1 - to;
 					to = raceI->total.groups - 1 - n;
 				}
+				if (from < 0)	/* reverse range wider than the list */
+					from = 0;
 				if (from >= raceI->total.groups) {
 					to = -1;
 				}
@@ -602,6 +614,8 @@ convert(struct VARS *raceI, struct USERINFO **userI, struct GROUPINFO **groupI, 
 					from = raceI->total.users - 1 - to;
 					to = raceI->total.users - 1 - n;
 				}
+				if (from < 0)	/* reverse range wider than the list */
+					from = 0;
 				if (from >= raceI->total.users) {
 					to = -1;
 				}
@@ -878,6 +892,8 @@ incomplete(char *instr, char path[2][PATH_MAX], struct VARS *raceI, int l_type)
 	for (; *instr && buf_p < buf_end; instr++)
 		if (*instr == '%') {
 			instr++;
+			if (!*instr)	/* trailing % - stop at the terminator */
+				break;
 			switch (*instr) {
 			case '3':
 				n = 0;
