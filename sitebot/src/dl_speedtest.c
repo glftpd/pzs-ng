@@ -77,8 +77,8 @@ void debug_out(char *fmt,...) {
 int
 main (int argc, char **argv)
 {
-	char		filename[NAME_MAX], wdir[PATH_MAX], user[25], group[25];
-	char		*p = NULL;
+	char		filename[PATH_MAX], dir[PATH_MAX], wdir[PATH_MAX], user[25], group[25];
+	char		*p = NULL, *slash, *base;
 	struct stat	fileinfo;
 	double		mbit, mbyte, mbps, mbytesps;
 	FILE		*glfile;
@@ -91,13 +91,30 @@ main (int argc, char **argv)
 		return 0;
 	}
 	p = argv[1] + 5;
-	snprintf(filename, sizeof(filename), "%s", p);
-	if (!getcwd(wdir, sizeof(wdir))) {
-		debug_out("%s: Could not retrieve current path - getcwd() failed.\n", argv[0]);
+	/*
+	 * The RETR argument comes as the client typed it: a name in the cwd, a
+	 * path relative to the cwd, or an ftp-absolute path (below sitepath_dir).
+	 * Resolve the file's own directory so the check and stat() don't depend
+	 * on the user having CWD'd into the speedtest dir first.
+	 */
+	slash = strrchr(p, '/');
+	base = slash ? slash + 1 : p;
+	if (!slash)
+		snprintf(dir, sizeof(dir), ".");
+	else if (*p == '/' && strncmp(p, sitepath_dir, strlen(sitepath_dir)))
+		snprintf(dir, sizeof(dir), "%s%.*s", sitepath_dir, (int)(slash - p), p);
+	else
+		snprintf(dir, sizeof(dir), "%.*s", slash == p ? 1 : (int)(slash - p), p);
+	if (!*base || !realpath(dir, wdir)) {
+		debug_out("%s: Could not resolve the directory of '%s'.\n", argv[0], p);
+		return 0;
+	}
+	if (snprintf(filename, sizeof(filename), "%s/%s", wdir, base) >= (int)sizeof(filename)) {
+		debug_out("%s: Path of '%s' is too long.\n", argv[0], p);
 		return 0;
 	}
 	if (!matchpath(speedtest_dirs, wdir)) {
-		debug_out("%s: Current path does not match speedtest_dirs (%s not in %s).\n", argv[0], wdir, speedtest_dirs);
+		debug_out("%s: File's path does not match speedtest_dirs (%s not in %s).\n", argv[0], wdir, speedtest_dirs);
 		return 0;
 	}
 	if (getenv("USER") && getenv("GROUP") && getenv("SPEED")) {
