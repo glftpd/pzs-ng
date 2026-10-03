@@ -46,7 +46,9 @@ vd_log(const char *fmt, va_list ap)
 {
 	time_t		timenow;
 	FILE           *file;
-#if ( debug_altlog == TRUE )
+#if defined(debug_logfile)
+	static char	debugname[] = debug_logfile;
+#elif ( debug_altlog == TRUE )
 	static char	debugpath[PATH_MAX];
 	static char	debugname[PATH_MAX];
 #else
@@ -55,7 +57,7 @@ vd_log(const char *fmt, va_list ap)
 
 	timenow = time(NULL);
 
-#if ( debug_altlog == TRUE )
+#if !defined(debug_logfile) && ( debug_altlog == TRUE )
 	if (getcwd(debugpath, PATH_MAX) == NULL)
 		debugpath[0] = '\0';
 	safe_snprintf(debugname, PATH_MAX, "%s/%s/debug",

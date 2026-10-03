@@ -485,8 +485,17 @@ debug_altlog <TRUE|FALSE>
 	'storage' path, while FALSE will use the upload-dir.
 	Note that the debug file will be named 'debug' in the 'storage' and
 	'.debug' in the releasedir.
-	Related option(s): debug_mode debug_announce
+	Related option(s): debug_mode debug_announce debug_logfile
 	Default: TRUE
+
+debug_logfile <"PATH">
+	If debug is on and this is defined, all debug output goes to this one
+	file instead, and debug_altlog is ignored. The path is seen from inside
+	the chroot, e.g. "/ftp-data/logs/zipscript-debug.log". Each line carries
+	the pid, so concurrent uploads can be told apart. The file grows without
+	bound - rotate it yourself.
+	Related option(s): debug_mode debug_altlog
+	Default: not defined
 
 debug_announce <TRUE|FALSE>
 	If this variable is set to TRUE, and debug_mode is set to TRUE the
