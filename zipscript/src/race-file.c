@@ -592,17 +592,18 @@ copysfv(const char *source, const char *target, struct VARS *raceI)
 			if (!strcomp(ignored_types, ptr) && !(strcomp(allowed_types, ptr) && !matchpath(allowed_types_exemption_dirs, raceI->misc.current_path)) && !strcomp("sfv", ptr) && !strcomp("nfo", ptr)) {
 
 				skip = 0;
-//#if ( sfv_dupecheck == TRUE )
-				/* read from sfvdata - no parsing */
+#if ( sfv_dupecheck == TRUE )
+				/* read from sfvdata - no parsing; stop on error or short read */
+				/* O(n^2) per sfv - a hash set if huge sfvs ever matter */
 				lseek(outfd, 0L, SEEK_SET);
-				while (read(outfd, &tempsd, sizeof(SFVDATA)))
-//					if (!strcmp(sd.fname, tempsd.fname) || (sd.crc32 == tempsd.crc32 && sd.crc32))
-					if (!strcmp(sd.fname, tempsd.fname))
+				while (read(outfd, &tempsd, sizeof(SFVDATA)) == sizeof(SFVDATA))
+					if (!strcmp(sd.fname, tempsd.fname)) {
 						skip = 1;
+						break;
+					}
 
 				lseek(outfd, 0L, SEEK_END);
 
-#if ( sfv_dupecheck == TRUE )
 				if (skip)
 					continue;
 #endif
@@ -1656,7 +1657,7 @@ lenient_compare(char *name1, char *name2)
 #if (sfv_lenient)
 			if (a[0] == ' ' || a[0] == ',' || a[0] == '.' || a[0] == '-' || a[0] == '_')
 				a[0] = '*';
-			if (b[0] == ' ' || b[0] == ',' || b[0] == '.' || b[0] == '-' || a[0] == '_')
+			if (b[0] == ' ' || b[0] == ',' || b[0] == '.' || b[0] == '-' || b[0] == '_')
 				b[0] = '*';
 #endif
 			if (a[0] != b[0])

@@ -294,11 +294,20 @@ main(int argc, char **argv)
 #else
 	if (realpath(argv[1], temp_path) != temp_path)
 	{
-		d_log("zipscript-c: Could not realpath(\"%s\", temp_path): %s\n", temp_path, strerror(errno));
+		d_log("zipscript-c: Could not realpath(\"%s\", temp_path): %s\n", argv[1], strerror(errno));
 		strlcpy(temp_path, argv[1], PATH_MAX);
 	}
-	strlcpy(g.l.path, temp_path, MIN(PATH_MAX, strrchr(temp_path, '/') - temp_path + 1));
-	strlcpy(g.v.file.name, strrchr(temp_path, '/') + 1, NAME_MAX);
+	{
+		char *slash = strrchr(temp_path, '/');
+
+		if (!slash) {
+			strlcpy(g.l.path, ".", PATH_MAX);
+			strlcpy(g.v.file.name, temp_path, NAME_MAX);
+		} else {
+			strlcpy(g.l.path, slash == temp_path ? "/" : temp_path, MIN(PATH_MAX, slash == temp_path ? 2 : slash - temp_path + 1));
+			strlcpy(g.v.file.name, slash + 1, NAME_MAX);
+		}
+	}
 #endif
 
 	strlcpy(g.v.misc.current_path, g.l.path, PATH_MAX);

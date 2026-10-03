@@ -23,4 +23,10 @@ d=$(mkrel test Rescan.Empty-GRP)
 if [ "$MODE" = cuftpd ]; then rs_args="u1 g1 tag DEFAULT '$d' ''"; else rs_args="''"; fi
 noasan "rescan: an empty file name does not read before its buffer" sh -c "cd '$d' && '$BIN/rescan' $rs_args"
 ok "grep -q 'FILE mode' '$WORK/_out'" "rescan took the empty name as a FILE-mode argument"
+
+# zipscript-c (cuftpd/wzd only): a file path with no '/' that realpath() can't resolve
+if [ "$MODE" = cuftpd ]; then
+	d=$(mkrel test Noslash-GRP)
+	noasan "zipscript-c: a path without '/' does not crash the path split" sh -c "cd '$d' && '$BIN/zipscript-c' nosuchfile.r00 00000000 u1 g1 tag 1000 DEFAULT"
+fi
 summary

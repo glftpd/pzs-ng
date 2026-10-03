@@ -276,8 +276,8 @@ main(int argc, char *argv[])
 					strlcpy(g.v.user.group, get_g_name(f_gid), sizeof(g.v.user.group));
 				}
 #else
-                                strncpy(g.v.user.name, argv[4], sizeof(g.v.user.name));
-                                strncpy(g.v.user.group, argv[5], sizeof(g.v.user.group));
+                                strlcpy(g.v.user.name, argv[4], sizeof(g.v.user.name));
+                                strlcpy(g.v.user.group, argv[5], sizeof(g.v.user.group));
 #endif
 
 				strlcpy(g.v.file.name, dp->d_name, NAME_MAX);
@@ -469,8 +469,8 @@ main(int argc, char *argv[])
 					strlcpy(g.v.user.group, get_g_name(f_gid), sizeof(g.v.user.group));
 				}
 #else
-                                strncpy(g.v.user.name, argv[4], sizeof(g.v.user.name));
-                                strncpy(g.v.user.group, argv[5], sizeof(g.v.user.group));
+                                strlcpy(g.v.user.name, argv[4], sizeof(g.v.user.name));
+                                strlcpy(g.v.user.group, argv[5], sizeof(g.v.user.group));
 #endif
 
 				strlcpy(g.v.file.name, dp->d_name, NAME_MAX);
