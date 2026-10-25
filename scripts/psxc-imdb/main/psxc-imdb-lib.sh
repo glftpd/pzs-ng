@@ -48,6 +48,7 @@ imdb_load_config() {
       return 1
     fi
   fi
+  # shellcheck source=/dev/null
   . "$config_path"
   if [ $? -ne 0 ]; then
     echo "Unable to open config file ($config_path). Forced to exit." >&2
@@ -89,12 +90,18 @@ imdb_write_log() {
 }
 
 # Add an entry to the IMDB lookup queue
-# Usage: imdb_queue_lookup "$url" "$dest" "$logfile"
+# Usage: imdb_queue_lookup "$url" "$dest" "$logfile" ["R"]
+# An optional 4th field marks a rescan entry (FIXDIRTIME scope).
 imdb_queue_lookup() {
   local url="$1"
   local dest="$2"
   local logfile="$3"
-  echo "$url|$dest" >> "$logfile"
+  local flag="${4:-}"
+  if [ -n "$flag" ]; then
+    echo "$url|$dest||$flag" >> "$logfile"
+  else
+    echo "$url|$dest" >> "$logfile"
+  fi
 }
 
 # Query IMDB GraphQL API with retries
@@ -275,17 +282,38 @@ strip_glroot() {
   fi
 }
 
-# Resolve the FIXDIRTIME mtime-snapshot carrier path for the current context.
+# Resolve a FIXDIRTIME mtime-snapshot carrier path for the current context.
 # The conf's TMPFILE is a host-style path (GLROOT-prefixed); chrooted runs must
 # use the GLROOT-stripped form, host runs the host form. Pick whichever
-# actually resolves here.
-# Usage: DIRDATE_CARRIER=$(imdb_dirdate_carrier)
+# actually resolves here. The path includes the PID so a concurrent run cannot
+# clobber another run's carrier. An optional suffix (default "dirdate")
+# distinguishes the release-dir / info-dir / .imdb carriers.
+# Usage: DIRDATE_CARRIER=$(imdb_dirdate_carrier)          # ...$$.dirdate
+#        INFOTIME_CARRIER=$(imdb_dirdate_carrier infotime)
 imdb_dirdate_carrier() {
-  if [ -d "$(dirname "$TMPFILE")" ]; then
-    echo "${TMPFILE}.dirdate"
-  else
-    echo "$(strip_glroot "$TMPFILE").dirdate"
+  local suffix="${1:-dirdate}" dir
+  if [ -n "${IMDBMTIME_TMPDIR:-}" ] && [ -d "$IMDBMTIME_TMPDIR" ] && [ -w "$IMDBMTIME_TMPDIR" ]; then
+    echo "$IMDBMTIME_TMPDIR/$suffix"
+    return
   fi
+  dir="$(dirname "$TMPFILE")"
+  if [ -d "$dir" ] && [ -w "$dir" ]; then
+    echo "${TMPFILE}.$$.${suffix}"
+    return
+  fi
+  dir="$(dirname "$(strip_glroot "$TMPFILE")")"
+  if [ -d "$dir" ] && [ -w "$dir" ]; then
+    echo "$(strip_glroot "$TMPFILE").$$.${suffix}"
+    return
+  fi
+  echo ""
+}
+
+# Remove the per-run mtime carrier dir and the queue lock on exit.
+imdb_run_cleanup() {
+  [ -n "${IMDBMTIME_TMPDIR:-}" ] && rm -rf "$IMDBMTIME_TMPDIR"
+  [ -n "${LOCKDIR:-}" ] && rmdir "$LOCKDIR" 2>/dev/null
+  return 0
 }
 
 # Extract IMDB URL from NFO file with fallback levels
@@ -304,9 +332,9 @@ extract_imdb_url() {
   fi
 
   # Level 0: Standard URL format
-  urls="$(grep [Ii][Mm][Dd][Bb] "$filename" | tr ' \|' '\n' | sed -n '/[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+  urls="$(grep -a '[Ii][Mm][Dd][Bb]' "$filename" | tr ' \|' '\n' | sed -n '/[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"
   if [ -n "$(echo "$urls" | grep "imdb\.")" ]; then
-    url="https://www.imdb.com/title/tt$(echo "$urls" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
+    url="https://www.imdb.com/title/$(imdb_extract_id "$(echo "$urls" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "?" -f 1)")"
     if [ -z "$(echo "$url" | tr -cd '0-9')" ]; then
       url=""
     fi
@@ -314,9 +342,9 @@ extract_imdb_url() {
 
   # Level 1: Relaxed URL format
   if [ -z "$url" ] && [ "$relaxed" -ge 1 ]; then
-    urls="$(grep [Ii][Mm][Dd][Bb] "$filename" | tr ' \|' '\n' | sed -n '/[hH][tT][tT][pP][sS]*:[/][/].*[iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+    urls="$(grep -a '[Ii][Mm][Dd][Bb]' "$filename" | tr ' \|' '\n' | sed -n '/[hH][tT][tT][pP][sS]*:[/][/].*[iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"
     if [ -n "$(echo "$urls" | grep "imdb\.")" ]; then
-      url="https://www.imdb.com/title/tt$(echo "$urls" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
+      url="https://www.imdb.com/title/$(imdb_extract_id "$(echo "$urls" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "?" -f 1)")"
       if [ -z "$(echo "$url" | tr -cd '0-9')" ]; then
         url=""
       fi
@@ -325,9 +353,9 @@ extract_imdb_url() {
 
   # Level 2: Even more relaxed
   if [ -z "$url" ] && [ "$relaxed" -ge 2 ]; then
-    urls="$(grep [Ii][Mm][Dd][Bb] "$filename" | tr ' \|' '\n' | sed -n '/.*[iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"
+    urls="$(grep -a '[Ii][Mm][Dd][Bb]' "$filename" | tr ' \|' '\n' | sed -n '/.*[iI][mM][dD][bB][.].*.[0-9]/p' | head -n 1 | tr -c -d '[:alnum:]\:./?')"
     if [ -n "$(echo "$urls" | grep "imdb\.")" ]; then
-      url="https://www.imdb.com/title/tt$(echo "$urls" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
+      url="https://www.imdb.com/title/$(imdb_extract_id "$(echo "$urls" | sed "s/=/-/g" | sed "s/imdb\./=/" | cut -d "=" -f 2 | cut -d "?" -f 1)")"
       if [ -z "$(echo "$url" | tr -cd '0-9')" ]; then
         url=""
       fi
@@ -336,7 +364,7 @@ extract_imdb_url() {
 
   # Level 3: Numeric extraction
   if [ -z "$url" ] && [ "$relaxed" -ge 3 ]; then
-    for urls in $(grep [Ii][Mm][Dd][Bb] "$filename" | tr -c '[:digit:]' '\n' | grep -v "^$"); do
+    for urls in $(grep -a '[Ii][Mm][Dd][Bb]' "$filename" | tr -c '[:digit:]' '\n' | grep -v "^$"); do
       if [ -n "$(echo "$urls" | tr -cd '0-9')" ]; then
         if [ "$(echo "$urls" | tr -cd '0-9' | wc -c)" -eq 8 ] || [ "$(echo "$urls" | tr -cd '0-9' | wc -c)" -eq 7 ]; then
           url="https://www.imdb.com/title/tt$urls"
@@ -364,13 +392,9 @@ extract_imdb_url() {
 # Returns: "YEAR MONTH DATE TIME" (e.g. "2026 Aug 15 1430")
 get_file_date() {
   local path="$1"
-  local findargs=(-printf "%TY %Tb %Td %TH%TM")
-  if [ -d "$path" ]; then
-    findargs=(-type d -printf "%TY %Tb %Td %TH%TM")
-  fi
-  if [ "$SORT_BY_DATE_LS" = "bsd" ]; then
-    stat -f "%Sm" -t "%Y %b %d %H%M" "$path"
+  if stat -c '%Y' "$path" >/dev/null 2>&1; then
+    find "$path" -maxdepth 0 -printf "%TY %Tb %Td %TH%TM\n"
   else
-    find "$path" "${findargs[@]}"
+    stat -f "%Sm" -t "%Y %b %d %H%M" "$path"
   fi
 }

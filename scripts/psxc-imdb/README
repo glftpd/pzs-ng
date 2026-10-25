@@ -485,12 +485,12 @@ EXTRAS:
 -------
 In the extras folder you'll find a few goodies you probably would like to use.
 psxc-imdb-rescan.sh - this is a site script used to rescan a dir, or a whole
-                      section.
-                      By default the script does not touch directory timestamps
-                      (FIXDIRTIME=""). Set FIXDIRTIME="YES" in psxc-imdb.conf
-                      to restore the release dir's original mtime after the imdb
-                      info is written (snapshot taken before the run), keeping
-                      upload-order dirlists intact.
+                      section. FIXDIRTIME="YES" in psxc-imdb.conf keeps the
+                      release dir's mtime on a rescan: it is set to the .nfo's
+                      mtime, or to the pre-run mtime when no .nfo exists, and
+                      the [IMDB].../.imdb mtimes are preserved. The default ("")
+                      leaves directory timestamps untouched; normal uploads and
+                      rescans with -nofile are unchanged.
 psxc-imdb-sanity.sh - you have probably used this already - it sets up and
                       verifies your environment and settings.
 psxc-imdb-parser.sh - not a real script - it just shows how you can grab the

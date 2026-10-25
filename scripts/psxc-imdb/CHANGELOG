@@ -1,5 +1,16 @@
 PSXC-IMDB CHANGELOG:
 --------------------
+- v3.2.1 - Oct. 27th, 2026 - FIXDIRTIME=YES keeps the release dir's mtime on
+                             "site imdb-rescan -1/-r": the .nfo's mtime is used
+                             (or the pre-run mtime when no .nfo exists), and the
+                             [IMDB].../.imdb mtimes are preserved. Uploads and
+                             -nofile rescans are unchanged. Carriers live in a
+                             private per-run directory under ${TMPDIR:-/tmp}
+                             (mode 0700), falling back to the log/chroot dirs.
+                             - Parse localized and scheme-less IMDb URLs in the
+                                queue and pre paths (binary-safe grep -a)
+                             - psxc-symlink-maker.sh: drop SORT_BY_DATE_LS; the
+                                date lookup auto-detects GNU/BSD
 - v3.2 - Aug. 21st, 2026 - Create psxc-imdb-lib.sh shared library to eliminate
                            code duplication across the suite
                            - Functions: imdb_set_defaults(), imdb_load_config(),
@@ -33,7 +44,7 @@ PSXC-IMDB CHANGELOG:
                               per-OS install hints and portable sed/tr config
                               generation (Linux + FreeBSD)
                            - POSIX-compatible tools throughout (no GNU-only
-                              grep -oP/-a, echo -e, rmdir flags, ls date sorting);
+                              grep -oP, echo -e, rmdir flags, ls date sorting);
                               BSD stat -f date handling via get_file_date()
                            - Addons (nuker, symlink-maker) auto-detect their
                               config paths in direct and rescan-context

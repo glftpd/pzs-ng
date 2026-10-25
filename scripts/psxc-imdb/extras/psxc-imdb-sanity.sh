@@ -9,7 +9,7 @@
 # and chmod'ed world read-writable.
 
 # version number. do not change.
-VERSION="v3.2"
+VERSION=3.2.1
 
 # needed binaries. do not change.
 BINARIES="date cat echo cut curl jq grep head sed awk fold rm bash ls basename dirname chmod ps wc"
@@ -84,7 +84,7 @@ imdb_load_config || exit 0
       MYLDD=`which ldd`
       if [ -e $MYLDD ]; then
        for DEP in `$MYLDD $BINARF 2>/dev/null | grep "=>" | cut -d '>' -f 2 | cut -d ' ' -f 2`; do
-        mkdir -p $GLROOT`dirname $DEP`
+        mkdir -p "$GLROOT$(dirname "$DEP")"
         if [ ! -e $GLROOT$DEP ]; then
          echo "copying $DEP to $GLROOT$DEP..."
          cp $DEP $GLROOT$DEP || { echo "failed to copy $DEP to $GLROOT$DEP - please try manually"; };
@@ -115,7 +115,7 @@ imdb_load_config || exit 0
     exit 1
    }
    echo -n "found."
-   chmod ugoa+rx `which $BINAR` || {
+   chmod ugoa+rx "$(which "$BINAR")" || {
     BINARWHICH=`which $BINAR`
     BINARPERM=`ls -l $BINARWHICH | grep "$BINAR" | cut -d ' ' -f 1 | head -n 1`
     echo -n " Failed to chmod the file. Current permissions on file: $BINARPERM"
@@ -167,8 +167,8 @@ imdb_load_config || exit 0
   echo -n " $GLROOT/bin/$PRENAME .. "
   if [ ! -e $GLROOT/bin/$PRENAME ]; then
    if [ -e $GLROOT/bin/psxc-imdb.sh ]; then
-    cd $GLROOT/bin
-    ln -s psxc-imdb.sh $PRENAME || { echo "could not make symlink to psxc-imdb. Please make it yourself."; break; };
+    cd "$GLROOT/bin" || exit 1
+    ln -s psxc-imdb.sh $PRENAME || { echo "could not make symlink to psxc-imdb. Please make it yourself."; exit 1; };
     echo "OK."
    else
     echo "could not find psxc-imdb.sh in $GLROOT/bin. You must make the symlink yourself."
@@ -179,7 +179,7 @@ imdb_load_config || exit 0
   echo ""
   if [ ! -e /bin/bash ]; then
    echo -n "/bin/bash not found. Will try to link it there.."
-   ln -s `which bash` /bin/ || { echo "could not make symlink to /bin/bash. Please make it yourself."; break; };
+   ln -s "$(which bash)" /bin/ || { echo "could not make symlink to /bin/bash. Please make it yourself."; exit 1; };
    echo "Done."
    echo ""
   fi

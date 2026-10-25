@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=3.2
+VERSION=3.2.1
 
 ############################################################################
 # some variables.                                                          #
@@ -53,7 +53,7 @@ choose_editor ()
    EDITOR="$line"
   fi
   if [ ! -z "`which $EDITOR`" ]; then
-   if [ -x `which $EDITOR` ]; then
+   if [ -x "$(which "${EDITOR%% *}")" ]; then
     EDITOROK="OK"
    fi
   fi
@@ -75,7 +75,7 @@ check_dir ()
 # Check to see if we're in the correct dir, and that some of the files
 # needed exists.
  if [ ! -e main/psxc-imdb.sh ] || [ ! -d extras ] || [ ! -e addons ]; then
-  cd `dirname $0`
+  cd "$(dirname "$0")" || exit 1
  fi
  if [ ! -e main/psxc-imdb.sh ] || [ ! -d extras ] || [ ! -e addons ]; then
   echo "Please start this script from within the installdir."
@@ -85,7 +85,7 @@ check_dir ()
 
 check_id ()
 {
- if [ ! `id -u` -eq 0 ]; then
+ if [ "$(id -u)" -ne 0 ]; then
   echo "You need to be root (UID 0) to install this script."
   exit 1
  fi
@@ -128,7 +128,8 @@ detect_os() {
 }
 
 check_required_binaries() {
-  local os_type=$(detect_os)
+  local os_type
+  os_type=$(detect_os)
   local missing_critical=""
   local missing_optional=""
   
@@ -138,7 +139,8 @@ check_required_binaries() {
   
   # Critical binaries (must have)
   for binary in bash jq curl; do
-    local path=$(find_binary "$binary")
+    local path
+    path=$(find_binary "$binary")
     if [ -z "$path" ]; then
       missing_critical="$missing_critical $binary"
       echo "  [X] $binary: NOT FOUND"
@@ -151,7 +153,8 @@ check_required_binaries() {
   
   # Check bash version (must be 4+)
   if [ -n "$BINARY_BASH" ]; then
-    local bash_version=$("$BINARY_BASH" --version 2>/dev/null | head -n1 | sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | cut -d'.' -f1)
+    local bash_version
+    bash_version=$("$BINARY_BASH" --version 2>/dev/null | head -n1 | sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | cut -d'.' -f1)
     if [ -z "$bash_version" ] || [ "$bash_version" -lt 4 ]; then
       echo "  [X] bash version: $bash_version (version 4+ required)"
       missing_critical="$missing_critical bash-4+"
@@ -162,7 +165,8 @@ check_required_binaries() {
   
   # Optional but recommended binaries
   for binary in grep sed awk tr cut head tail wc stat find; do
-    local path=$(find_binary "$binary")
+    local path
+    path=$(find_binary "$binary")
     if [ -z "$path" ]; then
       missing_optional="$missing_optional $binary"
       echo "  [X] $binary: NOT FOUND (optional)"
@@ -321,7 +325,7 @@ find_glpaths ()
     if [ -z $GLBOTPATH ]; then
      GLBOTPATH=`cat $GLBOT/$EGGDROP_CONF | grep -e "^set version" | head -n 1 | awk '{print $3}' | tr -cd 'a-zA-Z0-9\.'`
     fi
-    if [ ! -z "$GLBOTPATH" ] && [ ! -z `echo $GLBOTPATH | grep -e "/"` ]; then
+    if [ ! -z "$GLBOTPATH" ] && [ -n "$(echo "$GLBOTPATH" | grep -e "/")" ]; then
      GLBOTPATH=`echo $GLBOTPATH | cut -d '/' -f 1`
     else
      GLBOTPATH=scripts
@@ -462,7 +466,7 @@ readyfiles()
      chmod 755 $installdir/$file
     elif [ ! -z "`echo $file | grep -e "\.tcl$"`" ] || [ ! -z "`echo $file | grep -e "\.zpt$"`" ]; then
      chmod 600 $installdir/$file
-     chown `ls -1ld $GLBOT | awk '{print $3":"$4}'` $installdir/$file
+     chown "$(ls -1ld "$GLBOT" | awk '{print $3":"$4}')" "$installdir/$file"
     elif [ ! -z "`echo $file | grep -e "conf"`" ]; then
      chmod 644 $installdir/$file
     else
@@ -841,6 +845,7 @@ check_id
 check_required_binaries
 check_dir
 if [ -e $installvars ]; then
- . $installvars
+ # shellcheck source=/dev/null
+ . "$installvars"
 fi
 start_menu
