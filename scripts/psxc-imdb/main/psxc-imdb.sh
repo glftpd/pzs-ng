@@ -4,7 +4,7 @@
 ##################
 
 # version number. do not change.
-VERSION="v3.2"
+VERSION="v3.2.1"
 
 ######################################################################################################
 
@@ -20,9 +20,37 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 imdb_set_defaults
 imdb_load_config || exit 0
 
-# FIXDIRTIME mtime-snapshot carrier, resolved for this run's context
-# (chrooted vs host) so the snapshot/restore works in both.
-DIRDATE_CARRIER="$(imdb_dirdate_carrier)"
+# GNU printf supports the ' grouping flag; BSD printf(1) does not. Define a
+# formatter once so amounts are grouped where supported, plain otherwise.
+if printf "%'d" 1000 >/dev/null 2>&1; then
+ fmtnum() { printf "%'d" "$1"; }
+else
+ fmtnum() { printf "%d" "$1"; }
+fi
+
+# FIXDIRTIME carrier files live in a private per-run temp dir (mode 0700)
+# under a per-user base. The base is only used when it is a real directory
+# owned by the current user; otherwise the carrier helpers fall back to the
+# writable log dir or return an empty path (the .nfo alignment needs no carrier).
+IMDBMTIME_TMPDIR=""
+if [ ! -z "$FIXDIRTIME" ]; then
+ IMDBMTIME_BASE="${TMPDIR:-/tmp}/psxc-imdb-${UID:-$(id -u)}"
+ mkdir -m 700 "$IMDBMTIME_BASE" 2>/dev/null
+ if [ -d "$IMDBMTIME_BASE" ] && [ ! -L "$IMDBMTIME_BASE" ] && [ -O "$IMDBMTIME_BASE" ]; then
+  chmod 700 "$IMDBMTIME_BASE" 2>/dev/null
+  if [ -w "$IMDBMTIME_BASE" ]; then
+   IMDBMTIME_TMPDIR="$(mktemp -d "$IMDBMTIME_BASE/XXXXXX" 2>/dev/null)"
+  fi
+ fi
+ trap imdb_run_cleanup EXIT
+fi
+
+# FIXDIRTIME mtime-snapshot carriers, resolved for this run's context
+# (chrooted vs host) so the snapshot/restore works in both. The path carries
+# the PID so a concurrent run cannot clobber another run's snapshot.
+DIRDATE_CARRIER="$(imdb_dirdate_carrier dirdate)"
+INFOTIME_CARRIER="$(imdb_dirdate_carrier infotime)"
+IMDTIME_CARRIER="$(imdb_dirdate_carrier imdbtime)"
 
 # Start debugging
 if [ "$DEBUG" = "ON" ] || [ "$DEBUG" = "2" ]; then
@@ -45,6 +73,7 @@ if [ ! -z "$RECVDARGS" ]; then
 # PATH=$PATHCHROOTED
 # IMDBLOG=$IMDBLOGCHROOTED
  FILENAME="$RECVDARGS"
+   RESCAN="${PSXC_IMDB_RESCAN:-}"
    MYTMPFILE=$(strip_glroot "$TMPRESCANFILE")
    PSXCFLAG=$(head -n 1 "$MYTMPFILE" 2>/dev/null | tr -cd '0-9')
     if [ ! -z "$PSXCFLAG" ]; then
@@ -59,13 +88,14 @@ if [ ! -z "$RECVDARGS" ]; then
      fi
     fi
     # Snapshot the release dir's original date before creating any files in it
-    # (FIXDIRTIME gated); restored at the end of this block and again by the
-    # queue path so upload-order dirlists stay intact.
-    if [ ! -z "$FIXDIRTIME" ]; then
+    # (rescan only); restored at the end of this block and again by the queue
+    # path so upload-order dirlists stay intact.
+    if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ]; then
+     rm -f "$DIRDATE_CARRIER" >/dev/null 2>&1
      touch -r "$(pwd)" "$DIRDATE_CARRIER" >/dev/null 2>&1
     fi
     if [ ! -z "$DOTDATE" ]; then
-     DOTDATEINFO="$(grep [Dd][Aa][Tt][Ee] "$FILENAME" | tr -c '/a-zA-Z0-9:. -/\n' ' ' | tr -s ' ')"
+     DOTDATEINFO="$(grep '[Dd][Aa][Tt][Ee]' "$FILENAME" | tr -c '/a-zA-Z0-9:. -/\n' ' ' | tr -s ' ')"
      if [ ! -z "$DOTDATEINFO" ]; then
       echo "$DOTDATEINFO" > "$DOTDATE"
       chmod 666 "$DOTDATE"
@@ -97,11 +127,22 @@ if [ ! -z "$RECVDARGS" ]; then
 
 # export what we've found
    if [ ! -z "$IMDBURL" ]; then
-     imdb_queue_lookup "$IMDBURL" "$PWD" "$IMDBLOGCHROOTED"
+     imdb_queue_lookup "$IMDBURL" "$PWD" "$IMDBLOGCHROOTED" "${RESCAN:+R}"
     if [ ! -z "$DOTIMDB" ]; then
      if [ ! -e "$DOTIMDB" ] || [ -w "$DOTIMDB" ]; then
+      # Preserve the .imdb file's mtime across the truncation (rescan only).
+      if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ]; then
+       rm -f "$IMDTIME_CARRIER" >/dev/null 2>&1
+       if [ -f "$DOTIMDB" ]; then
+        touch -r "$DOTIMDB" "$IMDTIME_CARRIER" >/dev/null 2>&1
+       fi
+      fi
       echo -n "" > $DOTIMDB
       chmod 666 $DOTIMDB
+      if [ ! -z "$RESCAN" ] && [ -f "$IMDTIME_CARRIER" ]; then
+       touch -r "$IMDTIME_CARRIER" "$DOTIMDB" >/dev/null 2>&1
+       rm -f "$IMDTIME_CARRIER" >/dev/null 2>&1
+      fi
      fi
     fi
     if [ ! -z "$DOTURL" ]; then
@@ -134,12 +175,17 @@ if [ ! -z "$RECVDARGS" ]; then
      fi
     fi
    fi
-   # Restore the release dir's original date (undoing the dummy-file creation
-   # bump) so the queue step snapshots the true pre-run date. Only if
-   # FIXDIRTIME is enabled; default is "" - the script does not actively
-   # touch directory timestamps.
-   if [ ! -z "$FIXDIRTIME" ] && [ -f "$DIRDATE_CARRIER" ]; then
-    touch -r "$DIRDATE_CARRIER" "$(pwd)" >/dev/null 2>&1
+   # Set the release dir's date to the release .nfo's date, undoing the bump
+   # caused by the files created above (fall back to the pre-run date when no
+   # .nfo is present). Only for rescan runs with FIXDIRTIME enabled; default is
+   # "" - the script does not actively touch directory timestamps.
+   if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ]; then
+    NFO="$(ls -1 *.[Nn][Ff][Oo] 2>/dev/null | head -n 1)"
+    if [ ! -z "$NFO" ]; then
+     touch -r "$NFO" "$(pwd)" >/dev/null 2>&1
+    elif [ -f "$DIRDATE_CARRIER" ]; then
+     touch -r "$DIRDATE_CARRIER" "$(pwd)" >/dev/null 2>&1
+    fi
     rm -f "$DIRDATE_CARRIER" >/dev/null 2>&1
    fi
 
@@ -161,10 +207,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   fi
   if [ -d "$GLROOT$DIRNAME" ]; then
     FILENAME=$(ls -1 "$GLROOT$DIRNAME" | grep "\.[Nn][Ff][Oo]$" | head -n 1)
-    IMDBURL="$(grep [Ii][Mm][Dd][Bb] "$GLROOT$DIRNAME/$FILENAME" | tr ' ' '\n' | sed -n /[hH][tT][tT][pP][sS]*:[/][/].*[.][iI][mM][dD][bB].*.[0-9]/p | head -n 1 | tr -c -d '[:alnum:]\:./?')"
-    if [ ! -z "$(echo "$IMDBURL" | grep "\.imdb\.")" ]; then
-     IMDBURL="https://www.imdb.com/title/tt""$(echo "$IMDBURL" | sed "s/=/-/g" | sed "s/\.imdb\./=/" | cut -d "=" -f 2 | cut -d "/" -f 2,3 | tr -c -d '[:digit:]')"
-    fi
+    IMDBURL="$(extract_imdb_url "$GLROOT$DIRNAME/$FILENAME" "$RELAXEDURLS")"
     if [ ! -z "$IMDBURL" ] && [ ! -z "$LOCALURL" ]; then
      IMDBURL="$(imdb_localize_url "$IMDBURL" "$LOCALURL")"
     fi
@@ -215,13 +258,13 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 ##############################################
  LOCKDIR="${IMDBPID}.lock"
  if mkdir "$LOCKDIR" 2>/dev/null; then
-   trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+   trap imdb_run_cleanup EXIT
  else
    IMDBPIDCONTENT="$(head -n2 "$IMDBPID" 2>/dev/null | tail -n1)"
    if [[ -n "$IMDBPIDCONTENT" ]]; then
      if [[ "$IMDBPIDCONTENT" -ne -1 ]] && [[ -z "$(ps ax | awk '{print $1}' | grep -e "^$IMDBPIDCONTENT$")" ]]; then
        rmdir "$LOCKDIR" 2>/dev/null
-       mkdir "$LOCKDIR" 2>/dev/null && trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+       mkdir "$LOCKDIR" 2>/dev/null && trap imdb_run_cleanup EXIT
      else
        exit 0
      fi
@@ -319,6 +362,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   fi
   IMDBLNK="$(echo "$IMDBLINE" | cut -d "|" -f 2)"
   IMDBDST="$(echo "$IMDBLINE" | cut -d "|" -f 3)"
+  RESCAN="$(echo "$IMDBLINE" | cut -d "|" -f 4)"
   DEBUGCOUNT=1
   if [ ! -z "$DEBUG" ]; then
    echo "$DEBUGCOUNT : DOTIMDB = '$DOTIMDB'"
@@ -326,7 +370,6 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   fi
   if [ -d "$GLROOT$IMDBLNK" ]; then
    IMDBDIR="$(basename "$IMDBLNK")"
-   BASELNK="$(dirname "$IMDBLNK")"
    IMDBLKL="$IMDBLNK"
    IMDBLNK="$GLROOT$IMDBLKL/$DOTIMDB"
   elif [ "$IMDBLNK" = "/dev/null" ]; then
@@ -388,10 +431,11 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
   fi
 
 # Snapshot the release dir's original date so it can be restored after
-# writing the info files (FIXDIRTIME gated). Works chrooted and on host.
+# writing the info files (rescan only). Works chrooted and on host.
   RELDIR="$GLROOT$IMDBLKL"
   [ -d "$RELDIR" ] || RELDIR="$IMDBLKL"
-  if [ ! -z "$FIXDIRTIME" ] && [ -d "$RELDIR" ]; then
+  if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ] && [ -d "$RELDIR" ]; then
+   rm -f "$DIRDATE_CARRIER" >/dev/null 2>&1
    touch -r "$RELDIR" "$DIRDATE_CARRIER" >/dev/null 2>&1
   fi
 
@@ -468,7 +512,7 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
         RATINGSCORE=$($JQ_BIN -r '.data.title.ratingsSummary.aggregateRating // empty' <<< "$API_RESPONSE")
         VOTECOUNT=$($JQ_BIN -r '.data.title.ratingsSummary.voteCount // empty' <<< "$API_RESPONSE")
         if [ -n "$VOTECOUNT" ]; then
-          RATINGVOTES=$(printf "%'d" "$VOTECOUNT" 2>/dev/null || echo "$VOTECOUNT")
+          RATINGVOTES=$(fmtnum "$VOTECOUNT")
         else
           RATINGVOTES=""
         fi
@@ -566,13 +610,13 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
           GROSS_CUR=$($JQ_BIN -r '.data.title.worldwide.total.currency // "USD"' <<< "$API_RESPONSE")
 
           if [ -n "$OPENING" ]; then
-            BUSINESSSHORT="$OPENING_CUR $(printf "%'d" "$OPENING" 2>/dev/null || echo "$OPENING")"
+            BUSINESSSHORT="$OPENING_CUR $(fmtnum "$OPENING")"
           fi
           if [ -n "$BUDGET" ]; then
-            BUSINESS="Budget: $BUDGET_CUR $(printf "%'d" "$BUDGET" 2>/dev/null || echo "$BUDGET")"
+            BUSINESS="Budget: $BUDGET_CUR $(fmtnum "$BUDGET")"
           fi
           if [ -n "$GROSS" ]; then
-            BUSINESS="$BUSINESS"$'\n'"Worldwide Gross: $GROSS_CUR $(printf "%'d" "$GROSS" 2>/dev/null || echo "$GROSS")"
+            BUSINESS="$BUSINESS"$'\n'"Worldwide Gross: $GROSS_CUR $(fmtnum "$GROSS")"
           fi
         fi
       fi
@@ -757,8 +801,14 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 # Echo stuff to the .imdb file
 ##############################
 
+    # Preserve the .imdb file's mtime across the rewrite (rescan only).
+    if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ]; then
+     rm -f "$IMDTIME_CARRIER" >/dev/null 2>&1
+     if [ -f "$IMDBLNK" ]; then
+      touch -r "$IMDBLNK" "$IMDTIME_CARRIER" >/dev/null 2>&1
+     fi
+    fi
     printf "%b\n" "$IMDBHEAD" > "$IMDBLNK"
-    OWNER=$(ls -1nl "$GLROOT$IMDBLKL" | tail -n 1 | { read junk junk owner group junk; echo "$owner:$group"; };)
     echo "Title........: $TITLE" | fold -s -w "$IMDBWIDTH" | head -n 1 >> "$IMDBLNK"
     echo "-" >> "$IMDBLNK"
     echo "IMDb Link....: $IMDBURL" | head -n 1 >> "$IMDBLNK"
@@ -817,6 +867,10 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
      echo "$COMMENT" | sed "s/^\ *//g" | sed "s/\ *$//g" | tr -s ' ' | fold -s -w "$IMDBWIDTH" >> "$IMDBLNK"
     fi
     printf "%b\n" "$IMDBTAIL" >> "$IMDBLNK"
+    if [ ! -z "$RESCAN" ] && [ -f "$IMDTIME_CARRIER" ]; then
+     touch -r "$IMDTIME_CARRIER" "$IMDBLNK" >/dev/null 2>&1
+     rm -f "$IMDTIME_CARRIER" >/dev/null 2>&1
+    fi
    fi
 
    if [ ! -z "$INFOTEMPNAME" ] && [ -e "$GLROOT$IMDBLKL/$INFOTEMPNAME" ]; then
@@ -849,14 +903,34 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     INFOFILENAMEOLDB="$(echo "$INFOFILENAMEOLDA" | tr '\]\[' '.')"
     INFOFILENAMEPRINT="$(echo "$INFOFILENAME" | sed "s%VOTES%$VOTESFILE%g" | sed "s%SCORE%$SCOREFILE%g" | sed "s%GENRE%$GENREFILE%g" | sed "s%RUNTIME%$RUNTIMEFILE%g" | sed "s%YEAR%$TITLEYEAR%g" | sed "s%ISLIMITED%$LIMITEDFILE%g" | sed "s%SCREENS%$NUMSCREENS%g")"
     INFOFILENAMEPRINT="$(echo "$INFOFILENAMEPRINT" | tr -c "$INFOVALID" "$INFOCHARTO")"
+    # Preserve the existing info entry's mtime across the rename (rescan
+    # only): snapshot it before the old entry is removed and apply it to the
+    # new one after the mv, so a rescan does not change the info date.
+    if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ]; then
+     rm -f "$INFOTIME_CARRIER" >/dev/null 2>&1
+     OLDINFO="$(ls -1 "$GLROOT$IMDBLKL" | grep -e "$INFOFILENAMEOLDB" | head -n 1)"
+     if [ ! -z "$OLDINFO" ] && [ -e "$GLROOT$IMDBLKL/$OLDINFO" ]; then
+      touch -r "$GLROOT$IMDBLKL/$OLDINFO" "$INFOTIME_CARRIER" >/dev/null 2>&1
+     fi
+    fi
     if [ ! -z "$(ls -1 "$GLROOT$IMDBLKL" | grep -e "$INFOFILENAMEOLDB")" ]; then
      for OLDINFOFILE in $(ls -1  "$GLROOT$IMDBLKL" | grep -e "$INFOFILENAMEOLDB" | tr ' ' '^'); do
       OLDINFOFILE="$(echo "$OLDINFOFILE" | tr '^' ' ')"
-      rm -f "$GLROOT$IMDBLKL/$OLDINFOFILE" >/dev/null 2>&1
-      rmdir "$GLROOT$IMDBLKL/$OLDINFOFILE" >/dev/null 2>&1
+      # On rescans the entry is replaced fully (so a non-empty one is not
+      # nested into); otherwise keep the historical non-recursive removal.
+      if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ]; then
+       rm -rf "${GLROOT}${IMDBLKL}/${OLDINFOFILE:?}" >/dev/null 2>&1
+      else
+       rm -f "$GLROOT$IMDBLKL/$OLDINFOFILE" >/dev/null 2>&1
+       rmdir "$GLROOT$IMDBLKL/$OLDINFOFILE" >/dev/null 2>&1
+      fi
      done
     fi
     mv "$GLROOT$IMDBLKL/$INFOTEMPNAME" "$GLROOT$IMDBLKL/$INFOFILENAMEPRINT"
+    if [ ! -z "$RESCAN" ] && [ -f "$INFOTIME_CARRIER" ]; then
+     touch -r "$INFOTIME_CARRIER" "$GLROOT$IMDBLKL/$INFOFILENAMEPRINT" >/dev/null 2>&1
+     rm -f "$INFOTIME_CARRIER" >/dev/null 2>&1
+    fi
    fi
 
 # create a thumbnail?
@@ -884,12 +958,17 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
     fi
    fi
 
-# restore the releasedir's original date.
-#########################################
+# set the releasedir's date to the release .nfo's date.
+#####################################################
    RELDIR="$GLROOT$IMDBLKL"
    [ -d "$RELDIR" ] || RELDIR="$IMDBLKL"
-   if [ ! -z "$FIXDIRTIME" ] && [ -f "$DIRDATE_CARRIER" ] && [ -d "$RELDIR" ]; then
-    touch -r "$DIRDATE_CARRIER" "$RELDIR" >/dev/null 2>&1
+   if [ ! -z "$FIXDIRTIME" ] && [ ! -z "$RESCAN" ] && [ -d "$RELDIR" ]; then
+    NFO="$(ls -1 "$RELDIR"/*.[Nn][Ff][Oo] 2>/dev/null | head -n 1)"
+    if [ ! -z "$NFO" ]; then
+     touch -r "$NFO" "$RELDIR" >/dev/null 2>&1
+    elif [ -f "$DIRDATE_CARRIER" ]; then
+     touch -r "$DIRDATE_CARRIER" "$RELDIR" >/dev/null 2>&1
+    fi
     rm -f "$DIRDATE_CARRIER" >/dev/null 2>&1
    fi
 
@@ -898,9 +977,9 @@ if [ ! -z "$RUNCONTINOUS" ] || [ -z "$RECVDARGS" ]; then
 
   grep -F -v "$IMDBLINE" "$IMDBLOG" > "$TMPFILE"
   cat "$TMPFILE" > "$IMDBLOG"
-  > "$TMPFILE"
+  : > "$TMPFILE"
  done
- > "$TMPRESCANFILE"
- > "$IMDBPID"
+ : > "$TMPRESCANFILE"
+ : > "$IMDBPID"
 fi
 exit 0

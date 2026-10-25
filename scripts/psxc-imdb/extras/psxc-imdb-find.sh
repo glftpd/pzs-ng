@@ -52,7 +52,7 @@
 # CONFIG
 
 # Version. No need to change.
-VERSION=3.2
+VERSION=3.2.1
 
 # (full) path to psxc-imdb.conf. Leave empty to auto-discover
 # ($GLROOT/etc/psxc-imdb.conf or /etc/psxc-imdb.conf).
@@ -153,7 +153,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 imdb_set_defaults
 imdb_load_config "$PSXC_IMDB_CONF"
 
-if [ -z "$IMDBNOURL" ] && [ $(echo "$IMDBSEARCHWORDS" | wc -w) -eq 1 ]; then
+if [ -z "$IMDBNOURL" ] && [ "$(echo "$IMDBSEARCHWORDS" | wc -w)" -eq 1 ]; then
  IMDBSEARCHID="$(echo -n "$IMDBSEARCHWORDS" | tr -cd '0-9')"
  if [ ! -z "$IMDBSEARCHID" ]; then
   IMDBIDWC=$(echo -n "$IMDBSEARCHID" | wc -c)

@@ -17,7 +17,7 @@
 ########
 
 # Version. No need to change
-VERSION=3.2
+VERSION=3.2.1
 
 # Path to psxc-imdb.sh. Auto-detected from this script's location
 # (both are deployed to the same dir, e.g. /bin inside the chroot).
@@ -80,7 +80,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 imdb_set_defaults
 imdb_load_config || exit 1
 
-MYTMPFILE=$(strip_glroot "$TMPFILE")
 MYTMPRESCANFILE=$(strip_glroot "$TMPRESCANFILE")
 IMDBPIDCHROOTED=$(strip_glroot "$IMDBPID")
 
@@ -96,8 +95,7 @@ IMDBPIDF="$(cat "$IMDBPIDCHROOTED")"
 
 echo $$ > "$IMDBPIDCHROOTED"
 
-if [ ! -z "`echo $@ | grep -e "[-][nNqQ][oOUu][bBfFaAEe][oOiIdDUu][tTlLdDEe]"`" ]; then
- PSXCFLAGS=$@
+if [ ! -z "$(echo "$@" | grep -e "[-][nNqQ][oOUu][bBfFaAEe][oOiIdDUu][tTlLdDEe]")" ]; then
  PSXCFLAG=0
 
  [[ ! -z "`echo "$@" | grep -e "[nN][oO][bB][oO][tT]"`" ]] &&
@@ -111,6 +109,13 @@ if [ ! -z "`echo $@ | grep -e "[-][nNqQ][oOUu][bBfFaAEe][oOiIdDUu][tTlLdDEe]"`" 
 
  echo $PSXCFLAG >$MYTMPRESCANFILE
 
+fi
+
+# FIXDIRTIME is scoped to rescan runs; -nofile means nothing in the release
+# dir may change, so it is not set then.
+if [ -z "$(echo "$@" | grep -e '[nN][oO][fF][iI][lL][eE]')" ]; then
+ PSXC_IMDB_RESCAN=1
+ export PSXC_IMDB_RESCAN
 fi
 
 proc_doscan() {
@@ -148,6 +153,6 @@ fi
 
 echo "Done."
 echo "-1" > "$IMDBPIDCHROOTED"
-[[ -z "$QUEUED" ]] && > "$IMDBPIDCHROOTED"
+[[ -z "$QUEUED" ]] && : > "$IMDBPIDCHROOTED"
 
 exit 0

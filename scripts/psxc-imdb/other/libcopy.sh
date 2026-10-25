@@ -156,7 +156,7 @@ if [ ! -z "$bsdlibs" ]; then
                 echo "OK"
             else
                 echo -n "Searching . . . " 
-                file=$(find / -name $(basename $bsdlib) | head -1)
+                file=$(find / -name "$(basename "$bsdlib")" | head -1)
                 if [ -n "$file" ]; then
                     cp -f "$file" "$glroot$bsdlibdir"
                     echo "OK"

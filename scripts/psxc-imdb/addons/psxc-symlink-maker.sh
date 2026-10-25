@@ -18,7 +18,7 @@ LANG="C.utf8"
 ############################################################################
 
 # version number. no need to change
-VERSION=3.2
+VERSION=3.2.1
 
 # Where should symlinks be put? This is relative to $GLROOT.
 SYMLINK_PATH=/site/MOVIES_SORTED
@@ -60,13 +60,6 @@ SORT_BY_CASTING_NAME="Sorted.by.Actors"
 # you're thinking of doing a rescan, this date will definitely be wrong).
 #SORT_BY_DATE_FORMAT="`date +"%Y.%m.%d-%H%M-.-"`"
 SORT_BY_DATE_FORMAT=""
-
-# If you use the auto-date feature, please take care to check this variable -
-# 'ls' differ on platforms, so you need to put this right.
-# for bsd the normal approach is to use 'ls'. on linux, 'ls' is too strange to
-# use, so we use gnu's 'find' instead.
-SORT_BY_DATE_LS="bsd"  # for the bsd's
-#SORT_BY_DATE_LS="gnu"  # this works on linux (gentoo at least)
 
 # Sorting by keywords require, eh, keywords. ;) You may have noticed the strange
 # name in SORT_BY_KEYWORD_NAME - we will replace the %KEYWORD% with something of
@@ -169,6 +162,12 @@ relative_target() {
  echo "$up${IMDBRELPATH#/site/}"
 }
 
+# mkdir -p with mode 0777 for every newly created level. With -p, -m only
+# applies to the deepest directory, so set the umask instead.
+make_dir777() {
+ ( umask 000; mkdir -p "$1" )
+}
+
 ###### Let's start
 
 # First, a couple of tests to make sure we got the variables.
@@ -266,7 +265,7 @@ proc_cleanup_double() {
 
 if [ $SORT_BY_GENRE -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME"
 
  # Cleanup Genre-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -278,7 +277,7 @@ if [ $SORT_BY_GENRE -eq 1 ]; then
   for GENRE in $IMDBGENRES; do
    GENRE=$(echo "$GENRE" | tr "$BADCHARS" "$BAD_CHAR_REPLACER")
    [[ ! -d  "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME/$GENRE" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME/$GENRE"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME/$GENRE"
    [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME/$GENRE/$IMDBDIRNAME" ]] &&
     ln -s "$(relative_target 2)" "$GLROOT$SYMLINK_PATH/$SORT_BY_GENRE_NAME/$GENRE/$IMDBDIRNAME"
   done
@@ -291,7 +290,7 @@ fi
 
 if [ $SORT_BY_LANGUAGE -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME"
 
  # Cleanup Language-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -308,7 +307,7 @@ if [ $SORT_BY_LANGUAGE -eq 1 ]; then
     LANGUAGE=$(echo "$LANGUAGE" | tr -c 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
    fi
    [[ ! -d  "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME/$LANGUAGE" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME/$LANGUAGE"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME/$LANGUAGE"
    [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME/$LANGUAGE/$IMDBDIRNAME" ]] &&
     ln -s "$(relative_target 2)" "$GLROOT$SYMLINK_PATH/$SORT_BY_LANGUAGE_NAME/$LANGUAGE/$IMDBDIRNAME"
   done
@@ -321,7 +320,7 @@ fi
 
 if [ $SORT_BY_DIRECTOR -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME"
 
  # Cleanup Director-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -347,9 +346,9 @@ if [ $SORT_BY_DIRECTOR -eq 1 ]; then
     DIRECTOR=$(echo "$DIRECTOR" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
    fi
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR"
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR/$DIRECTOR" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR/$DIRECTOR"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR/$DIRECTOR"
    [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR/$DIRECTOR/$IMDBDIRNAME" ]] &&
     ln -s "$(relative_target 3)" "$GLROOT$SYMLINK_PATH/$SORT_BY_DIRECTOR_NAME/$DIRECTORCHAR/$DIRECTOR/$IMDBDIRNAME"
   done
@@ -362,7 +361,7 @@ fi
 
 if [ $SORT_BY_CASTLEADNAME -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME"
 
  # Cleanup Castleadname-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -386,9 +385,9 @@ if [ $SORT_BY_CASTLEADNAME -eq 1 ]; then
    CASTLEADNAME=$(echo "$CASTLEADNAME" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
   fi
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR" ]] &&
-   mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR"
+   make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR"
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR/$CASTLEADNAME" ]] &&
-   mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR/$CASTLEADNAME"
+   make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR/$CASTLEADNAME"
   [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR/$CASTLEADNAME/$IMDBDIRNAME" ]] &&
    ln -s "$(relative_target 3)" "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTLEADNAME_NAME/$CASTLEADNAMECHAR/$CASTLEADNAME/$IMDBDIRNAME"
  fi
@@ -400,7 +399,7 @@ fi
 
 if [ $SORT_BY_CASTING -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME"
 
  # Cleanup Casting-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -426,9 +425,9 @@ if [ $SORT_BY_CASTING -eq 1 ]; then
     CASTING=$(echo "$CASTING" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
    fi
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR"
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR/$CASTING" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR/$CASTING"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR/$CASTING"
    [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR/$CASTING/$IMDBDIRNAME" ]] &&
     ln -s "$(relative_target 3)" "$GLROOT$SYMLINK_PATH/$SORT_BY_CASTING_NAME/$CASTINGCHAR/$CASTING/$IMDBDIRNAME"
   done
@@ -441,7 +440,7 @@ fi
 
 if [ $SORT_BY_YEAR -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME"
 
  # Cleanup Year-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -451,7 +450,7 @@ if [ $SORT_BY_YEAR -eq 1 ]; then
  if [ ! -z "$IMDBYEAR" ] && [ ! $ISEXEMPT -eq 1 ]; then
   MYYEAR="`echo "$IMDBYEAR" | tr -cd '0-9'`"
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME/$MYYEAR" ]] &&
-   mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME/$MYYEAR"
+   make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME/$MYYEAR"
   [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME/$MYYEAR/$IMDBDIRNAME" ]] &&
    ln -s "$(relative_target 2)" "$GLROOT$SYMLINK_PATH/$SORT_BY_YEAR_NAME/$MYYEAR/$IMDBDIRNAME"
  fi
@@ -463,7 +462,7 @@ fi
 
 if [ $SORT_BY_SCORE -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME"
 
  # Cleanup Score-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -474,7 +473,7 @@ if [ $SORT_BY_SCORE -eq 1 ]; then
   SCORE="`echo "$IMDBSCORE" | cut -d '.' -f 1`"
   [[ -z "$SCORE" ]] && SCORE="$SORT_BY_SCORE_NONE"
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME/$SCORE" ]] &&
-   mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME/$SCORE"
+   make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME/$SCORE"
   [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME/$SCORE/$IMDBDIRNAME" ]] &&
    ln -s "$(relative_target 2)" "$GLROOT$SYMLINK_PATH/$SORT_BY_SCORE_NAME/$SCORE/$IMDBDIRNAME"
  fi
@@ -486,7 +485,7 @@ fi
 
 if [ $SORT_BY_TITLE -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME"
 
  # Cleanup Title-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -524,7 +523,7 @@ if [ $SORT_BY_TITLE -eq 1 ]; then
    TITLE=$(echo "$TITLE" | tr -sc 'A-Za-z0-9_\-(). \n' "$SPECIAL_CHAR_REPLACER")
   fi
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME/$TITLECHAR" ]] &&
-   mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME/$TITLECHAR"
+   make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME/$TITLECHAR"
    CNTR=""
    while [ -L "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME/$TITLECHAR/$TITLE$CNTR" ] &&
      [ "$(relative_target 2)" != "$(readlink "$GLROOT$SYMLINK_PATH/$SORT_BY_TITLE_NAME/$TITLECHAR/$TITLE$CNTR")" ]; do
@@ -540,7 +539,7 @@ fi
 
 if [ $SORT_BY_GROUP -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME"
 
  # Cleanup Group-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -557,7 +556,7 @@ if [ $SORT_BY_GROUP -eq 1 ]; then
   fi
   if [ ! -z "$GROUP" ] && [ ! $ISEXEMPT -eq 1 ]; then
    [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME/$GROUP" ]] &&
-    mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME/$GROUP"
+    make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME/$GROUP"
    [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME/$GROUP/$IMDBDIRNAME" ]] &&
     ln -s "$(relative_target 2)" "$GLROOT$SYMLINK_PATH/$SORT_BY_GROUP_NAME/$GROUP/$IMDBDIRNAME"
   fi
@@ -570,7 +569,7 @@ fi
 
 if [ $SORT_BY_DATE -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_DATE_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DATE_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_DATE_NAME"
 
  # Cleanup Date-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -626,7 +625,7 @@ fi
 
 if [ $SORT_BY_TOP250 -eq 1 ]; then
  [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME" ]] &&
-  mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME"
+  make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME"
 
  # Cleanup TOP250-dirs
  [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -654,7 +653,7 @@ if [ $SORT_BY_TOP250 -eq 1 ]; then
     rm -fr "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME/"*.-."$IMDBNAMENEW".*
    fi
   [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME/$TOP250" ]] &&
-   mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME/$TOP250"
+   make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME/$TOP250"
   [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME/$TOP250/$IMDBDIRNAME" ]] &&
    ln -s "$(relative_target 2)" "$GLROOT$SYMLINK_PATH/$SORT_BY_TOP250_NAME/$TOP250/$IMDBDIRNAME"
  fi
@@ -671,7 +670,7 @@ if [ ! -z "$SORT_BY_KEYWORD_LIST" ]; then
     KEYWORD_REPLACE=`echo "$KEYWORD_PAIR" | cut -d '|' -f 2 | tr -d '\\/\"&'`
     SORT_BY_KEYWORD_REPLACED=`echo "$SORT_BY_KEYWORD_NAME" | sed "s/%KEYWORD%/$KEYWORD_REPLACE/g"`
     [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED" ]] &&
-     mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED"
+     make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED"
 
     # Cleanup Keyword-dirs
     [[ $CLEANUP_SYMLINKS -eq 1 ]] &&
@@ -681,7 +680,7 @@ if [ ! -z "$SORT_BY_KEYWORD_LIST" ]; then
     if [ ! $ISEXEMPT -eq 1 ]; then
      if [ ! -z "`echo "$IMDBDIRNAME" | tr '\.\ \-_' '\n' | tr 'A-Z' 'a-z' | grep -e "^$KEYWORD_SEARCH$"`" ]; then
      [[ ! -d "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED/" ]] &&
-      mkdir -pm777 "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED/"
+      make_dir777 "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED/"
      [[ ! -L "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED/$IMDBDIRNAME" ]] &&
       ln -s "$(relative_target 1)" "$GLROOT$SYMLINK_PATH/$SORT_BY_KEYWORD_REPLACED/$IMDBDIRNAME"
     fi
