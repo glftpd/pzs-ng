@@ -49,8 +49,13 @@ complete(GLOBAL *g, int completetype)
 #if message_store_in_mirror
 		if (snprintf(message_mirror_name, sizeof(message_mirror_name), storage "/%s/%s", g->l.path, message_file_name) >= (int)sizeof(message_mirror_name))
 			d_log("complete: mirror path too long, skipping symlink for %s\n", message_file_name);
-		else if (symlink(message_mirror_name, message_file_name) != 0)
-			d_log("complete: Couldn't create symlink %s -> %s: %s\n", message_file_name, message_mirror_name, strerror(errno));
+		else {
+			/* remove a leftover file/symlink first, else symlink() fails with EEXIST on rescan/re-race */
+			if (unlink(message_mirror_name) == -1 && errno != ENOENT)
+				d_log("complete: Couldn't remove old %s before creating symlink: %s\n", message_mirror_name, strerror(errno));
+			if (symlink(message_mirror_name, message_file_name) != 0)
+				d_log("complete: Couldn't create symlink %s -> %s: %s\n", message_file_name, message_mirror_name, strerror(errno));
+		}
 #endif
 		if (!(msgfile = fopen(message_file_name, "w"))) {
 			d_log("complete: Couldn't fopen %s: %s\n", message_file_name, strerror(errno));
