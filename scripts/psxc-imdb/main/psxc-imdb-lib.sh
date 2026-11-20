@@ -13,6 +13,7 @@
 imdb_set_defaults() {
   : ${CONFFILE:=/etc/psxc-imdb.conf}
   : ${IMDB_GRAPHQL_URL:=https://graphql.imdb.com/}
+  : ${IMDB_CLIENT_NAME:=imdb-web-next-localized}
   : ${IMDBAPI_TIMEOUT:=5}
   : ${API_RETRY_COUNT:=1}
   : ${API_RETRY_DELAY:=0}
@@ -124,6 +125,8 @@ imdb_request() {
       -H "Content-Type: application/json" \
       -H "Origin: https://www.imdb.com" \
       -H "Referer: https://www.imdb.com/" \
+      -H "x-imdb-client-name: $IMDB_CLIENT_NAME" \
+      -H "Accept: application/graphql+json, application/json" \
       --connect-timeout $IMDBAPI_TIMEOUT \
       -X POST "$IMDB_GRAPHQL_URL" \
       -d "$json_payload" 2>/dev/null)

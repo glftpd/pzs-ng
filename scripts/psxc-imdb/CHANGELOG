@@ -1,5 +1,9 @@
 PSXC-IMDB CHANGELOG:
 --------------------
+- v3.2.2 - Nov. 20th, 2026 - Send the IMDb web client header (x-imdb-client-name)
+                             on GraphQL requests; without it the API returns 403
+                             and the .imdb file stays empty. Overridable via
+                             IMDB_CLIENT_NAME.
 - v3.2.1 - Oct. 27th, 2026 - FIXDIRTIME=YES keeps the release dir's mtime on
                              "site imdb-rescan -1/-r": the .nfo's mtime is used
                              (or the pre-run mtime when no .nfo exists), and the
