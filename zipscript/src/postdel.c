@@ -609,7 +609,9 @@ main(int argc, char **argv)
 		}
 #if (create_missing_sample_link)
 		if (g.l.sample_incomplete) {
-			if (findfileextsub(".", sample_types, sample_list) || matchpartialdirname(missing_sample_check_ignore_list, g.v.misc.release_name, missing_sample_check_ignore_dividers)) {
+			if (findfileextsub(".", sample_types, sample_list) ||
+			    (g.l.in_cd_dir && findfileextsub("..", sample_types, sample_list)) ||
+			    matchpartialdirname(missing_sample_check_ignore_list, g.v.misc.release_name, missing_sample_check_ignore_dividers)) {
 				d_log("postdel: Removing missing-sample indicator (if any)\n");
 				remove_sample_indicator(&g);
 			} else if (matchpath(check_for_missing_sample_dirs, g.l.path) && (!matchpath(group_dirs, g.l.path) || create_incomplete_links_in_group_dirs)) {
@@ -619,25 +621,26 @@ main(int argc, char **argv)
 						d_log("postdel: Warning: create_incomplete_sample() returned something.\n");
 					}
 				} else {
-					if (findfileextsub("..", sample_types, sample_list)) {
-						d_log("postdel: Removing missing-sample indicator (if any)\n");
-						remove_sample_indicator(&g);
-					} else {
-						d_log("postdel: Creating missing-sample indicator (base) %s.\n", g.l.sample_incomplete);
+					/*
+					 * The flat removal check above already ruled out a
+					 * sample file being present in the parent dir, so we
+					 * always land on the "(base)" indicator here now -
+					 * no need for a second, redundant ".." check.
+					 */
+					d_log("postdel: Creating missing-sample indicator (base) %s.\n", g.l.sample_incomplete);
 
-						/* This is not pretty, but should be functional. */
-						if ((inc_point[0] = find_last_of(g.l.path, "/")) != g.l.path)
-							*inc_point[0] = '\0';
-						if ((inc_point[1] = find_last_of(g.v.misc.release_name, "/")) != g.v.misc.release_name)
-							*inc_point[1] = '\0';
-						if (create_incomplete_sample()) {
-							d_log("postdel: Warning: create_incomplete_sample() returned something.\n");
-						}
-						if (*inc_point[0] == '\0')
-							*inc_point[0] = '/';
-						if (*inc_point[1] == '\0')
-							*inc_point[1] = '/';
+					/* This is not pretty, but should be functional. */
+					if ((inc_point[0] = find_last_of(g.l.path, "/")) != g.l.path)
+						*inc_point[0] = '\0';
+					if ((inc_point[1] = find_last_of(g.v.misc.release_name, "/")) != g.v.misc.release_name)
+						*inc_point[1] = '\0';
+					if (create_incomplete_sample()) {
+						d_log("postdel: Warning: create_incomplete_sample() returned something.\n");
 					}
+					if (*inc_point[0] == '\0')
+						*inc_point[0] = '/';
+					if (*inc_point[1] == '\0')
+						*inc_point[1] = '/';
 				}
 			}
 		}
